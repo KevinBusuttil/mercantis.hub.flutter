@@ -45,8 +45,8 @@ abstract final class CrmModule {
         isSubmittable: false,
         fields: [
           FieldDefinition(key: 'opportunity_name', label: 'Opportunity Name', type: FieldType.data, required: true),
-          FieldDefinition(key: 'customer', label: 'Customer', type: FieldType.link, options: 'Customer'),
-          FieldDefinition(key: 'contact', label: 'Contact', type: FieldType.link, options: 'Contact'),
+          FieldDefinition(key: 'customer', label: 'Customer', type: FieldType.link, linkDocType: 'Customer', options: 'Customer'),
+          FieldDefinition(key: 'contact', label: 'Contact', type: FieldType.link, linkDocType: 'Contact', options: 'Contact'),
           FieldDefinition(
             key: 'opportunity_type',
             label: 'Opportunity Type',
@@ -105,7 +105,7 @@ abstract final class CrmModule {
           FieldDefinition(key: 'customer_group', label: 'Customer Group', type: FieldType.data),
           FieldDefinition(key: 'territory', label: 'Territory', type: FieldType.data),
           FieldDefinition(key: 'tax_id', label: 'Tax ID', type: FieldType.data),
-          FieldDefinition(key: 'default_currency', label: 'Default Currency', type: FieldType.link, options: 'Currency'),
+          FieldDefinition(key: 'default_currency', label: 'Default Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
           FieldDefinition(key: 'website', label: 'Website', type: FieldType.data),
         ],
       );

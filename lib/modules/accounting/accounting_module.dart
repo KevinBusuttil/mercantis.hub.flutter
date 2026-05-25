@@ -16,7 +16,7 @@ abstract final class AccountingModule {
         isTree: true,
         fields: [
           FieldDefinition(key: 'account_name', label: 'Account Name', type: FieldType.data, required: true),
-          FieldDefinition(key: 'company', label: 'Company', type: FieldType.link, options: 'Company'),
+          FieldDefinition(key: 'company', label: 'Company', type: FieldType.link, linkDocType: 'Company', options: 'Company'),
           FieldDefinition(
             key: 'root_type',
             label: 'Root Type',
@@ -29,10 +29,10 @@ abstract final class AccountingModule {
             type: FieldType.select,
             options: 'Accumulated Depreciation\nAsset Received But Not Billed\nBank\nCash\nChargeable\nCost of Goods Sold\nDepreciation\nEquity\nExpense Account\nExpenses Included In Asset Valuation\nFixed Asset\nIncome Account\nPayable\nReceivable\nRound Off\nStock\nStock Adjustment\nTax\nTemporary',
           ),
-          FieldDefinition(key: 'parent_account', label: 'Parent Account', type: FieldType.link, options: 'Account'),
+          FieldDefinition(key: 'parent_account', label: 'Parent Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'is_group', label: 'Is Group', type: FieldType.check),
           FieldDefinition(key: 'disabled', label: 'Disabled', type: FieldType.check),
-          FieldDefinition(key: 'currency', label: 'Account Currency', type: FieldType.link, options: 'Currency'),
+          FieldDefinition(key: 'currency', label: 'Account Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
         ],
       );
 
@@ -51,8 +51,8 @@ abstract final class AccountingModule {
             defaultValue: 'Journal Entry',
           ),
           FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
-          FieldDefinition(key: 'company', label: 'Company', type: FieldType.link, options: 'Company'),
-          FieldDefinition(key: 'accounts', label: 'Accounting Entries', type: FieldType.table, options: 'Journal Entry Account'),
+          FieldDefinition(key: 'company', label: 'Company', type: FieldType.link, linkDocType: 'Company', options: 'Company'),
+          FieldDefinition(key: 'accounts', label: 'Accounting Entries', type: FieldType.table, tableDocType: 'Journal Entry Account', options: 'Journal Entry Account'),
           FieldDefinition(key: 'total_debit', label: 'Total Debit', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'total_credit', label: 'Total Credit', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'difference', label: 'Difference', type: FieldType.currency, readOnly: true),
@@ -82,10 +82,10 @@ abstract final class AccountingModule {
             type: FieldType.select,
             options: 'Customer\nSupplier\nEmployee\nShareholder',
           ),
-          FieldDefinition(key: 'party', label: 'Party', type: FieldType.dynamicLink, options: 'party_type'),
+          FieldDefinition(key: 'party', label: 'Party', type: FieldType.dynamicLink, linkDocType: 'party_type', options: 'party_type'),
           FieldDefinition(key: 'party_name', label: 'Party Name', type: FieldType.data, readOnly: true),
-          FieldDefinition(key: 'paid_from', label: 'Paid From', type: FieldType.link, options: 'Account'),
-          FieldDefinition(key: 'paid_to', label: 'Paid To', type: FieldType.link, options: 'Account'),
+          FieldDefinition(key: 'paid_from', label: 'Paid From', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
+          FieldDefinition(key: 'paid_to', label: 'Paid To', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'paid_amount', label: 'Paid Amount', type: FieldType.currency, required: true),
           FieldDefinition(key: 'received_amount', label: 'Received Amount', type: FieldType.currency),
           FieldDefinition(
