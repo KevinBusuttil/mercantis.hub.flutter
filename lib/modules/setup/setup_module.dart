@@ -16,16 +16,16 @@ abstract final class SetupModule {
         module: _module,
         isSingleton: false,
         fields: [
-          FieldDefinition(fieldKey: 'company_name', label: 'Company Name', fieldType: FieldType.data, isMandatory: true),
-          FieldDefinition(fieldKey: 'abbr', label: 'Abbreviation', fieldType: FieldType.data, isMandatory: true),
-          FieldDefinition(fieldKey: 'country', label: 'Country', fieldType: FieldType.data),
-          FieldDefinition(fieldKey: 'default_currency', label: 'Default Currency', fieldType: FieldType.link, options: 'Currency'),
-          FieldDefinition(fieldKey: 'tax_id', label: 'Tax ID', fieldType: FieldType.data),
-          FieldDefinition(fieldKey: 'website', label: 'Website', fieldType: FieldType.data),
-          FieldDefinition(fieldKey: 'phone_no', label: 'Phone No', fieldType: FieldType.data),
-          FieldDefinition(fieldKey: 'email', label: 'Email', fieldType: FieldType.data),
-          FieldDefinition(fieldKey: 'address', label: 'Address', fieldType: FieldType.textEditor),
-          FieldDefinition(fieldKey: 'company_logo', label: 'Company Logo', fieldType: FieldType.attachImage),
+          FieldDefinition(key: 'company_name', label: 'Company Name', type: FieldType.data, required: true),
+          FieldDefinition(key: 'abbr', label: 'Abbreviation', type: FieldType.data, required: true),
+          FieldDefinition(key: 'country', label: 'Country', type: FieldType.data),
+          FieldDefinition(key: 'default_currency', label: 'Default Currency', type: FieldType.link, options: 'Currency'),
+          FieldDefinition(key: 'tax_id', label: 'Tax ID', type: FieldType.data),
+          FieldDefinition(key: 'website', label: 'Website', type: FieldType.data),
+          FieldDefinition(key: 'phone_no', label: 'Phone No', type: FieldType.data),
+          FieldDefinition(key: 'email', label: 'Email', type: FieldType.data),
+          FieldDefinition(key: 'address', label: 'Address', type: FieldType.longText),
+          FieldDefinition(key: 'company_logo', label: 'Company Logo', type: FieldType.attachImage),
         ],
       );
 
@@ -34,13 +34,13 @@ abstract final class SetupModule {
         name: 'Currency',
         module: _module,
         fields: [
-          FieldDefinition(fieldKey: 'currency_name', label: 'Currency Name', fieldType: FieldType.data, isMandatory: true),
-          FieldDefinition(fieldKey: 'symbol', label: 'Symbol', fieldType: FieldType.data),
-          FieldDefinition(fieldKey: 'fraction', label: 'Fraction', fieldType: FieldType.data),
-          FieldDefinition(fieldKey: 'fraction_units', label: 'Fraction Units', fieldType: FieldType.integer),
-          FieldDefinition(fieldKey: 'number_format', label: 'Number Format', fieldType: FieldType.data),
-          FieldDefinition(fieldKey: 'smallest_currency_fraction_value', label: 'Smallest Currency Fraction Value', fieldType: FieldType.float),
-          FieldDefinition(fieldKey: 'enabled', label: 'Enabled', fieldType: FieldType.check, defaultValue: '1'),
+          FieldDefinition(key: 'currency_name', label: 'Currency Name', type: FieldType.data, required: true),
+          FieldDefinition(key: 'symbol', label: 'Symbol', type: FieldType.data),
+          FieldDefinition(key: 'fraction', label: 'Fraction', type: FieldType.data),
+          FieldDefinition(key: 'fraction_units', label: 'Fraction Units', type: FieldType.integer),
+          FieldDefinition(key: 'number_format', label: 'Number Format', type: FieldType.data),
+          FieldDefinition(key: 'smallest_currency_fraction_value', label: 'Smallest Currency Fraction Value', type: FieldType.float),
+          FieldDefinition(key: 'enabled', label: 'Enabled', type: FieldType.check, defaultValue: '1'),
         ],
       );
 
@@ -49,11 +49,11 @@ abstract final class SetupModule {
         name: 'Fiscal Year',
         module: _module,
         fields: [
-          FieldDefinition(fieldKey: 'year', label: 'Year Name', fieldType: FieldType.data, isMandatory: true),
-          FieldDefinition(fieldKey: 'year_start_date', label: 'Year Start Date', fieldType: FieldType.date, isMandatory: true),
-          FieldDefinition(fieldKey: 'year_end_date', label: 'Year End Date', fieldType: FieldType.date, isMandatory: true),
-          FieldDefinition(fieldKey: 'is_short_year', label: 'Is Short Year', fieldType: FieldType.check),
-          FieldDefinition(fieldKey: 'companies', label: 'Companies', fieldType: FieldType.table, options: 'Fiscal Year Company'),
+          FieldDefinition(key: 'year', label: 'Year Name', type: FieldType.data, required: true),
+          FieldDefinition(key: 'year_start_date', label: 'Year Start Date', type: FieldType.date, required: true),
+          FieldDefinition(key: 'year_end_date', label: 'Year End Date', type: FieldType.date, required: true),
+          FieldDefinition(key: 'is_short_year', label: 'Is Short Year', type: FieldType.check),
+          FieldDefinition(key: 'companies', label: 'Companies', type: FieldType.table, options: 'Fiscal Year Company'),
         ],
       );
 
@@ -63,11 +63,11 @@ abstract final class SetupModule {
         module: _module,
         isTree: true,
         fields: [
-          FieldDefinition(fieldKey: 'cost_center_name', label: 'Cost Center Name', fieldType: FieldType.data, isMandatory: true),
-          FieldDefinition(fieldKey: 'parent_cost_center', label: 'Parent Cost Center', fieldType: FieldType.link, options: 'Cost Center'),
-          FieldDefinition(fieldKey: 'company', label: 'Company', fieldType: FieldType.link, options: 'Company'),
-          FieldDefinition(fieldKey: 'is_group', label: 'Is Group', fieldType: FieldType.check),
-          FieldDefinition(fieldKey: 'disabled', label: 'Disabled', fieldType: FieldType.check),
+          FieldDefinition(key: 'cost_center_name', label: 'Cost Center Name', type: FieldType.data, required: true),
+          FieldDefinition(key: 'parent_cost_center', label: 'Parent Cost Center', type: FieldType.link, options: 'Cost Center'),
+          FieldDefinition(key: 'company', label: 'Company', type: FieldType.link, options: 'Company'),
+          FieldDefinition(key: 'is_group', label: 'Is Group', type: FieldType.check),
+          FieldDefinition(key: 'disabled', label: 'Disabled', type: FieldType.check),
         ],
       );
 }
