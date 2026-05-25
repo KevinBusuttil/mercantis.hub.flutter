@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'hub_shell.dart';
+import 'module_workspace_view.dart';
 
 final hubRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -16,9 +17,16 @@ final hubRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const DocTypeListView(),
           ),
           GoRoute(
+            path: '/module/:moduleId',
+            builder: (context, state) => ModuleWorkspaceView(
+              moduleId: state.pathParameters['moduleId']!,
+            ),
+          ),
+          GoRoute(
             path: '/list/:docType',
-            builder: (context, state) =>
-                GenericListView(docTypeName: state.pathParameters['docType']!),
+            builder: (context, state) => RecordCollectionView(
+              docTypeName: state.pathParameters['docType']!,
+            ),
           ),
           GoRoute(
             path: '/form/:docType/new',
