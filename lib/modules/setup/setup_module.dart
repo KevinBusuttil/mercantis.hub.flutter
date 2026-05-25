@@ -19,7 +19,7 @@ abstract final class SetupModule {
           FieldDefinition(key: 'company_name', label: 'Company Name', type: FieldType.data, required: true),
           FieldDefinition(key: 'abbr', label: 'Abbreviation', type: FieldType.data, required: true),
           FieldDefinition(key: 'country', label: 'Country', type: FieldType.data),
-          FieldDefinition(key: 'default_currency', label: 'Default Currency', type: FieldType.link, options: 'Currency'),
+          FieldDefinition(key: 'default_currency', label: 'Default Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
           FieldDefinition(key: 'tax_id', label: 'Tax ID', type: FieldType.data),
           FieldDefinition(key: 'website', label: 'Website', type: FieldType.data),
           FieldDefinition(key: 'phone_no', label: 'Phone No', type: FieldType.data),
@@ -53,7 +53,7 @@ abstract final class SetupModule {
           FieldDefinition(key: 'year_start_date', label: 'Year Start Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'year_end_date', label: 'Year End Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'is_short_year', label: 'Is Short Year', type: FieldType.check),
-          FieldDefinition(key: 'companies', label: 'Companies', type: FieldType.table, options: 'Fiscal Year Company'),
+          FieldDefinition(key: 'companies', label: 'Companies', type: FieldType.table, tableDocType: 'Fiscal Year Company', options: 'Fiscal Year Company'),
         ],
       );
 
@@ -64,8 +64,8 @@ abstract final class SetupModule {
         isTree: true,
         fields: [
           FieldDefinition(key: 'cost_center_name', label: 'Cost Center Name', type: FieldType.data, required: true),
-          FieldDefinition(key: 'parent_cost_center', label: 'Parent Cost Center', type: FieldType.link, options: 'Cost Center'),
-          FieldDefinition(key: 'company', label: 'Company', type: FieldType.link, options: 'Company'),
+          FieldDefinition(key: 'parent_cost_center', label: 'Parent Cost Center', type: FieldType.link, linkDocType: 'Cost Center', options: 'Cost Center'),
+          FieldDefinition(key: 'company', label: 'Company', type: FieldType.link, linkDocType: 'Company', options: 'Company'),
           FieldDefinition(key: 'is_group', label: 'Is Group', type: FieldType.check),
           FieldDefinition(key: 'disabled', label: 'Disabled', type: FieldType.check),
         ],

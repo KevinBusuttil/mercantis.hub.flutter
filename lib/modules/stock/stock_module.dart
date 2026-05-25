@@ -17,7 +17,7 @@ abstract final class StockModule {
         isTree: true,
         fields: [
           FieldDefinition(key: 'item_group_name', label: 'Name', type: FieldType.data, required: true),
-          FieldDefinition(key: 'parent_item_group', label: 'Parent', type: FieldType.link, options: 'Item Group'),
+          FieldDefinition(key: 'parent_item_group', label: 'Parent', type: FieldType.link, linkDocType: 'Item Group', options: 'Item Group'),
           FieldDefinition(key: 'is_group', label: 'Is Group', type: FieldType.check),
           FieldDefinition(key: 'description', label: 'Description', type: FieldType.smallText),
         ],
@@ -31,7 +31,7 @@ abstract final class StockModule {
         fields: [
           FieldDefinition(key: 'item_code', label: 'Item Code', type: FieldType.data, required: true),
           FieldDefinition(key: 'item_name', label: 'Item Name', type: FieldType.data, required: true),
-          FieldDefinition(key: 'item_group', label: 'Item Group', type: FieldType.link, options: 'Item Group'),
+          FieldDefinition(key: 'item_group', label: 'Item Group', type: FieldType.link, linkDocType: 'Item Group', options: 'Item Group'),
           FieldDefinition(key: 'description', label: 'Description', type: FieldType.longText),
           FieldDefinition(
             key: 'stock_uom',
@@ -57,14 +57,14 @@ abstract final class StockModule {
         isTree: true,
         fields: [
           FieldDefinition(key: 'warehouse_name', label: 'Warehouse Name', type: FieldType.data, required: true),
-          FieldDefinition(key: 'company', label: 'Company', type: FieldType.link, options: 'Company'),
+          FieldDefinition(key: 'company', label: 'Company', type: FieldType.link, linkDocType: 'Company', options: 'Company'),
           FieldDefinition(
             key: 'warehouse_type',
             label: 'Warehouse Type',
             type: FieldType.select,
             options: 'Stores\nWork In Progress\nFinished Goods\nScrap\nVirtual',
           ),
-          FieldDefinition(key: 'parent_warehouse', label: 'Parent Warehouse', type: FieldType.link, options: 'Warehouse'),
+          FieldDefinition(key: 'parent_warehouse', label: 'Parent Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
           FieldDefinition(key: 'is_group', label: 'Is Group', type: FieldType.check),
           FieldDefinition(key: 'disabled', label: 'Disabled', type: FieldType.check),
           FieldDefinition(key: 'address', label: 'Address', type: FieldType.smallText),
@@ -86,9 +86,9 @@ abstract final class StockModule {
             required: true,
           ),
           FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
-          FieldDefinition(key: 'from_warehouse', label: 'From Warehouse', type: FieldType.link, options: 'Warehouse'),
-          FieldDefinition(key: 'to_warehouse', label: 'To Warehouse', type: FieldType.link, options: 'Warehouse'),
-          FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, options: 'Stock Entry Detail'),
+          FieldDefinition(key: 'from_warehouse', label: 'From Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
+          FieldDefinition(key: 'to_warehouse', label: 'To Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
+          FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Stock Entry Detail', options: 'Stock Entry Detail'),
           FieldDefinition(key: 'total_amount', label: 'Total Amount', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'remarks', label: 'Remarks', type: FieldType.smallText),
         ],
