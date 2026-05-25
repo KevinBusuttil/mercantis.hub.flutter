@@ -7,8 +7,10 @@ void main() {
   runApp(
     ProviderScope(
       overrides: [
-        // Prototype: feed the approval inbox with mock entries.
-        hubApprovalInboxSourceOverride,
+        hubCurrentUserOverride,
+        // Prototype: feed the approval inbox with mock entries. Swap for
+        // [metadataApprovalInboxSourceOverride] once real documents exist.
+        mockApprovalInboxSourceOverride,
       ],
       child: const MercantisHubApp(),
     ),
