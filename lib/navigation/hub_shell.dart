@@ -1,40 +1,56 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'hub_modules.dart';
 
 class _Dest {
   const _Dest(this.label, this.icon, this.selectedIcon, this.path);
   final String label;
-  final Widget icon;
-  final Widget selectedIcon;
+  final IconData icon;
+  final IconData selectedIcon;
   final String path;
 }
 
-const _destinations = [
-  _Dest('Home', Icon(Icons.home_outlined), Icon(Icons.home), '/home'),
-  _Dest('CRM', Icon(Icons.people_outline), Icon(Icons.people), '/list/Customer'),
-  _Dest('Selling', Icon(Icons.receipt_long_outlined), Icon(Icons.receipt_long), '/list/Sales Invoice'),
-  _Dest('Buying', Icon(Icons.shopping_cart_outlined), Icon(Icons.shopping_cart), '/list/Purchase Invoice'),
-  _Dest('Stock', Icon(Icons.inventory_2_outlined), Icon(Icons.inventory_2), '/list/Item'),
-  _Dest('Accounting', Icon(Icons.account_balance_outlined), Icon(Icons.account_balance), '/list/Journal Entry'),
-];
+List<_Dest> _buildDestinations() {
+  return [
+    const _Dest('Home', Icons.home_outlined, Icons.home, '/home'),
+    for (final m in HubModules.all)
+      _Dest(
+        m.label,
+        m.icon,
+        m.selectedIcon ?? m.icon,
+        '/module/${m.id}',
+      ),
+  ];
+}
 
 class HubShell extends ConsumerWidget {
   const HubShell({super.key, required this.child});
   final Widget child;
 
-  int _selectedIndex(BuildContext context) {
+  int _selectedIndex(BuildContext context, List<_Dest> destinations) {
     final loc = GoRouterState.of(context).matchedLocation;
-    for (int i = 0; i < _destinations.length; i++) {
-      if (loc.startsWith(_destinations[i].path)) return i;
+    // Prefer the longest matching prefix so /module/crm doesn't collide with
+    // /module/.
+    int bestIndex = 0;
+    int bestLength = 0;
+    for (int i = 0; i < destinations.length; i++) {
+      final path = destinations[i].path;
+      if (loc == path || loc.startsWith('$path/')) {
+        if (path.length > bestLength) {
+          bestIndex = i;
+          bestLength = path.length;
+        }
+      }
     }
-    return 0;
+    return bestIndex;
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final destinations = _buildDestinations();
     final wide = MediaQuery.sizeOf(context).width >= 800;
-    final selected = _selectedIndex(context);
+    final selected = _selectedIndex(context, destinations);
 
     if (wide) {
       return Scaffold(
@@ -42,17 +58,18 @@ class HubShell extends ConsumerWidget {
           children: [
             NavigationRail(
               selectedIndex: selected,
+              labelType: NavigationRailLabelType.all,
               onDestinationSelected: (i) =>
-                  context.go(_destinations[i].path),
+                  context.go(destinations[i].path),
               leading: const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
                 child: _HubLogo(),
               ),
               destinations: [
-                for (final d in _destinations)
+                for (final d in destinations)
                   NavigationRailDestination(
-                    icon: d.icon,
-                    selectedIcon: d.selectedIcon,
+                    icon: Icon(d.icon),
+                    selectedIcon: Icon(d.selectedIcon),
                     label: Text(d.label),
                   ),
               ],
@@ -64,19 +81,67 @@ class HubShell extends ConsumerWidget {
       );
     }
 
+    // On narrow layouts the bottom navigation bar shows Home + a handful of
+    // modules. Anything beyond five entries is collapsed into a "More" sheet
+    // so we keep room for the Material 3 NavigationBar layout.
+    const maxBottomDestinations = 5;
+    final showAll = destinations.length <= maxBottomDestinations;
+    final visible = showAll
+        ? destinations
+        : destinations.sublist(0, maxBottomDestinations - 1);
+
+    int narrowSelected = selected;
+    if (!showAll && narrowSelected >= visible.length) {
+      narrowSelected = 0;
+    }
+
     return Scaffold(
       body: child,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: selected,
-        onDestinationSelected: (i) => context.go(_destinations[i].path),
+        selectedIndex: narrowSelected,
+        onDestinationSelected: (i) {
+          if (!showAll && i == visible.length) {
+            _showMoreSheet(context, destinations.sublist(visible.length));
+            return;
+          }
+          context.go(visible[i].path);
+        },
         destinations: [
-          for (final d in _destinations)
+          for (final d in visible)
             NavigationDestination(
-              icon: d.icon,
-              selectedIcon: d.selectedIcon,
+              icon: Icon(d.icon),
+              selectedIcon: Icon(d.selectedIcon),
               label: d.label,
             ),
+          if (!showAll)
+            const NavigationDestination(
+              icon: Icon(Icons.more_horiz),
+              label: 'More',
+            ),
         ],
+      ),
+    );
+  }
+
+  void _showMoreSheet(BuildContext context, List<_Dest> overflow) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final d in overflow)
+              ListTile(
+                leading: Icon(d.icon),
+                title: Text(d.label),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  context.go(d.path);
+                },
+              ),
+          ],
+        ),
       ),
     );
   }
