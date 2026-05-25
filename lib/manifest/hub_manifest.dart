@@ -21,13 +21,12 @@ abstract final class HubManifest {
       id: 'app.mercantis.hub',
       name: 'Mercantis Hub',
       version: '1.0.0',
-      description: 'Full ERP application: CRM, Selling, Buying, Stock, Accounting.',
       docTypes: allDocTypes,
-      workflows: [],
-      schedulerEvents: [],
-      documentSubscriptions: [],
-      reports: [],
-      dashboards: [],
+      workflows: const [],
+      schedulerEvents: const [],
+      documentEventSubscriptions: const [],
+      reports: const [],
+      dashboards: const [],
     );
   }
 }
