@@ -6,6 +6,7 @@ import '../modules/stock/stock_module.dart';
 import '../modules/accounting/accounting_module.dart';
 import '../modules/fulfilment/fulfilment_module.dart';
 import '../modules/setup/setup_module.dart';
+import '../workflows/hub_workflows.dart';
 
 abstract final class HubManifest {
   static AppManifest build() {
@@ -24,7 +25,7 @@ abstract final class HubManifest {
       name: 'Mercantis Hub',
       version: '1.0.0',
       docTypes: allDocTypes,
-      workflows: const [],
+      workflows: HubWorkflows.all(),
       schedulerEvents: const [],
       documentEventSubscriptions: const [],
       reports: const [],
