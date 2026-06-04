@@ -239,4 +239,14 @@ void main() {
       expect(snap.valuationRate, 0); // guarded divide-by-zero
     });
   });
+
+  group('Outstanding amount', () {
+    test('grand total less signed settlement allocations (idempotent)', () {
+      expect(outstandingAmount(1000, const []), 1000); // freshly submitted
+      // Two allocations of 300 + 200, then a reversal of the 200.
+      expect(outstandingAmount(1000, [300, 200, -200]), 700);
+      // Fully settled.
+      expect(outstandingAmount(1000, [600, 400]), 0);
+    });
+  });
 }

@@ -32,3 +32,10 @@ String reversalSuffix(bool reversal) => reversal ? '-reversal' : '';
 /// zero) used by the stock balance calculator.
 double round2(num v) => (v * 100).round() / 100;
 double round3(num v) => (v * 1000).round() / 1000;
+
+/// An invoice's outstanding balance: its grand total less everything settled
+/// against it. Settlement allocations are already signed (reversals carry a
+/// negative `allocated_amount`), so a plain sum nets cancellations correctly —
+/// making this idempotent no matter how many times derivation re-fires.
+num outstandingAmount(num grandTotal, Iterable<num> settledAllocations) =>
+    grandTotal - settledAllocations.fold<num>(0, (sum, a) => sum + a);

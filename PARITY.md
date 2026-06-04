@@ -37,8 +37,8 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 | DeliveryRouteService | ✅ | ❌ | pending (Phase 6) |
 | Business Profile defaults policy | ✅ | ❌ | **Phase 3 follow-up** — currency/accounts/warehouse on new drafts |
 | Fiscal-year posting validation | ✅ | ❌ | **Phase 3 follow-up** |
-| Posting-account resolution | ✅ | 🟡 | reads explicit invoice fields; profile/company fallback is a Phase 3 follow-up |
-| Invoice `outstanding_amount` update on settlement | ✅ | ❌ | blocked: core `save()` forbids writing docStatus==1 docs — derive outstanding from subledger, or add a core API |
+| Posting-account resolution | ✅ | 🟡 | reads explicit invoice fields; company-default fallback still a follow-up (needs default-account fields on Company) |
+| Invoice `outstanding_amount` update on settlement | ✅ | ✅ | **core `applyOnSubmitUpdate` added**; runner recomputes outstanding from the Settlement subledger (idempotent) on invoice submit + payment submit/cancel |
 | Tax legs (VAT split + TaxTrans rows) | ✅ | ❌ | pending Tax module; invoices post 2-leg GL meanwhile |
 
 ## Reports, dashboards & flows

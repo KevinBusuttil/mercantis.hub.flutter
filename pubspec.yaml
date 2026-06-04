@@ -4,7 +4,7 @@ version: 1.0.0+1
 publish_to: none
 
 environment:
-  sdk: '>=3.5.0 <4.0.0'
+  sdk: '>=3.6.0 <4.0.0'
   flutter: '>=3.27.0'
 
 dependencies:
@@ -14,12 +14,12 @@ dependencies:
     git:
       url: https://github.com/kevinbusuttil/mercantis.core.flutter.git
       path: packages/mercantis_core
-      ref: b236d937c480c82cff5dc399606e981e4c8b3af3
+      ref: 9ec6579a3f359d70f6f46f1b25055e4f5d29097b
   mercantis_core_ui:
     git:
       url: https://github.com/kevinbusuttil/mercantis.core.flutter.git
       path: packages/mercantis_core_ui
-      ref: b236d937c480c82cff5dc399606e981e4c8b3af3
+      ref: 9ec6579a3f359d70f6f46f1b25055e4f5d29097b
   flutter_riverpod: ^2.5.1
   go_router: ^14.2.7
   sqflite: ^2.3.3+1
