@@ -3,10 +3,26 @@ import 'package:mercantis_core/mercantis_core.dart';
 abstract final class AccountingModule {
   static const _module = 'Accounting';
 
+  /// Append-only conflict policy shared by every derived subledger DocType.
+  static const _ledgerPolicy =
+      SyncPolicy(conflictResolution: ConflictResolution.appendOnly);
+
+  static const _partyTypeOptions = '\nCustomer\nSupplier\nEmployee';
+  static const _transTypeOptions =
+      'Invoice\nPayment\nCreditNote\nSettlement\nWriteOff\nAdjustment\nInterest\nFee';
+
   static List<DocType> docTypes() => [
         _account(),
         _journalEntry(),
+        _journalEntryAccount(),
         _payment(),
+        _paymentEntryReference(),
+        // Derived subledgers — written by the Phase 3 ledger derivation service.
+        _glEntry(),
+        _customerTransaction(),
+        _supplierTransaction(),
+        _settlement(),
+        _taxTransaction(),
       ];
 
   static DocType _account() => DocType(
@@ -42,6 +58,7 @@ abstract final class AccountingModule {
         module: _module,
         isSubmittable: true,
         namingRule: 'JV-.YYYY.-.####',
+        workflowId: 'wf-journal-entry',
         fields: [
           FieldDefinition(
             key: 'voucher_type',
@@ -61,12 +78,31 @@ abstract final class AccountingModule {
         ],
       );
 
+  /// Child table for [_journalEntry]: one double-entry row.
+  static DocType _journalEntryAccount() => DocType(
+        id: 'Journal Entry Account',
+        name: 'Journal Entry Account',
+        module: _module,
+        isChild: true,
+        fields: [
+          FieldDefinition(key: 'account', label: 'Account', type: FieldType.link, linkDocType: 'Account', options: 'Account', required: true),
+          FieldDefinition(key: 'party_type', label: 'Party Type', type: FieldType.select, options: _partyTypeOptions),
+          FieldDefinition(key: 'party', label: 'Party', type: FieldType.data),
+          FieldDefinition(key: 'debit', label: 'Debit', type: FieldType.currency, defaultValue: '0'),
+          FieldDefinition(key: 'credit', label: 'Credit', type: FieldType.currency, defaultValue: '0'),
+          FieldDefinition(key: 'cost_center', label: 'Cost Center', type: FieldType.link, linkDocType: 'Cost Center', options: 'Cost Center'),
+          FieldDefinition(key: 'reference_doctype', label: 'Reference DocType', type: FieldType.select, options: '\nSales Invoice\nPurchase Invoice\nPayment Entry\nJournal Entry'),
+          FieldDefinition(key: 'reference_name', label: 'Reference Name', type: FieldType.data),
+        ],
+      );
+
   static DocType _payment() => DocType(
         id: 'Payment Entry',
         name: 'Payment Entry',
         module: _module,
         isSubmittable: true,
         namingRule: 'PAY-.YYYY.-.####',
+        workflowId: 'wf-payment-entry',
         fields: [
           FieldDefinition(
             key: 'payment_type',
@@ -88,6 +124,8 @@ abstract final class AccountingModule {
           FieldDefinition(key: 'paid_to', label: 'Paid To', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'paid_amount', label: 'Paid Amount', type: FieldType.currency, required: true),
           FieldDefinition(key: 'received_amount', label: 'Received Amount', type: FieldType.currency),
+          // Invoice allocations — promoted to Settlement rows on submit (Phase 3).
+          FieldDefinition(key: 'references', label: 'Payment References', type: FieldType.table, tableDocType: 'Payment Entry Reference', options: 'Payment Entry Reference'),
           FieldDefinition(
             key: 'mode_of_payment',
             label: 'Mode of Payment',
@@ -96,6 +134,126 @@ abstract final class AccountingModule {
           ),
           FieldDefinition(key: 'reference_no', label: 'Reference No', type: FieldType.data),
           FieldDefinition(key: 'remarks', label: 'Remarks', type: FieldType.smallText),
+        ],
+      );
+
+  /// Child table for [_payment]: an allocation of the payment against an
+  /// outstanding invoice or journal entry.
+  static DocType _paymentEntryReference() => DocType(
+        id: 'Payment Entry Reference',
+        name: 'Payment Entry Reference',
+        module: _module,
+        isChild: true,
+        fields: [
+          FieldDefinition(key: 'reference_doctype', label: 'Reference DocType', type: FieldType.select, options: 'Sales Invoice\nPurchase Invoice\nJournal Entry', required: true),
+          FieldDefinition(key: 'reference_name', label: 'Reference Name', type: FieldType.data, required: true),
+          FieldDefinition(key: 'total_amount', label: 'Total Amount', type: FieldType.currency),
+          FieldDefinition(key: 'outstanding_amount', label: 'Outstanding', type: FieldType.currency),
+          FieldDefinition(key: 'allocated_amount', label: 'Allocated Amount', type: FieldType.currency, required: true, defaultValue: '0'),
+        ],
+      );
+
+  /// The universal general ledger. One or more rows per submitted Invoice /
+  /// Payment / Journal / Stock voucher; reversals append `is_reversal` rows.
+  static DocType _glEntry() => DocType(
+        id: 'GL Entry',
+        name: 'GL Entry',
+        module: _module,
+        syncPolicy: _ledgerPolicy,
+        fields: [
+          FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
+          FieldDefinition(key: 'account', label: 'Account', type: FieldType.link, linkDocType: 'Account', options: 'Account', required: true),
+          FieldDefinition(key: 'debit', label: 'Debit', type: FieldType.currency, defaultValue: '0'),
+          FieldDefinition(key: 'credit', label: 'Credit', type: FieldType.currency, defaultValue: '0'),
+          FieldDefinition(key: 'party_type', label: 'Party Type', type: FieldType.select, options: _partyTypeOptions),
+          FieldDefinition(key: 'party', label: 'Party', type: FieldType.data),
+          FieldDefinition(key: 'cost_center', label: 'Cost Center', type: FieldType.link, linkDocType: 'Cost Center', options: 'Cost Center'),
+          FieldDefinition(key: 'voucher_type', label: 'Voucher Type', type: FieldType.data, required: true),
+          FieldDefinition(key: 'voucher_no', label: 'Voucher No', type: FieldType.data, required: true),
+          FieldDefinition(key: 'remarks', label: 'Remarks', type: FieldType.longText),
+          FieldDefinition(key: 'is_reversal', label: 'Reversal', type: FieldType.check),
+        ],
+      );
+
+  /// Customer subledger (Swift `CustTrans`): signed amounts, positive = the
+  /// customer owes us. Powers the Customer Statement & aging reports.
+  static DocType _customerTransaction() => DocType(
+        id: 'Customer Transaction',
+        name: 'Customer Transaction',
+        module: _module,
+        syncPolicy: _ledgerPolicy,
+        fields: [
+          FieldDefinition(key: 'trans_type', label: 'Trans Type', type: FieldType.select, options: _transTypeOptions, required: true),
+          FieldDefinition(key: 'customer', label: 'Customer', type: FieldType.link, linkDocType: 'Customer', options: 'Customer', required: true),
+          FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
+          FieldDefinition(key: 'due_date', label: 'Due Date', type: FieldType.date),
+          FieldDefinition(key: 'amount', label: 'Amount', type: FieldType.currency, required: true, defaultValue: '0'),
+          FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          FieldDefinition(key: 'voucher_type', label: 'Voucher Type', type: FieldType.data, required: true),
+          FieldDefinition(key: 'voucher_no', label: 'Voucher No', type: FieldType.data, required: true),
+          FieldDefinition(key: 'is_reversal', label: 'Reversal', type: FieldType.check),
+        ],
+      );
+
+  /// Supplier subledger (Swift `VendTrans`): symmetric to customer; positive =
+  /// we owe the supplier.
+  static DocType _supplierTransaction() => DocType(
+        id: 'Supplier Transaction',
+        name: 'Supplier Transaction',
+        module: _module,
+        syncPolicy: _ledgerPolicy,
+        fields: [
+          FieldDefinition(key: 'trans_type', label: 'Trans Type', type: FieldType.select, options: _transTypeOptions, required: true),
+          FieldDefinition(key: 'supplier', label: 'Supplier', type: FieldType.link, linkDocType: 'Supplier', options: 'Supplier', required: true),
+          FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
+          FieldDefinition(key: 'due_date', label: 'Due Date', type: FieldType.date),
+          FieldDefinition(key: 'amount', label: 'Amount', type: FieldType.currency, required: true, defaultValue: '0'),
+          FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          FieldDefinition(key: 'voucher_type', label: 'Voucher Type', type: FieldType.data, required: true),
+          FieldDefinition(key: 'voucher_no', label: 'Voucher No', type: FieldType.data, required: true),
+          FieldDefinition(key: 'is_reversal', label: 'Reversal', type: FieldType.check),
+        ],
+      );
+
+  /// Explicit "payment X settled invoice Y for amount Z" rows — derived from
+  /// `Payment Entry.references` on submit. Makes statement reports trivial.
+  static DocType _settlement() => DocType(
+        id: 'Settlement',
+        name: 'Settlement',
+        module: _module,
+        syncPolicy: _ledgerPolicy,
+        fields: [
+          FieldDefinition(key: 'payment_voucher_type', label: 'Payment DocType', type: FieldType.data, required: true),
+          FieldDefinition(key: 'payment_voucher_no', label: 'Payment No', type: FieldType.data, required: true),
+          FieldDefinition(key: 'invoice_voucher_type', label: 'Invoice DocType', type: FieldType.data, required: true),
+          FieldDefinition(key: 'invoice_voucher_no', label: 'Invoice No', type: FieldType.data, required: true),
+          FieldDefinition(key: 'party_type', label: 'Party Type', type: FieldType.select, options: 'Customer\nSupplier', required: true),
+          FieldDefinition(key: 'party', label: 'Party', type: FieldType.data, required: true),
+          FieldDefinition(key: 'allocated_amount', label: 'Allocated Amount', type: FieldType.currency, required: true, defaultValue: '0'),
+          FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
+          FieldDefinition(key: 'is_reversal', label: 'Reversal', type: FieldType.check),
+        ],
+      );
+
+  /// Tax subledger (Swift `TaxTrans`): VAT / WHT / sales-tax postings. Reserved
+  /// here; rows begin flowing once the Tax module's derivation lands.
+  static DocType _taxTransaction() => DocType(
+        id: 'Tax Transaction',
+        name: 'Tax Transaction',
+        module: _module,
+        syncPolicy: _ledgerPolicy,
+        fields: [
+          FieldDefinition(key: 'tax_type', label: 'Tax Type', type: FieldType.select, options: 'VAT\nSalesTax\nWHT\nExciseDuty', required: true),
+          FieldDefinition(key: 'tax', label: 'Tax', type: FieldType.data),
+          FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
+          FieldDefinition(key: 'base_amount', label: 'Taxable Base', type: FieldType.currency, required: true, defaultValue: '0'),
+          FieldDefinition(key: 'tax_amount', label: 'Tax Amount', type: FieldType.currency, required: true, defaultValue: '0'),
+          FieldDefinition(key: 'rate', label: 'Rate (%)', type: FieldType.float, defaultValue: '0'),
+          FieldDefinition(key: 'party_type', label: 'Party Type', type: FieldType.select, options: '\nCustomer\nSupplier'),
+          FieldDefinition(key: 'party', label: 'Party', type: FieldType.data),
+          FieldDefinition(key: 'voucher_type', label: 'Voucher Type', type: FieldType.data, required: true),
+          FieldDefinition(key: 'voucher_no', label: 'Voucher No', type: FieldType.data, required: true),
+          FieldDefinition(key: 'is_reversal', label: 'Reversal', type: FieldType.check),
         ],
       );
 }

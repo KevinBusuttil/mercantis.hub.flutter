@@ -16,21 +16,21 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 | Module | Swift DocTypes | Flutter | Notes |
 |--------|:----:|:----:|-------|
 | CRM | Customer, Supplier, Contact, Address, Lead, DynamicLink | 🟡 | masters defined; Address + DynamicLink missing |
-| Setup | 14 (Company, groups, masters, PriceList, FiscalYear, UOM…) | 🟡 | core masters only; tree masters, UOM, Brand, PriceList partial |
-| Selling | Item, Quotation, SalesOrder, SalesInvoice + line items | 🟡 | parents defined; **line-item child DocTypes missing** |
-| Buying | Supplier, SQ, PO, PurchaseInvoice, Receipt + items | 🟡 | line items missing |
-| Stock | Item, StockEntry, **StockLedgerEntry, Bin** | 🟡 | ledger/Bin missing |
-| Accounting | Account, JE, PaymentEntry + **GL/CustTrans/VendTrans/Settlement/TaxTrans** | 🟡 | subledger tables all missing |
-| Deliveries | SalesDelivery, Route, Driver, Vehicle, StatusEvent | 🟡 | partial; Routes/Fleet mostly mock |
-| Manufacturing | BOM, WorkOrder, JobCard, ProductionPlan, Workstation, Operation | ❌ | module not ported |
-| POS | POSProfile, POSSession, POSInvoice, PaymentTender | ❌ | not ported |
-| Tax | TaxCode, TaxCategory, TaxCharge | ❌ | not ported |
+| Setup | 14 (Company, groups, masters, PriceList, FiscalYear, UOM…) | 🟡 | core masters + Fiscal Year Company child; UOM/Brand/PriceList pending |
+| Selling | Item, Quotation, SalesOrder, SalesInvoice + line items | ✅ | **line-item child DocTypes added (Phase 2)** |
+| Buying | Supplier, SQ, PO, PurchaseInvoice, Receipt + items | 🟡 | line items added; Supplier Quotation pending |
+| Stock | Item, StockEntry, **StockLedgerEntry, Bin** | ✅ | **Stock Entry Detail + Stock Ledger Entry + Bin added (Phase 2)** |
+| Accounting | Account, JE, PaymentEntry + **GL/CustTrans/VendTrans/Settlement/TaxTrans** | ✅ | **all subledger tables + JE Account + PE Reference added (Phase 2)** |
+| Deliveries | SalesDelivery, Route, Driver, Vehicle, StatusEvent | 🟡 | Delivery Note + items + journey workflow; Routes/Fleet mostly mock |
+| Manufacturing | BOM, WorkOrder, JobCard, ProductionPlan, Workstation, Operation | ❌ | module not ported (workflows defined, inert) |
+| POS | POSProfile, POSSession, POSInvoice, PaymentTender | ❌ | not ported (workflow defined, inert) |
+| Tax | TaxCode, TaxCategory, TaxCharge | ❌ | not ported (Tax Transaction subledger stub present) |
 
 ## Business logic (the critical path)
 
 | Capability | Swift | Flutter | Notes |
 |------------|:----:|:------:|-------|
-| Workflows (14) | ✅ | ❌ | manifest `workflows: []` |
+| Workflows (14) | ✅ | ✅ | **all 14 defined + bound to existing submittable DocTypes (Phase 2)**; 4 inert pending modules |
 | **LedgerDerivationService** (GL/SLE/Cust/Vend/Settlement on submit & cancel) | ✅ | ❌ | deterministic ids + reversal — port verbatim |
 | **StockBalanceService** (Bin recompute) | ✅ | ❌ | |
 | ManufacturingDerivationService | ✅ | ❌ | |
@@ -60,8 +60,12 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 
 ## Sequenced plan (ERP-correctness-first)
 
-1. **Phase 2 — data model.** Line-item child DocTypes; all missing DocTypes
-   incl. ledger tables (GL/SLE/Bin/Cust/Vend/Settlement); the 14 workflows.
+1. **Phase 2 — data model.** ✅ _Done:_ line-item child DocTypes (sales,
+   purchase, stock, JE accounts, payment references, fulfilment); ledger tables
+   (GL Entry, Customer/Supplier Transaction, Settlement, Tax Transaction, Stock
+   Ledger Entry, Bin); all 14 workflows defined + bound. Guarded by
+   `test/manifest_integrity_test.dart`. _Remaining:_ Item UOM/supplier child
+   tables, Address/DynamicLink, UOM/Brand/PriceList masters.
 2. **Phase 3 — ledger spine (critical).** Port `LedgerDerivationService` +
    `StockBalanceService` + posting-account resolution + fiscal-year & profile
    policies. Verify with ported tests + a balanced-books check.

@@ -8,6 +8,9 @@ abstract final class StockModule {
         _item(),
         _warehouse(),
         _stockEntry(),
+        _stockEntryDetail(),
+        _stockLedgerEntry(),
+        _bin(),
       ];
 
   static DocType _itemGroup() => DocType(
@@ -77,6 +80,7 @@ abstract final class StockModule {
         module: _module,
         isSubmittable: true,
         namingRule: 'STE-.YYYY.-.####',
+        workflowId: 'wf-stock-entry',
         fields: [
           FieldDefinition(
             key: 'stock_entry_type',
@@ -91,6 +95,70 @@ abstract final class StockModule {
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Stock Entry Detail', options: 'Stock Entry Detail'),
           FieldDefinition(key: 'total_amount', label: 'Total Amount', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'remarks', label: 'Remarks', type: FieldType.smallText),
+        ],
+      );
+
+  /// Child table for [_stockEntry]: a two-leg movement (out of
+  /// `source_warehouse`, into `target_warehouse`). `amount` = qty × valuation.
+  static DocType _stockEntryDetail() => DocType(
+        id: 'Stock Entry Detail',
+        name: 'Stock Entry Detail',
+        module: _module,
+        isChild: true,
+        fields: [
+          FieldDefinition(key: 'item', label: 'Item', type: FieldType.link, linkDocType: 'Item', options: 'Item', required: true),
+          FieldDefinition(key: 'uom', label: 'UOM', type: FieldType.select, options: 'Nos\nKg\nGrams\nLitre\nMetre\nBox\nPair\nSet', defaultValue: 'Nos'),
+          FieldDefinition(key: 'qty', label: 'Quantity', type: FieldType.float, required: true, defaultValue: '0'),
+          FieldDefinition(key: 'source_warehouse', label: 'Source Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
+          FieldDefinition(key: 'target_warehouse', label: 'Target Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
+          FieldDefinition(key: 'valuation_rate', label: 'Valuation Rate', type: FieldType.currency),
+          FieldDefinition(key: 'amount', label: 'Amount', type: FieldType.currency, readOnly: true, formulaExpression: 'qty * valuation_rate'),
+        ],
+      );
+
+  /// Append-only stock ledger. Rows are derived by the Phase 3
+  /// `StockBalanceService`/ledger derivation on submit & cancel (signed
+  /// `qty_change`; reversals append negated rows with `is_reversal = true`).
+  static DocType _stockLedgerEntry() => DocType(
+        id: 'Stock Ledger Entry',
+        name: 'Stock Ledger Entry',
+        module: _module,
+        syncPolicy: const SyncPolicy(conflictResolution: ConflictResolution.appendOnly),
+        fields: [
+          FieldDefinition(
+            key: 'trans_type',
+            label: 'Trans Type',
+            type: FieldType.select,
+            options: 'Receipt\nIssue\nTransfer\nAdjustment\nCounting\nReservation\nProduction',
+            defaultValue: 'Issue',
+          ),
+          FieldDefinition(key: 'item', label: 'Item', type: FieldType.link, linkDocType: 'Item', options: 'Item', required: true),
+          FieldDefinition(key: 'warehouse', label: 'Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse', required: true),
+          FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
+          FieldDefinition(key: 'posting_time', label: 'Posting Time', type: FieldType.dateTime),
+          FieldDefinition(key: 'voucher_type', label: 'Voucher Type', type: FieldType.data, required: true),
+          FieldDefinition(key: 'voucher_no', label: 'Voucher No', type: FieldType.data, required: true),
+          FieldDefinition(key: 'qty_change', label: 'Qty Change', type: FieldType.float, required: true, defaultValue: '0'),
+          FieldDefinition(key: 'valuation_rate', label: 'Valuation Rate', type: FieldType.currency),
+          FieldDefinition(key: 'amount', label: 'Amount', type: FieldType.currency, readOnly: true, formulaExpression: 'qty_change * valuation_rate'),
+          FieldDefinition(key: 'is_reversal', label: 'Reversal', type: FieldType.check),
+        ],
+      );
+
+  /// Derived running balance per (item, warehouse). Recomputed from the full
+  /// ledger by `StockBalanceService` after each stock movement — not edited
+  /// directly.
+  static DocType _bin() => DocType(
+        id: 'Bin',
+        name: 'Bin',
+        module: _module,
+        fields: [
+          FieldDefinition(key: 'item', label: 'Item', type: FieldType.link, linkDocType: 'Item', options: 'Item', required: true),
+          FieldDefinition(key: 'warehouse', label: 'Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse', required: true),
+          FieldDefinition(key: 'actual_qty', label: 'Actual Qty', type: FieldType.float, defaultValue: '0'),
+          FieldDefinition(key: 'valuation_rate', label: 'Valuation Rate', type: FieldType.currency, defaultValue: '0'),
+          FieldDefinition(key: 'stock_value', label: 'Stock Value', type: FieldType.currency, defaultValue: '0'),
+          FieldDefinition(key: 'last_movement_date', label: 'Last Movement', type: FieldType.date),
         ],
       );
 }

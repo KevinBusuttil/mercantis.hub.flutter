@@ -7,6 +7,7 @@ abstract final class SetupModule {
         _company(),
         _currency(),
         _fiscalYear(),
+        _fiscalYearCompany(),
         _costCenter(),
       ];
 
@@ -54,6 +55,17 @@ abstract final class SetupModule {
           FieldDefinition(key: 'year_end_date', label: 'Year End Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'is_short_year', label: 'Is Short Year', type: FieldType.check),
           FieldDefinition(key: 'companies', label: 'Companies', type: FieldType.table, tableDocType: 'Fiscal Year Company', options: 'Fiscal Year Company'),
+        ],
+      );
+
+  /// Child table for [_fiscalYear]: companies sharing this fiscal period.
+  static DocType _fiscalYearCompany() => DocType(
+        id: 'Fiscal Year Company',
+        name: 'Fiscal Year Company',
+        module: _module,
+        isChild: true,
+        fields: [
+          FieldDefinition(key: 'company', label: 'Company', type: FieldType.link, linkDocType: 'Company', options: 'Company', required: true),
         ],
       );
 
