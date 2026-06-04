@@ -75,7 +75,7 @@ abstract final class SellingModule {
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'tax_total', label: 'Tax Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'grand_total', label: 'Grand Total', type: FieldType.currency, readOnly: true),
-          FieldDefinition(key: 'outstanding_amount', label: 'Outstanding', type: FieldType.currency, readOnly: true),
+          FieldDefinition(key: 'outstanding_amount', label: 'Outstanding', type: FieldType.currency, readOnly: true, allowOnSubmit: true),
           FieldDefinition(key: 'payment_terms', label: 'Payment Terms', type: FieldType.data),
         ],
       );
