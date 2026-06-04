@@ -13,7 +13,7 @@ abstract final class StockModule {
         _bin(),
       ];
 
-  static DocType _itemGroup() => DocType(
+  static DocType _itemGroup() => const DocType(
         id: 'Item Group',
         name: 'Item Group',
         module: _module,
@@ -26,7 +26,7 @@ abstract final class StockModule {
         ],
       );
 
-  static DocType _item() => DocType(
+  static DocType _item() => const DocType(
         id: 'Item',
         name: 'Item',
         module: _module,
@@ -53,7 +53,7 @@ abstract final class StockModule {
         ],
       );
 
-  static DocType _warehouse() => DocType(
+  static DocType _warehouse() => const DocType(
         id: 'Warehouse',
         name: 'Warehouse',
         module: _module,
@@ -74,7 +74,7 @@ abstract final class StockModule {
         ],
       );
 
-  static DocType _stockEntry() => DocType(
+  static DocType _stockEntry() => const DocType(
         id: 'Stock Entry',
         name: 'Stock Entry',
         module: _module,
@@ -100,7 +100,7 @@ abstract final class StockModule {
 
   /// Child table for [_stockEntry]: a two-leg movement (out of
   /// `source_warehouse`, into `target_warehouse`). `amount` = qty × valuation.
-  static DocType _stockEntryDetail() => DocType(
+  static DocType _stockEntryDetail() => const DocType(
         id: 'Stock Entry Detail',
         name: 'Stock Entry Detail',
         module: _module,
@@ -119,7 +119,7 @@ abstract final class StockModule {
   /// Append-only stock ledger. Rows are derived by the Phase 3
   /// `StockBalanceService`/ledger derivation on submit & cancel (signed
   /// `qty_change`; reversals append negated rows with `is_reversal = true`).
-  static DocType _stockLedgerEntry() => DocType(
+  static DocType _stockLedgerEntry() => const DocType(
         id: 'Stock Ledger Entry',
         name: 'Stock Ledger Entry',
         module: _module,
@@ -148,7 +148,7 @@ abstract final class StockModule {
   /// Derived running balance per (item, warehouse). Recomputed from the full
   /// ledger by `StockBalanceService` after each stock movement — not edited
   /// directly.
-  static DocType _bin() => DocType(
+  static DocType _bin() => const DocType(
         id: 'Bin',
         name: 'Bin',
         module: _module,

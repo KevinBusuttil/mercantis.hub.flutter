@@ -10,7 +10,7 @@ abstract final class CrmModule {
         _customer(),
       ];
 
-  static DocType _lead() => DocType(
+  static DocType _lead() => const DocType(
         id: 'Lead',
         name: 'Lead',
         module: _module,
@@ -38,7 +38,7 @@ abstract final class CrmModule {
         ],
       );
 
-  static DocType _opportunity() => DocType(
+  static DocType _opportunity() => const DocType(
         id: 'Opportunity',
         name: 'Opportunity',
         module: _module,
@@ -67,7 +67,7 @@ abstract final class CrmModule {
         ],
       );
 
-  static DocType _contact() => DocType(
+  static DocType _contact() => const DocType(
         id: 'Contact',
         name: 'Contact',
         module: _module,
@@ -88,7 +88,7 @@ abstract final class CrmModule {
         ],
       );
 
-  static DocType _customer() => DocType(
+  static DocType _customer() => const DocType(
         id: 'Customer',
         name: 'Customer',
         module: _module,

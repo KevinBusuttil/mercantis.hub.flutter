@@ -16,7 +16,7 @@ abstract final class FulfilmentModule {
         fulfilmentLineDocType(id: 'Purchase Receipt Item', module: _buying, warehouseLabel: 'Target Warehouse'),
       ];
 
-  static DocType _deliveryNote() => DocType(
+  static DocType _deliveryNote() => const DocType(
         id: 'Delivery Note',
         name: 'Delivery Note',
         module: _selling,
@@ -51,7 +51,7 @@ abstract final class FulfilmentModule {
         ],
       );
 
-  static DocType _purchaseReceipt() => DocType(
+  static DocType _purchaseReceipt() => const DocType(
         id: 'Purchase Receipt',
         name: 'Purchase Receipt',
         module: _buying,
