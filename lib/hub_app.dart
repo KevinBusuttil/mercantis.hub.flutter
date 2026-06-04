@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'manifest/hub_manifest.dart';
 import 'navigation/hub_navigation.dart';
+import 'ledger/ledger_derivation_service.dart';
 
 class MercantisHubApp extends ConsumerWidget {
   const MercantisHubApp({super.key});
@@ -52,7 +53,9 @@ final _hubRouterProvider = Provider((ref) {
   return nav.buildRouter();
 });
 
-/// Boot: install the DocType manifest if not already installed.
+/// Boot: install the DocType manifest if not already installed, then wire the
+/// ledger derivation service so submit/cancel posts GL, subledger, settlement,
+/// and stock-ledger rows.
 final _bootProvider = FutureProvider<void>((ref) async {
   final installer = await ref.watch(appInstallerProvider.future);
   final manifest = HubManifest.build();
@@ -60,6 +63,8 @@ final _bootProvider = FutureProvider<void>((ref) async {
   if (!isInstalled) {
     await installer.install(manifest);
   }
+  // Subscribe the ledger spine to document events (kept alive for app life).
+  await ref.watch(ledgerDerivationServiceProvider.future);
 });
 
 class _HubSplashScreen extends StatelessWidget {

@@ -30,14 +30,16 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 
 | Capability | Swift | Flutter | Notes |
 |------------|:----:|:------:|-------|
-| Workflows (14) | ✅ | ✅ | **all 14 defined + bound to existing submittable DocTypes (Phase 2)**; 4 inert pending modules |
-| **LedgerDerivationService** (GL/SLE/Cust/Vend/Settlement on submit & cancel) | ✅ | ❌ | deterministic ids + reversal — port verbatim |
-| **StockBalanceService** (Bin recompute) | ✅ | ❌ | |
-| ManufacturingDerivationService | ✅ | ❌ | |
-| DeliveryRouteService | ✅ | ❌ | |
-| Business Profile defaults policy | ✅ | ❌ | currency/accounts/warehouse on new drafts |
-| Fiscal-year posting validation | ✅ | ❌ | |
-| Posting-account resolution | ✅ | ❌ | explicit → profile → company → error |
+| Workflows (14) | ✅ | ✅ | all 14 defined + bound to existing submittable DocTypes (Phase 2); 4 inert pending modules |
+| **LedgerDerivationService** (GL/SLE/Cust/Vend/Settlement on submit & cancel) | ✅ | ✅ | **Phase 3:** pure `LedgerDerivation` + runner wired at boot; deterministic ids + reversal; covered by `test/ledger_derivation_test.dart` |
+| **StockBalanceService** (Bin recompute) | ✅ | ✅ | **Phase 3:** pure `StockBalance` fold + `recomputeBin` after stock moves |
+| ManufacturingDerivationService | ✅ | ❌ | pending Manufacturing module (Phase 6) |
+| DeliveryRouteService | ✅ | ❌ | pending (Phase 6) |
+| Business Profile defaults policy | ✅ | ❌ | **Phase 3 follow-up** — currency/accounts/warehouse on new drafts |
+| Fiscal-year posting validation | ✅ | ❌ | **Phase 3 follow-up** |
+| Posting-account resolution | ✅ | 🟡 | reads explicit invoice fields; profile/company fallback is a Phase 3 follow-up |
+| Invoice `outstanding_amount` update on settlement | ✅ | ❌ | blocked: core `save()` forbids writing docStatus==1 docs — derive outstanding from subledger, or add a core API |
+| Tax legs (VAT split + TaxTrans rows) | ✅ | ❌ | pending Tax module; invoices post 2-leg GL meanwhile |
 
 ## Reports, dashboards & flows
 
@@ -66,9 +68,13 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
    Ledger Entry, Bin); all 14 workflows defined + bound. Guarded by
    `test/manifest_integrity_test.dart`. _Remaining:_ Item UOM/supplier child
    tables, Address/DynamicLink, UOM/Brand/PriceList masters.
-2. **Phase 3 — ledger spine (critical).** Port `LedgerDerivationService` +
-   `StockBalanceService` + posting-account resolution + fiscal-year & profile
-   policies. Verify with ported tests + a balanced-books check.
+2. **Phase 3 — ledger spine (critical).** ✅ _Core derivation done:_
+   `LedgerDerivation` (GL + customer/supplier subledger + settlements + stock
+   ledger, reversal-on-cancel, deterministic ids) and `StockBalance` Bin
+   recompute, wired at boot, covered by `test/ledger_derivation_test.dart`
+   (balanced-books, reversal-nets-zero, stock signs). _Follow-ups:_ business-
+   profile defaults, fiscal-year validation, posting-account fallback, invoice
+   outstanding update (needs a core API), tax legs.
 3. **Phase 4 — reports/dashboards + de-mock.** 14 reports (using Core
    ReportEngine), 5 dashboards on real data, replace mock screens.
 4. **Phase 5 — UX/menu parity.** 3-level nav, presets, settings, guided flows.
