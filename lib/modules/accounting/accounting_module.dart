@@ -25,7 +25,7 @@ abstract final class AccountingModule {
         _taxTransaction(),
       ];
 
-  static DocType _account() => DocType(
+  static DocType _account() => const DocType(
         id: 'Account',
         name: 'Account',
         module: _module,
@@ -52,7 +52,7 @@ abstract final class AccountingModule {
         ],
       );
 
-  static DocType _journalEntry() => DocType(
+  static DocType _journalEntry() => const DocType(
         id: 'Journal Entry',
         name: 'Journal Entry',
         module: _module,
@@ -79,7 +79,7 @@ abstract final class AccountingModule {
       );
 
   /// Child table for [_journalEntry]: one double-entry row.
-  static DocType _journalEntryAccount() => DocType(
+  static DocType _journalEntryAccount() => const DocType(
         id: 'Journal Entry Account',
         name: 'Journal Entry Account',
         module: _module,
@@ -96,7 +96,7 @@ abstract final class AccountingModule {
         ],
       );
 
-  static DocType _payment() => DocType(
+  static DocType _payment() => const DocType(
         id: 'Payment Entry',
         name: 'Payment Entry',
         module: _module,
@@ -139,7 +139,7 @@ abstract final class AccountingModule {
 
   /// Child table for [_payment]: an allocation of the payment against an
   /// outstanding invoice or journal entry.
-  static DocType _paymentEntryReference() => DocType(
+  static DocType _paymentEntryReference() => const DocType(
         id: 'Payment Entry Reference',
         name: 'Payment Entry Reference',
         module: _module,
@@ -155,7 +155,7 @@ abstract final class AccountingModule {
 
   /// The universal general ledger. One or more rows per submitted Invoice /
   /// Payment / Journal / Stock voucher; reversals append `is_reversal` rows.
-  static DocType _glEntry() => DocType(
+  static DocType _glEntry() => const DocType(
         id: 'GL Entry',
         name: 'GL Entry',
         module: _module,
@@ -177,7 +177,7 @@ abstract final class AccountingModule {
 
   /// Customer subledger (Swift `CustTrans`): signed amounts, positive = the
   /// customer owes us. Powers the Customer Statement & aging reports.
-  static DocType _customerTransaction() => DocType(
+  static DocType _customerTransaction() => const DocType(
         id: 'Customer Transaction',
         name: 'Customer Transaction',
         module: _module,
@@ -197,7 +197,7 @@ abstract final class AccountingModule {
 
   /// Supplier subledger (Swift `VendTrans`): symmetric to customer; positive =
   /// we owe the supplier.
-  static DocType _supplierTransaction() => DocType(
+  static DocType _supplierTransaction() => const DocType(
         id: 'Supplier Transaction',
         name: 'Supplier Transaction',
         module: _module,
@@ -217,7 +217,7 @@ abstract final class AccountingModule {
 
   /// Explicit "payment X settled invoice Y for amount Z" rows — derived from
   /// `Payment Entry.references` on submit. Makes statement reports trivial.
-  static DocType _settlement() => DocType(
+  static DocType _settlement() => const DocType(
         id: 'Settlement',
         name: 'Settlement',
         module: _module,
@@ -237,7 +237,7 @@ abstract final class AccountingModule {
 
   /// Tax subledger (Swift `TaxTrans`): VAT / WHT / sales-tax postings. Reserved
   /// here; rows begin flowing once the Tax module's derivation lands.
-  static DocType _taxTransaction() => DocType(
+  static DocType _taxTransaction() => const DocType(
         id: 'Tax Transaction',
         name: 'Tax Transaction',
         module: _module,

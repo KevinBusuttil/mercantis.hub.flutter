@@ -14,7 +14,7 @@ abstract final class BuyingModule {
         lineItemDocType(id: 'Purchase Invoice Item', module: _module),
       ];
 
-  static DocType _supplier() => DocType(
+  static DocType _supplier() => const DocType(
         id: 'Supplier',
         name: 'Supplier',
         module: _module,
@@ -38,7 +38,7 @@ abstract final class BuyingModule {
         ],
       );
 
-  static DocType _purchaseOrder() => DocType(
+  static DocType _purchaseOrder() => const DocType(
         id: 'Purchase Order',
         name: 'Purchase Order',
         module: _module,
@@ -57,7 +57,7 @@ abstract final class BuyingModule {
         ],
       );
 
-  static DocType _purchaseInvoice() => DocType(
+  static DocType _purchaseInvoice() => const DocType(
         id: 'Purchase Invoice',
         name: 'Purchase Invoice',
         module: _module,

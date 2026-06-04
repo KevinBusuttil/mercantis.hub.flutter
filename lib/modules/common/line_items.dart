@@ -24,12 +24,12 @@ DocType lineItemDocType({
       module: module,
       isChild: true,
       fields: [
-        FieldDefinition(key: 'item', label: 'Item', type: FieldType.link, linkDocType: 'Item', options: 'Item', required: true),
-        FieldDefinition(key: 'description', label: 'Description', type: FieldType.data),
-        FieldDefinition(key: 'qty', label: 'Quantity', type: FieldType.float, required: true, defaultValue: '1'),
-        FieldDefinition(key: 'uom', label: 'UOM', type: FieldType.select, options: kUomOptions, defaultValue: 'Nos'),
-        FieldDefinition(key: 'rate', label: 'Rate', type: FieldType.currency, required: true),
-        FieldDefinition(key: 'amount', label: 'Amount', type: FieldType.currency, readOnly: true, formulaExpression: 'qty * rate'),
+        const FieldDefinition(key: 'item', label: 'Item', type: FieldType.link, linkDocType: 'Item', options: 'Item', required: true),
+        const FieldDefinition(key: 'description', label: 'Description', type: FieldType.data),
+        const FieldDefinition(key: 'qty', label: 'Quantity', type: FieldType.float, required: true, defaultValue: '1'),
+        const FieldDefinition(key: 'uom', label: 'UOM', type: FieldType.select, options: kUomOptions, defaultValue: 'Nos'),
+        const FieldDefinition(key: 'rate', label: 'Rate', type: FieldType.currency, required: true),
+        const FieldDefinition(key: 'amount', label: 'Amount', type: FieldType.currency, readOnly: true, formulaExpression: 'qty * rate'),
         FieldDefinition(key: 'warehouse', label: warehouseLabel, type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
       ],
     );

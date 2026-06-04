@@ -11,7 +11,7 @@ abstract final class SetupModule {
         _costCenter(),
       ];
 
-  static DocType _company() => DocType(
+  static DocType _company() => const DocType(
         id: 'Company',
         name: 'Company',
         module: _module,
@@ -30,7 +30,7 @@ abstract final class SetupModule {
         ],
       );
 
-  static DocType _currency() => DocType(
+  static DocType _currency() => const DocType(
         id: 'Currency',
         name: 'Currency',
         module: _module,
@@ -45,7 +45,7 @@ abstract final class SetupModule {
         ],
       );
 
-  static DocType _fiscalYear() => DocType(
+  static DocType _fiscalYear() => const DocType(
         id: 'Fiscal Year',
         name: 'Fiscal Year',
         module: _module,
@@ -59,7 +59,7 @@ abstract final class SetupModule {
       );
 
   /// Child table for [_fiscalYear]: companies sharing this fiscal period.
-  static DocType _fiscalYearCompany() => DocType(
+  static DocType _fiscalYearCompany() => const DocType(
         id: 'Fiscal Year Company',
         name: 'Fiscal Year Company',
         module: _module,
@@ -69,7 +69,7 @@ abstract final class SetupModule {
         ],
       );
 
-  static DocType _costCenter() => DocType(
+  static DocType _costCenter() => const DocType(
         id: 'Cost Center',
         name: 'Cost Center',
         module: _module,

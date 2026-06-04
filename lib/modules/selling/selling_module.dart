@@ -15,7 +15,7 @@ abstract final class SellingModule {
         lineItemDocType(id: 'Sales Invoice Item', module: _module),
       ];
 
-  static DocType _quotation() => DocType(
+  static DocType _quotation() => const DocType(
         id: 'Quotation',
         name: 'Quotation',
         module: _module,
@@ -35,7 +35,7 @@ abstract final class SellingModule {
         ],
       );
 
-  static DocType _salesOrder() => DocType(
+  static DocType _salesOrder() => const DocType(
         id: 'Sales Order',
         name: 'Sales Order',
         module: _module,
@@ -54,7 +54,7 @@ abstract final class SellingModule {
         ],
       );
 
-  static DocType _salesInvoice() => DocType(
+  static DocType _salesInvoice() => const DocType(
         id: 'Sales Invoice',
         name: 'Sales Invoice',
         module: _module,
