@@ -2,11 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import '../dashboards/hub_dashboard_cards.dart';
 import '../mock/mock_data.dart';
+import '../screens/dashboards_screen.dart';
 import '../screens/approvals_inbox_screen.dart';
 import '../screens/customer_account_screen.dart';
 import '../screens/delivery_route_screen.dart';
 import '../screens/driver_today_screen.dart';
 import '../screens/low_stock_screen.dart';
+import '../screens/reports_screen.dart';
 import '../screens/sales_orders_screen.dart';
 import '../workspaces/hub_workspaces.dart';
 
@@ -55,6 +57,8 @@ void wireHubNavigation(WidgetRef ref) {
         (c, s) => const CustomerAccountScreen());
     registry.registerRoute('sales-orders',
         (c, s) => const SalesOrdersScreen());
+    registry.registerRoute('reports', (c, s) => const ReportsScreen());
+    registry.registerRoute('dashboards', (c, s) => const DashboardsScreen());
   }
 
   registerHubDashboardCards(ref);

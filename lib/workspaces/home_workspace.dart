@@ -23,11 +23,11 @@ const homeWorkspace = WorkspaceDescriptor(
       icon: Icons.payments_outlined, docType: 'Payment Entry',
       color: MercantisBrandColors.accentFinance),
   ],
+  // Cards fed by the real `home` dashboard (Core DashboardEngine), not mock.
   dashboardCards: [
-    DashboardCardSpec.kpi(id: 'home_sales_today', title: 'Sales today'),
-    DashboardCardSpec.kpi(id: 'home_open_orders', title: 'Open orders'),
-    DashboardCardSpec.kpi(id: 'home_overdue', title: 'Overdue'),
-    DashboardCardSpec.kpi(id: 'home_low_stock', title: 'Low stock'),
+    DashboardCardSpec.kpi(id: 'home_open_orders', title: 'Open Sales Orders'),
+    DashboardCardSpec.kpi(id: 'home_receivables', title: 'Receivables'),
+    DashboardCardSpec.kpi(id: 'home_payables', title: 'Payables'),
     DashboardCardSpec(
       id: 'home_approvals_card',
       title: 'Pending approvals',
@@ -35,8 +35,8 @@ const homeWorkspace = WorkspaceDescriptor(
       span: 2,
     ),
     DashboardCardSpec.list(
-      id: 'sales_recent_documents',
-      title: 'Recent documents',
+      id: 'home_recent_sales',
+      title: 'Recent invoices',
       span: 2,
     ),
   ],
