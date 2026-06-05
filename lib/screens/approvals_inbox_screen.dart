@@ -6,10 +6,10 @@ class ApprovalsInboxScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ResponsiveScaffold(
+    return const ResponsiveScaffold(
       title: 'Approvals',
       subtitle: 'Documents waiting for your decision',
-      body: const ApprovalInboxList(),
+      body: ApprovalInboxList(),
       padBody: false,
     );
   }

@@ -41,7 +41,7 @@ class DriverTodayScreen extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w600)),
               subtitle: Text('${stop.eta} · ${stop.address} · ${stop.items} items'),
               trailing: isDone
-                  ? StatusChip(label: 'Delivered', tone: StatusTone.approved, dense: true)
+                  ? const StatusChip(label: 'Delivered', tone: StatusTone.approved, dense: true)
                   : FilledButton.icon(
                       onPressed: () {},
                       icon: const Icon(Icons.navigation_outlined, size: 16),
