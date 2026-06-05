@@ -7,6 +7,7 @@ import '../modules/accounting/accounting_module.dart';
 import '../modules/fulfilment/fulfilment_module.dart';
 import '../modules/setup/setup_module.dart';
 import '../workflows/hub_workflows.dart';
+import 'hub_dashboards.dart';
 import 'hub_reports.dart';
 
 abstract final class HubManifest {
@@ -30,7 +31,7 @@ abstract final class HubManifest {
       schedulerEvents: const [],
       documentEventSubscriptions: const [],
       reports: HubReports.all(),
-      dashboards: const [],
+      dashboards: HubDashboards.all(),
     );
   }
 }
