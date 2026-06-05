@@ -240,6 +240,33 @@ void main() {
     });
   });
 
+  group('Account fallbacks', () {
+    test('invoices map posting accounts to company defaults', () {
+      expect(LedgerDerivation.accountFallbacks('Sales Invoice'), {
+        'debit_to': 'default_receivable_account',
+        'income_account': 'default_income_account',
+      });
+      expect(LedgerDerivation.accountFallbacks('Purchase Invoice'), {
+        'credit_to': 'default_payable_account',
+        'expense_account': 'default_expense_account',
+      });
+    });
+
+    test('payment fallbacks depend on direction', () {
+      expect(
+        LedgerDerivation.accountFallbacks('Payment Entry', paymentType: 'Receive'),
+        {'paid_from': 'default_receivable_account', 'paid_to': 'default_cash_account'},
+      );
+      expect(
+        LedgerDerivation.accountFallbacks('Payment Entry', paymentType: 'Pay'),
+        {'paid_from': 'default_cash_account', 'paid_to': 'default_payable_account'},
+      );
+      // No direction / unknown doctype → no fallbacks.
+      expect(LedgerDerivation.accountFallbacks('Payment Entry'), isEmpty);
+      expect(LedgerDerivation.accountFallbacks('Journal Entry'), isEmpty);
+    });
+  });
+
   group('Outstanding amount', () {
     test('grand total less signed settlement allocations (idempotent)', () {
       expect(outstandingAmount(1000, const []), 1000); // freshly submitted

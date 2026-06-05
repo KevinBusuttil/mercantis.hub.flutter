@@ -12,12 +12,13 @@ import 'ledger_values.dart';
 /// and reversal rows are the originals with amounts/qty flipped, an
 /// `is_reversal` flag, and a `-reversal` id suffix.
 ///
+/// Blank posting accounts are resolved from the source's Company defaults by
+/// the runner (see [accountFallbacks]) before derivation, so a minimal voucher
+/// still posts to balanced accounts.
+///
 /// Deliberately NOT yet handled (Phase 3 follow-ups, flagged in PARITY.md):
 ///  * tax legs (no taxes child table until the Tax module lands) — invoices
 ///    therefore post a 2-leg GL (Dr/Cr grand_total), which still balances;
-///  * mutating a submitted invoice's `outstanding_amount` (the core engine
-///    forbids writes to docStatus==1 docs) — outstanding is derivable from the
-///    customer/supplier subledger instead;
 ///  * POSInvoice (POS module not ported).
 abstract final class LedgerDerivation {
   // Derived DocType ids (match the Phase 2 manifest).
@@ -30,6 +31,42 @@ abstract final class LedgerDerivation {
 
   /// Source DocTypes that move stock and therefore require a Bin recompute.
   static const stockSources = {'Stock Entry', 'Purchase Receipt', 'Delivery Note'};
+
+  /// Maps each posting-account field that a voucher may leave blank to the
+  /// `Company` default field that should fill it. The runner uses this to
+  /// resolve missing accounts from the company before derivation, so a minimal
+  /// invoice/payment still posts to balanced GL accounts. An empty map means
+  /// "no fallbacks" (unknown DocType, or a payment with no party direction).
+  static Map<String, String> accountFallbacks(String docType, {Object? paymentType}) {
+    switch (docType) {
+      case 'Sales Invoice':
+        return const {
+          'debit_to': 'default_receivable_account',
+          'income_account': 'default_income_account',
+        };
+      case 'Purchase Invoice':
+        return const {
+          'credit_to': 'default_payable_account',
+          'expense_account': 'default_expense_account',
+        };
+      case 'Payment Entry':
+        if (paymentType == 'Receive') {
+          return const {
+            'paid_from': 'default_receivable_account',
+            'paid_to': 'default_cash_account',
+          };
+        }
+        if (paymentType == 'Pay') {
+          return const {
+            'paid_from': 'default_cash_account',
+            'paid_to': 'default_payable_account',
+          };
+        }
+        return const {};
+      default:
+        return const {};
+    }
+  }
 
   /// Returns the ledger rows for [doc]. `reversal` is false on submit, true on
   /// cancel. Unknown DocTypes yield an empty list (no-op, prevents re-entrancy).

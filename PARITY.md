@@ -37,7 +37,7 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 | DeliveryRouteService | ✅ | ❌ | pending (Phase 6) |
 | Business Profile defaults policy | ✅ | ❌ | **Phase 3 follow-up** — currency/accounts/warehouse on new drafts |
 | Fiscal-year posting validation | ✅ | ❌ | **Phase 3 follow-up** |
-| Posting-account resolution | ✅ | 🟡 | reads explicit invoice fields; company-default fallback still a follow-up (needs default-account fields on Company) |
+| Posting-account resolution | ✅ | ✅ | explicit voucher fields win; blank accounts fall back to Company defaults (default_receivable/income/payable/expense/cash) resolved by the runner before derivation |
 | Invoice `outstanding_amount` update on settlement | ✅ | ✅ | **core `applyOnSubmitUpdate` added**; runner recomputes outstanding from the Settlement subledger (idempotent) on invoice submit + payment submit/cancel |
 | Tax legs (VAT split + TaxTrans rows) | ✅ | ❌ | pending Tax module; invoices post 2-leg GL meanwhile |
 
