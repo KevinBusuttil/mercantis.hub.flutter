@@ -45,8 +45,8 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 
 | Item | Swift | Flutter | Notes |
 |------|:----:|:------:|-------|
-| Reports (14, incl. aggregating) | ✅ | ❌ | `reports: []`; needs Core ReportEngine (now landed) |
-| Dashboards (5) | ✅ | ❌ | all dashboard data is **mock** |
+| Reports (14, incl. aggregating) | ✅ | 🟡 | 14 flat registers wired on real data via Core ReportEngine (`HubReports` + `reportEngineProvider` + `ReportsScreen`/`ReportViewerScreen`); aggregating reports (Trial Balance, aging) still to layer on top |
+| Dashboards (5) | ✅ | ❌ | all dashboard data is still **mock** — next increment (compute KPIs from real aggregates) |
 | Guided flows (Receive Payment, Pay Supplier, POS Checkout) | ✅ | ❌ | |
 | Onboarding business presets | ✅ | ❌ | Services/Trade/Retail/Manufacturing |
 
