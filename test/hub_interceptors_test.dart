@@ -69,6 +69,11 @@ void main() {
     ));
   });
 
+  // sqflite opens ':memory:' with singleInstance, so the same DB is reused
+  // across tests unless closed — isolate each test so seeded Fiscal Years
+  // don't leak into the "no fiscal years" case.
+  tearDown(() => database.close());
+
   test('business-profile defaults fill blanks on a new draft', () async {
     final company = await engine.save(
       Document(id: '', docType: 'Company', payload: {
