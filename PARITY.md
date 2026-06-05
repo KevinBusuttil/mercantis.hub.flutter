@@ -46,7 +46,7 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 | Item | Swift | Flutter | Notes |
 |------|:----:|:------:|-------|
 | Reports (14, incl. aggregating) | ✅ | 🟡 | 14 flat registers wired on real data via Core ReportEngine (`HubReports` + `reportEngineProvider` + `ReportsScreen`/`ReportViewerScreen`); aggregating reports (Trial Balance, aging) still to layer on top |
-| Dashboards (5) | ✅ | ✅ | 5 dashboards (Home, Finance, Sales, Buying, Inventory) on real data via Core DashboardEngine; monetary KPIs use the new `sum` widget. `HubDashboards` + `dashboardEngineProvider` + `DashboardsScreen`/`DashboardScreen`. Legacy mock home cards remain pending removal |
+| Dashboards (5) | ✅ | ✅ | 5 dashboards (Home, Finance, Sales, Buying, Inventory) on real data via Core DashboardEngine; monetary KPIs use the new `sum` widget. `HubDashboards` + `dashboardEngineProvider` + `DashboardsScreen`/`DashboardScreen`. **Home workspace cards now fed by the real `home` dashboard** (mock home KPIs retired); Sales/Inventory workspace cards still mock |
 | Guided flows (Receive Payment, Pay Supplier, POS Checkout) | ✅ | ❌ | |
 | Onboarding business presets | ✅ | ❌ | Services/Trade/Retail/Manufacturing |
 
