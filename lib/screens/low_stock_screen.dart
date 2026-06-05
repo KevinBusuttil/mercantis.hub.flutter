@@ -26,7 +26,7 @@ class LowStockScreen extends StatelessWidget {
               Text(it.warehouse),
               Text('${it.qty.toStringAsFixed(0)} ${it.uom}'),
               Text(it.reorderLevel.toStringAsFixed(0)),
-              StatusChip(label: 'Below', tone: StatusTone.overdue, dense: true),
+              const StatusChip(label: 'Below', tone: StatusTone.overdue, dense: true),
             ]),
         ],
       ),

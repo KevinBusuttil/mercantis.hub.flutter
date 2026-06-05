@@ -123,7 +123,7 @@ abstract final class StockModule {
         id: 'Stock Ledger Entry',
         name: 'Stock Ledger Entry',
         module: _module,
-        syncPolicy: const SyncPolicy(conflictResolution: ConflictResolution.appendOnly),
+        syncPolicy: SyncPolicy(conflictResolution: ConflictResolution.appendOnly),
         fields: [
           FieldDefinition(
             key: 'trans_type',

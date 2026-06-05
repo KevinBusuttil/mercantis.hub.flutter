@@ -38,7 +38,7 @@ void main() {
       rows.where((r) => r.docType == 'GL Entry').fold<num>(0, (s, r) => s + asNum(r.payload['credit']));
 
   group('Sales Invoice', () {
-    final invoice = () => src('Sales Invoice', id: 'SINV-1', payload: {
+    Document invoice() => src('Sales Invoice', id: 'SINV-1', payload: {
           'grand_total': 1000,
           'customer': 'C1',
           'debit_to': 'Debtors',
@@ -162,7 +162,7 @@ void main() {
 
   group('Stock Entry (transfer)', () {
     test('two-leg movement: -qty from source, +qty to target; reversal flips', () {
-      final entry = () => src('Stock Entry', id: 'STE-1', payload: {
+      Document entry() => src('Stock Entry', id: 'STE-1', payload: {
             'stock_entry_type': 'Material Transfer',
             'posting_date': '2026-01-04',
           }, children: {
