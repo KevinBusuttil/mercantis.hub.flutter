@@ -35,8 +35,8 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 | **StockBalanceService** (Bin recompute) | ✅ | ✅ | **Phase 3:** pure `StockBalance` fold + `recomputeBin` after stock moves |
 | ManufacturingDerivationService | ✅ | ❌ | pending Manufacturing module (Phase 6) |
 | DeliveryRouteService | ✅ | ❌ | pending (Phase 6) |
-| Business Profile defaults policy | ✅ | ❌ | **Phase 3 follow-up** — currency/accounts/warehouse on new drafts |
-| Fiscal-year posting validation | ✅ | ❌ | **Phase 3 follow-up** |
+| Business Profile defaults policy | ✅ | ✅ | `BusinessProfileDefaultsInterceptor` (core `DocumentInterceptor.beforeSave`) stamps company, default currency, default posting accounts + today's posting date on new drafts; only fills blanks |
+| Fiscal-year posting validation | ✅ | ✅ | `FiscalYearGuardInterceptor` (core `DocumentInterceptor.beforeSubmit`) blocks a posting dated outside every defined Fiscal Year; no-op until at least one year exists |
 | Posting-account resolution | ✅ | ✅ | explicit voucher fields win; blank accounts fall back to Company defaults (default_receivable/income/payable/expense/cash) resolved by the runner before derivation |
 | Invoice `outstanding_amount` update on settlement | ✅ | ✅ | **core `applyOnSubmitUpdate` added**; runner recomputes outstanding from the Settlement subledger (idempotent) on invoice submit + payment submit/cancel |
 | Tax legs (VAT split + TaxTrans rows) | ✅ | ❌ | pending Tax module; invoices post 2-leg GL meanwhile |
