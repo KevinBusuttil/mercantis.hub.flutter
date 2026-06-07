@@ -53,15 +53,18 @@ final _hubRouterProvider = Provider((ref) {
   return nav.buildRouter();
 });
 
-/// Boot: install the DocType manifest if not already installed, then wire the
-/// ledger derivation service so submit/cancel posts GL, subledger, settlement,
-/// and stock-ledger rows.
+/// Boot: install the DocType manifest if not already installed (or re-sync its
+/// metadata when it is, so manifest changes — e.g. new child-table DocTypes —
+/// reach an existing database). Then wire the ledger derivation service so
+/// submit/cancel posts GL, subledger, settlement, and stock-ledger rows.
 final _bootProvider = FutureProvider<void>((ref) async {
   final installer = await ref.watch(appInstallerProvider.future);
   final manifest = HubManifest.build();
   final isInstalled = await installer.isInstalled(manifest.id);
   if (!isInstalled) {
     await installer.install(manifest);
+  } else {
+    await installer.syncMetadata(manifest);
   }
   // Subscribe the ledger spine to document events (kept alive for app life).
   await ref.watch(ledgerDerivationServiceProvider.future);
