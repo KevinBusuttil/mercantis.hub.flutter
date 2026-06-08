@@ -4,6 +4,8 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'manifest/hub_manifest.dart';
 import 'navigation/hub_navigation.dart';
 import 'ledger/ledger_derivation_service.dart';
+import 'onboarding/onboarding_providers.dart';
+import 'screens/onboarding_screen.dart';
 
 class MercantisHubApp extends ConsumerWidget {
   const MercantisHubApp({super.key});
@@ -24,7 +26,42 @@ class MercantisHubApp extends ConsumerWidget {
         debugShowCheckedModeBanner: false,
         home: Scaffold(body: Center(child: Text('Boot error: $e'))),
       ),
-      data: (_) => const _HubRouterApp(),
+      data: (_) => const _OnboardingGate(),
+    );
+  }
+}
+
+/// After boot, route to onboarding when the install has no Company yet,
+/// otherwise to the workspace shell. The onboarding screen carries its own
+/// [MaterialApp] since the shell only mounts once setup is complete.
+class _OnboardingGate extends ConsumerWidget {
+  const _OnboardingGate();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasCompany = ref.watch(companyExistsProvider);
+    return hasCompany.when(
+      loading: () => MaterialApp(
+        theme: MercantisTheme.light(),
+        darkTheme: MercantisTheme.dark(),
+        themeMode: ThemeMode.system,
+        debugShowCheckedModeBanner: false,
+        home: const _HubSplashScreen(),
+      ),
+      error: (e, _) => MaterialApp(
+        theme: MercantisTheme.light(),
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(body: Center(child: Text('Setup check failed: $e'))),
+      ),
+      data: (exists) => exists
+          ? const _HubRouterApp()
+          : MaterialApp(
+              theme: MercantisTheme.light(),
+              darkTheme: MercantisTheme.dark(),
+              themeMode: ThemeMode.system,
+              debugShowCheckedModeBanner: false,
+              home: const OnboardingScreen(),
+            ),
     );
   }
 }
