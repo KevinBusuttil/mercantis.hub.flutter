@@ -35,6 +35,7 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 | **StockBalanceService** (Bin recompute) | ✅ | ✅ | **Phase 3:** pure `StockBalance` fold + `recomputeBin` after stock moves |
 | ManufacturingDerivationService | ✅ | ❌ | pending Manufacturing module (Phase 6) |
 | DeliveryRouteService | ✅ | ❌ | pending (Phase 6) |
+| Line-item & document totals | ✅ | ✅ | `LineItemTotalsInterceptor` (beforeSave) computes per-row `amount = qty*rate`, `total` = Σ amount, `grand_total` = total (until tax legs) — authoritative on every save path; child grid also evaluates `formulaExpression` live (core `applyRowFormulas`) |
 | Business Profile defaults policy | ✅ | ✅ | `BusinessProfileDefaultsInterceptor` (core `DocumentInterceptor.beforeSave`) stamps company, default currency, default posting accounts + today's posting date on new drafts; only fills blanks |
 | Fiscal-year posting validation | ✅ | ✅ | `FiscalYearGuardInterceptor` (core `DocumentInterceptor.beforeSubmit`) blocks a posting dated outside every defined Fiscal Year; no-op until at least one year exists |
 | Posting-account resolution | ✅ | ✅ | explicit voucher fields win; blank accounts fall back to Company defaults (default_receivable/income/payable/expense/cash) resolved by the runner before derivation |

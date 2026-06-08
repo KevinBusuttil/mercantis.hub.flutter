@@ -9,10 +9,43 @@ import 'ledger_values.dart';
 final hubInterceptorsOverride =
     documentInterceptorsProvider.overrideWithValue(const [
   BusinessProfileDefaultsInterceptor(),
+  LineItemTotalsInterceptor(),
   FiscalYearGuardInterceptor(),
 ]);
 
 const _systemRoles = {'System Manager'};
+
+/// The line-item child table key shared by selling/buying transaction docs.
+const _itemsTable = 'items';
+
+/// Authoritatively computes line-item and document totals on save, so every
+/// save path (UI, import, programmatic) posts correct amounts — the ledger
+/// derives GL/stock from `grand_total` and the line rows. For each `items` row
+/// it sets `amount = qty * rate`, then `total` = Σ amount and `grand_total` =
+/// `total` (until the Tax module adds tax legs). Docs without an `items` table
+/// are left untouched.
+class LineItemTotalsInterceptor extends DocumentInterceptor {
+  const LineItemTotalsInterceptor();
+
+  @override
+  Future<void> beforeSave(
+      DocumentEngine engine, Document doc, DocType docType,
+      {required bool isNew}) async {
+    final rows = doc.children[_itemsTable];
+    if (rows == null) return; // not a line-item document
+
+    num total = 0;
+    for (final row in rows) {
+      final amount = asNum(row.payload['qty']) * asNum(row.payload['rate']);
+      row.payload['amount'] = amount;
+      total += amount;
+    }
+
+    final keys = {for (final f in docType.fields) f.key};
+    if (keys.contains('total')) doc.payload['total'] = total;
+    if (keys.contains('grand_total')) doc.payload['grand_total'] = total;
+  }
+}
 
 /// Pre-fills a new draft from the active Company ("business profile"): stamps
 /// the company, default currency, default posting accounts (so they're visible
