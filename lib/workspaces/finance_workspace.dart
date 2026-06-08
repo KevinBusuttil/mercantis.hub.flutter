@@ -30,8 +30,21 @@ const financeWorkspace = WorkspaceDescriptor(
           icon: Icons.payments_outlined),
       ],
     ),
+    WorkspaceSection(
+      label: 'Guided payments',
+      items: [
+        CustomWorkspaceItem(routeName: 'receive-payment',
+          label: 'Receive Payment', icon: Icons.south_east),
+        CustomWorkspaceItem(routeName: 'pay-supplier',
+          label: 'Pay Supplier', icon: Icons.north_east),
+      ],
+    ),
   ],
   quickActions: [
+    QuickAction(id: 'f_receive_pay', label: 'Receive Payment',
+      icon: Icons.south_east, routeName: '/w/finance/receive-payment'),
+    QuickAction(id: 'f_pay_supplier', label: 'Pay Supplier',
+      icon: Icons.north_east, routeName: '/w/finance/pay-supplier'),
     QuickAction(id: 'f_new_je', label: 'Journal Entry',
       icon: Icons.menu_book_outlined, docType: 'Journal Entry'),
     QuickAction(id: 'f_new_pay', label: 'Payment Entry',
