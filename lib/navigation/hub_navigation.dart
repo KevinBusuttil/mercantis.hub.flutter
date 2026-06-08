@@ -9,8 +9,10 @@ import '../screens/delivery_route_screen.dart';
 import '../screens/driver_today_screen.dart';
 import '../screens/guided_payment_screen.dart';
 import '../screens/low_stock_screen.dart';
+import '../screens/pos_till_screen.dart';
 import '../screens/reports_screen.dart';
 import '../screens/sales_orders_screen.dart';
+import '../screens/work_order_complete_screen.dart';
 import '../workspaces/hub_workspaces.dart';
 
 /// Prototype: serve the approval inbox from in-memory mock entries.
@@ -64,6 +66,9 @@ void wireHubNavigation(WidgetRef ref) {
         'receive-payment', (c, s) => const GuidedPaymentScreen(receive: true));
     registry.registerRoute(
         'pay-supplier', (c, s) => const GuidedPaymentScreen(receive: false));
+    registry.registerRoute('pos-till', (c, s) => const PosTillScreen());
+    registry.registerRoute(
+        'work-order-complete', (c, s) => const WorkOrderCompleteScreen());
   }
 
   registerHubDashboardCards(ref);
