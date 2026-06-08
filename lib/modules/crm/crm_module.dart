@@ -8,7 +8,42 @@ abstract final class CrmModule {
         _opportunity(),
         _contact(),
         _customer(),
+        _address(),
+        _dynamicLink(),
       ];
+
+  /// Postal address, linkable to any party via the [_dynamicLink] child table.
+  static DocType _address() => const DocType(
+        id: 'Address',
+        name: 'Address',
+        module: _module,
+        fields: [
+          FieldDefinition(key: 'address_title', label: 'Title', type: FieldType.data, required: true),
+          FieldDefinition(key: 'address_type', label: 'Address Type', type: FieldType.select, options: 'Billing\nShipping\nOffice\nPersonal\nOther', defaultValue: 'Billing'),
+          FieldDefinition(key: 'address_line1', label: 'Address Line 1', type: FieldType.data, required: true),
+          FieldDefinition(key: 'address_line2', label: 'Address Line 2', type: FieldType.data),
+          FieldDefinition(key: 'city', label: 'City', type: FieldType.data, required: true),
+          FieldDefinition(key: 'state', label: 'State / Province', type: FieldType.data),
+          FieldDefinition(key: 'country', label: 'Country', type: FieldType.data, required: true),
+          FieldDefinition(key: 'pincode', label: 'Postcode', type: FieldType.data),
+          FieldDefinition(key: 'phone', label: 'Phone', type: FieldType.data),
+          FieldDefinition(key: 'fax', label: 'Fax', type: FieldType.data),
+          FieldDefinition(key: 'links', label: 'Linked To', type: FieldType.table, tableDocType: 'Dynamic Link', options: 'Dynamic Link'),
+        ],
+      );
+
+  /// Polymorphic link row (e.g. an Address linked to a Customer/Supplier).
+  static DocType _dynamicLink() => const DocType(
+        id: 'Dynamic Link',
+        name: 'Dynamic Link',
+        module: _module,
+        isChild: true,
+        fields: [
+          FieldDefinition(key: 'link_doctype', label: 'Link DocType', type: FieldType.select, options: 'Customer\nSupplier\nContact\nLead', required: true),
+          FieldDefinition(key: 'link_name', label: 'Link Name', type: FieldType.data, required: true),
+          FieldDefinition(key: 'is_primary', label: 'Primary', type: FieldType.check),
+        ],
+      );
 
   static DocType _lead() => const DocType(
         id: 'Lead',
