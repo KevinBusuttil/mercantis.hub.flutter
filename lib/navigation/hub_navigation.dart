@@ -7,6 +7,7 @@ import '../screens/approvals_inbox_screen.dart';
 import '../screens/customer_account_screen.dart';
 import '../screens/delivery_route_screen.dart';
 import '../screens/driver_today_screen.dart';
+import '../screens/guided_payment_screen.dart';
 import '../screens/low_stock_screen.dart';
 import '../screens/reports_screen.dart';
 import '../screens/sales_orders_screen.dart';
@@ -59,6 +60,10 @@ void wireHubNavigation(WidgetRef ref) {
         (c, s) => const SalesOrdersScreen());
     registry.registerRoute('reports', (c, s) => const ReportsScreen());
     registry.registerRoute('dashboards', (c, s) => const DashboardsScreen());
+    registry.registerRoute(
+        'receive-payment', (c, s) => const GuidedPaymentScreen(receive: true));
+    registry.registerRoute(
+        'pay-supplier', (c, s) => const GuidedPaymentScreen(receive: false));
   }
 
   registerHubDashboardCards(ref);
