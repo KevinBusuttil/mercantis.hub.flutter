@@ -10,6 +10,11 @@ const setupWorkspace = WorkspaceDescriptor(
   accentColor: MercantisBrandColors.accentSetup,
   order: 90,
   sections: [
+    WorkspaceSection(label: 'Preferences', items: [
+      CustomWorkspaceItem(routeName: 'settings',
+        label: 'Settings', icon: Icons.tune_outlined,
+        description: 'Operator, modules and advanced mode'),
+    ]),
     WorkspaceSection(label: 'Organisation', items: [
       DocTypeWorkspaceItem(docType: 'Company', icon: Icons.business_outlined),
       DocTypeWorkspaceItem(docType: 'Fiscal Year', icon: Icons.event_outlined),

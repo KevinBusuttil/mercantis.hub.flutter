@@ -8,6 +8,7 @@ import 'ledger/ledger_derivation_service.dart';
 import 'manufacturing/manufacturing_service.dart';
 import 'onboarding/onboarding_providers.dart';
 import 'screens/onboarding_screen.dart';
+import 'settings/hub_settings.dart';
 
 class MercantisHubApp extends ConsumerWidget {
   const MercantisHubApp({super.key});
@@ -111,6 +112,9 @@ final _bootProvider = FutureProvider<void>((ref) async {
   await ref.watch(manufacturingDerivationServiceProvider.future);
   // Subscribe the delivery-route service (status events + Delivery Note mirror).
   await ref.watch(deliveryRouteServiceProvider.future);
+  // Load persisted preferences (operator identity, module visibility).
+  final engine = await ref.watch(documentEngineProvider.future);
+  await ref.read(hubSettingsProvider.notifier).hydrate(engine);
 });
 
 class _HubSplashScreen extends StatelessWidget {
