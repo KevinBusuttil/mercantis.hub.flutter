@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_hub_app/ledger/ledger_derivation.dart';
-import 'package:mercantis_hub_app/ledger/ledger_values.dart';
 import 'package:mercantis_hub_app/manufacturing/manufacturing.dart';
 
 /// Pure tests for the manufacturing helpers: BOM explosion + rollup, and the
