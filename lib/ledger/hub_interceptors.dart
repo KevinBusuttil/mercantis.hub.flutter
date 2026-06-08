@@ -16,6 +16,7 @@ final hubInterceptorsOverride =
   BusinessProfileDefaultsInterceptor(),
   LineItemTotalsInterceptor(),
   TaxCalculationInterceptor(),
+  BomRollupInterceptor(),
   FiscalYearGuardInterceptor(),
 ]);
 
@@ -196,6 +197,38 @@ class TaxCalculationInterceptor extends DocumentInterceptor {
     if (v is num) return v != 0;
     if (v is String) return v == '1' || v.toLowerCase() == 'true';
     return true;
+  }
+}
+
+/// Rolls up BOM costs on save: each item row's `amount = qty * rate`, each
+/// operation row's `cost = (time_minutes / 60) * hour_rate`, then the parent
+/// `raw_material_cost` (Σ amount), `operating_cost` (Σ cost) and `total_cost`.
+/// Only touches docs that carry a `raw_material_cost` field (the BOM).
+class BomRollupInterceptor extends DocumentInterceptor {
+  const BomRollupInterceptor();
+
+  @override
+  Future<void> beforeSave(
+      DocumentEngine engine, Document doc, DocType docType,
+      {required bool isNew}) async {
+    final keys = {for (final f in docType.fields) f.key};
+    if (!keys.contains('raw_material_cost')) return; // not a BOM
+
+    num raw = 0;
+    for (final r in doc.children['items'] ?? const []) {
+      final amount = asNum(r.payload['qty']) * asNum(r.payload['rate']);
+      r.payload['amount'] = amount;
+      raw += amount;
+    }
+    num op = 0;
+    for (final r in doc.children['operations'] ?? const []) {
+      final cost = (asNum(r.payload['time_minutes']) / 60) * asNum(r.payload['hour_rate']);
+      r.payload['cost'] = cost;
+      op += cost;
+    }
+    doc.payload['raw_material_cost'] = raw;
+    doc.payload['operating_cost'] = op;
+    doc.payload['total_cost'] = raw + op;
   }
 }
 

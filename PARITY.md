@@ -17,12 +17,12 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 |--------|:----:|:----:|-------|
 | CRM | Customer, Contact, Address, Lead, DynamicLink | 🟡 | Customer, Contact, Lead live (+ Opportunity, Flutter-only); **Address + DynamicLink missing** |
 | Setup | 14 (Company, groups, masters, PriceList, FiscalYear, UOM…) | 🟡 | live: Company, Currency, CostCenter, FiscalYear (+ Fiscal Year Company child); ItemGroup/Warehouse live under Stock. **Pending: UOM, Brand, PriceList, ItemPrice, NumberingSeries, CustomerGroup, SupplierGroup, Territory** |
-| Selling | Item, Quotation, SalesOrder, SalesInvoice + line items | ✅ | **line-item child DocTypes added (Phase 2)**; Item child tables (ItemSupplier, UOMConversionDetail) pending |
+| Selling | Item, Quotation, SalesOrder, SalesInvoice + line items | 🟡 | **line-item child DocTypes added (Phase 2)**; Item child tables (ItemSupplier, UOMConversionDetail) pending |
 | Buying | Supplier, SQ, PO, PurchaseInvoice, Receipt + items | 🟡 | Supplier, PO, PurchaseInvoice + items, Receipt (under Fulfilment); **Supplier Quotation pending** |
 | Stock | Item, StockEntry, **StockLedgerEntry, Bin** | ✅ | **Stock Entry Detail + Stock Ledger Entry + Bin added (Phase 2)**; hosts Item, Item Group, Warehouse |
 | Accounting | Account, JE, PaymentEntry + **GL/CustTrans/VendTrans/Settlement/TaxTrans** | ✅ | **all subledger tables + JE Account + PE Reference added (Phase 2)** — full DocType parity |
 | Deliveries | SalesDelivery, Route, DeliveryRouteStop, Driver, Vehicle, StatusEvent | 🟡 | Delivery Note + items + journey workflow only; **Route/Driver/Vehicle/StatusEvent not ported as DocTypes — mock screens only** |
-| Manufacturing | BOM, WorkOrder, JobCard, ProductionPlan, Workstation, Operation | ❌ | module not ported (workflows defined, inert) |
+| Manufacturing | BOM, WorkOrder, JobCard, ProductionPlan, Workstation, Operation | 🟡 | **DocTypes ported** (BOM+items+operations w/ cost rollup, Work Order+required items, Job Card, Production Plan, Workstation, Operation); `wf-bom`/`wf-work-order`/`wf-production-plan` bound; submitting a Production Plan auto-creates Work Orders (BOM-exploded). Stock-only posting via `Manufacturing.completionStockEntry` (consume raw + produce finished → existing Stock Entry derivation). Covered by `test/manufacturing_test.dart`. **Auto-post-on-completion + dedicated UI deferred** (no workflow-transition event yet; usable via generic form) |
 | POS | POSProfile, POSSession, POSInvoice, PaymentTender | 🟡 | **DocTypes + ledger posting ported**: POS Invoice (cash sale) issues stock + posts Dr Cash / Cr Income(net) / output VAT (reuses tax engine + stock derivation), `wf-pos-invoice` bound, pure `PosCheckout` builder, in Sales workspace. Covered by `test/pos_checkout_test.dart` + POS group in `ledger_derivation_test.dart`. **Dedicated till UI deferred** (usable via generic form meanwhile) |
 | Tax | TaxCode, TaxCategory, TaxCharge | ✅ | **Tax Code/Category masters + Tax Charge child ported; VAT calc on save + tax-leg derivation + Tax Transaction subledger live.** WHT/excise tax types pending |
 
@@ -33,7 +33,7 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 | Workflows (14) | ✅ | ✅ | all 14 defined + bound to existing submittable DocTypes (Phase 2); 4 inert pending modules |
 | **LedgerDerivationService** (GL/SLE/Cust/Vend/Settlement on submit & cancel) | ✅ | ✅ | **Phase 3:** pure `LedgerDerivation` + runner wired at boot; deterministic ids + reversal; covered by `test/ledger_derivation_test.dart` |
 | **StockBalanceService** (Bin recompute) | ✅ | ✅ | **Phase 3:** pure `StockBalance` fold + `recomputeBin` after stock moves |
-| ManufacturingDerivationService | ✅ | ❌ | pending Manufacturing module (Phase 6) |
+| ManufacturingDerivationService | ✅ | 🟡 | `Manufacturing` helpers (BOM explosion, cost rollup, completion Stock Entry) + `ManufacturingDerivationService` (Production Plan → Work Orders on submit). Stock-only (Swift posts no GL). Auto-post-on-WO-completion pending a workflow-transition event |
 | DeliveryRouteService | ✅ | ❌ | pending (Phase 6) |
 | Line-item & document totals | ✅ | ✅ | `LineItemTotalsInterceptor` (beforeSave) computes per-row `amount = qty*rate`, `total` = Σ amount; `grand_total` = total on non-tax docs, and `total + tax` on invoices (owned by `TaxCalculationInterceptor`) — authoritative on every save path; child grid also evaluates `formulaExpression` live (core `applyRowFormulas`) |
 | Business Profile defaults policy | ✅ | ✅ | `BusinessProfileDefaultsInterceptor` (core `DocumentInterceptor.beforeSave`) stamps company, default currency, default posting accounts + today's posting date on new drafts; only fills blanks |
@@ -80,8 +80,9 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
    ReportEngine), 5 dashboards on real data, replace mock screens.
 4. **Phase 5 — UX/menu parity.** 3-level nav, presets, settings, guided flows.
 5. **Phase 6 — optional modules.** Tax ✅ (VAT codes + tax legs); POS ✅
-   (cash-sale posting; till UI pending); remaining: Manufacturing, full
-   Deliveries (routes/fleet).
+   (cash-sale posting; till UI pending); Manufacturing ✅ (BOM/WO/plan +
+   stock-only production posting; auto-complete + UI pending); remaining:
+   full Deliveries (routes/fleet).
 
 > Depends on Core repo Phase 1 (report/dashboard execution engine) — landed.
 > See `mercantis.core.flutter/PARITY.md`.

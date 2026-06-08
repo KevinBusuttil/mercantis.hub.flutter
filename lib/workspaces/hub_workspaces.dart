@@ -4,6 +4,7 @@ import 'delivery_workspace.dart';
 import 'finance_workspace.dart';
 import 'home_workspace.dart';
 import 'inventory_workspace.dart';
+import 'manufacturing_workspace.dart';
 import 'purchasing_workspace.dart';
 import 'reports_workspace.dart';
 import 'sales_fulfilment_workspace.dart';
@@ -14,6 +15,7 @@ const hubWorkspaces = <WorkspaceDescriptor>[
   salesFulfilmentWorkspace,
   purchasingWorkspace,
   inventoryWorkspace,
+  manufacturingWorkspace,
   deliveryWorkspace,
   financeWorkspace,
   approvalsWorkspace,

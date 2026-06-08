@@ -27,6 +27,7 @@ abstract final class HubWorkflows {
         _paymentEntry(),
         _bom(),
         _workOrder(),
+        _productionPlan(),
       ];
 
   // ---- helpers ------------------------------------------------------------
@@ -278,6 +279,19 @@ abstract final class HubWorkflows {
           _t('wf-work-order', 'InProgress', 'Stopped', 'Stop'),
           _t('wf-work-order', 'Stopped', 'InProgress', 'Resume'),
           _t('wf-work-order', 'Submitted', 'Cancelled', 'Cancel'),
+        ],
+      );
+
+  static WorkflowDefinition _productionPlan() => WorkflowDefinition(
+        id: 'wf-production-plan',
+        states: [
+          _state('Draft', isDefault: true, allowEdit: true),
+          _state('Submitted'),
+          _state('Cancelled'),
+        ],
+        transitions: [
+          _t('wf-production-plan', 'Draft', 'Submitted', 'Submit'),
+          _t('wf-production-plan', 'Submitted', 'Cancelled', 'Cancel'),
         ],
       );
 }
