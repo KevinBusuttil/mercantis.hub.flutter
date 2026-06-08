@@ -10,7 +10,102 @@ abstract final class SetupModule {
         _fiscalYearCompany(),
         _costCenter(),
         _hubSettings(),
+        _uom(),
+        _brand(),
+        _priceList(),
+        _itemPrice(),
+        _customerGroup(),
+        _supplierGroup(),
+        _territory(),
       ];
+
+  // ---- catalogue & party masters -----------------------------------------
+
+  static DocType _uom() => const DocType(
+        id: 'UOM',
+        name: 'UOM',
+        module: _module,
+        fields: [
+          FieldDefinition(key: 'uom_name', label: 'UOM Name', type: FieldType.data, required: true),
+          FieldDefinition(key: 'must_be_whole_number', label: 'Must Be Whole Number', type: FieldType.check),
+          FieldDefinition(key: 'enabled', label: 'Enabled', type: FieldType.check, defaultValue: '1'),
+        ],
+      );
+
+  static DocType _brand() => const DocType(
+        id: 'Brand',
+        name: 'Brand',
+        module: _module,
+        fields: [
+          FieldDefinition(key: 'brand_name', label: 'Brand Name', type: FieldType.data, required: true),
+          FieldDefinition(key: 'description', label: 'Description', type: FieldType.longText),
+        ],
+      );
+
+  static DocType _priceList() => const DocType(
+        id: 'Price List',
+        name: 'Price List',
+        module: _module,
+        fields: [
+          FieldDefinition(key: 'price_list_name', label: 'Price List Name', type: FieldType.data, required: true),
+          FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency', required: true),
+          FieldDefinition(key: 'buying', label: 'Used for Buying', type: FieldType.check),
+          FieldDefinition(key: 'selling', label: 'Used for Selling', type: FieldType.check, defaultValue: '1'),
+          FieldDefinition(key: 'enabled', label: 'Enabled', type: FieldType.check, defaultValue: '1'),
+          FieldDefinition(key: 'items', label: 'Item Rates', type: FieldType.table, tableDocType: 'Item Price', options: 'Item Price'),
+        ],
+      );
+
+  static DocType _itemPrice() => const DocType(
+        id: 'Item Price',
+        name: 'Item Price',
+        module: _module,
+        isChild: true,
+        fields: [
+          FieldDefinition(key: 'item', label: 'Item', type: FieldType.link, linkDocType: 'Item', options: 'Item', required: true),
+          FieldDefinition(key: 'uom', label: 'UOM', type: FieldType.link, linkDocType: 'UOM', options: 'UOM'),
+          FieldDefinition(key: 'rate', label: 'Rate', type: FieldType.currency, required: true),
+          FieldDefinition(key: 'min_qty', label: 'Min Qty', type: FieldType.float, defaultValue: '0'),
+          FieldDefinition(key: 'valid_from', label: 'Valid From', type: FieldType.date),
+          FieldDefinition(key: 'valid_upto', label: 'Valid Upto', type: FieldType.date),
+        ],
+      );
+
+  static DocType _customerGroup() => const DocType(
+        id: 'Customer Group',
+        name: 'Customer Group',
+        module: _module,
+        isTree: true,
+        fields: [
+          FieldDefinition(key: 'customer_group_name', label: 'Customer Group Name', type: FieldType.data, required: true),
+          FieldDefinition(key: 'parent_customer_group', label: 'Parent Customer Group', type: FieldType.link, linkDocType: 'Customer Group', options: 'Customer Group'),
+          FieldDefinition(key: 'is_group', label: 'Is Group', type: FieldType.check),
+        ],
+      );
+
+  static DocType _supplierGroup() => const DocType(
+        id: 'Supplier Group',
+        name: 'Supplier Group',
+        module: _module,
+        isTree: true,
+        fields: [
+          FieldDefinition(key: 'supplier_group_name', label: 'Supplier Group Name', type: FieldType.data, required: true),
+          FieldDefinition(key: 'parent_supplier_group', label: 'Parent Supplier Group', type: FieldType.link, linkDocType: 'Supplier Group', options: 'Supplier Group'),
+          FieldDefinition(key: 'is_group', label: 'Is Group', type: FieldType.check),
+        ],
+      );
+
+  static DocType _territory() => const DocType(
+        id: 'Territory',
+        name: 'Territory',
+        module: _module,
+        isTree: true,
+        fields: [
+          FieldDefinition(key: 'territory_name', label: 'Territory Name', type: FieldType.data, required: true),
+          FieldDefinition(key: 'parent_territory', label: 'Parent Territory', type: FieldType.link, linkDocType: 'Territory', options: 'Territory'),
+          FieldDefinition(key: 'is_group', label: 'Is Group', type: FieldType.check),
+        ],
+      );
 
   /// Single-record app preferences (advanced mode, optional-module visibility,
   /// operator identity). Managed by the Settings screen.

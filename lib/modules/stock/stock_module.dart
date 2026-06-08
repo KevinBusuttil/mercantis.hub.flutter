@@ -35,6 +35,7 @@ abstract final class StockModule {
           FieldDefinition(key: 'item_code', label: 'Item Code', type: FieldType.data, required: true),
           FieldDefinition(key: 'item_name', label: 'Item Name', type: FieldType.data, required: true),
           FieldDefinition(key: 'item_group', label: 'Item Group', type: FieldType.link, linkDocType: 'Item Group', options: 'Item Group'),
+          FieldDefinition(key: 'brand', label: 'Brand', type: FieldType.link, linkDocType: 'Brand', options: 'Brand'),
           FieldDefinition(key: 'description', label: 'Description', type: FieldType.longText),
           FieldDefinition(
             key: 'stock_uom',

@@ -21,6 +21,17 @@ const setupWorkspace = WorkspaceDescriptor(
       DocTypeWorkspaceItem(docType: 'Currency',
         icon: Icons.currency_exchange),
     ]),
+    WorkspaceSection(label: 'Catalogue masters', items: [
+      DocTypeWorkspaceItem(docType: 'UOM', icon: Icons.straighten_outlined),
+      DocTypeWorkspaceItem(docType: 'Brand', icon: Icons.sell_outlined),
+      DocTypeWorkspaceItem(docType: 'Price List', icon: Icons.price_change_outlined),
+    ]),
+    WorkspaceSection(label: 'Segmentation', items: [
+      DocTypeWorkspaceItem(docType: 'Customer Group', icon: Icons.groups_outlined),
+      DocTypeWorkspaceItem(docType: 'Supplier Group', icon: Icons.group_work_outlined),
+      DocTypeWorkspaceItem(docType: 'Territory', icon: Icons.public_outlined),
+      DocTypeWorkspaceItem(docType: 'Address', icon: Icons.location_on_outlined),
+    ]),
     WorkspaceSection(label: 'People', items: [
       DocTypeWorkspaceItem(docType: 'User', icon: Icons.person_outline),
       DocTypeWorkspaceItem(docType: 'Role', icon: Icons.badge_outlined),
