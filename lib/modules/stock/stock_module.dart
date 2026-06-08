@@ -45,6 +45,7 @@ abstract final class StockModule {
           ),
           FieldDefinition(key: 'standard_rate', label: 'Standard Selling Rate', type: FieldType.currency),
           FieldDefinition(key: 'standard_buying_rate', label: 'Standard Buying Rate', type: FieldType.currency),
+          FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
           FieldDefinition(key: 'is_stock_item', label: 'Is Stock Item', type: FieldType.check, defaultValue: '1'),
           FieldDefinition(key: 'is_service_item', label: 'Is Service Item', type: FieldType.check),
           FieldDefinition(key: 'disabled', label: 'Disabled', type: FieldType.check),

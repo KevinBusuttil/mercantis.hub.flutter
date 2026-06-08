@@ -86,6 +86,137 @@ void main() {
     });
   });
 
+  group('Sales Invoice with VAT', () {
+    Document invoice() => src('Sales Invoice', id: 'SINV-2', payload: {
+          'grand_total': 1180,
+          'customer': 'C1',
+          'debit_to': 'Debtors',
+          'income_account': 'Sales',
+          'posting_date': '2026-01-01',
+          'currency': 'EUR',
+        }, children: {
+          'taxes': [
+            {
+              'tax_code': 'VAT18',
+              'tax_type': 'VAT',
+              'rate': 18,
+              'tax_account': 'VAT Output',
+              'taxable_amount': 1000,
+              'tax_amount': 180,
+            },
+          ],
+        });
+
+    test('splits income net + output VAT into a balanced 3-leg GL', () {
+      final rows = LedgerDerivation.derive(invoice(), reversal: false);
+      expect(glCount(rows), 3);
+      expect(glDebit(rows), 1180); // Dr Receivable gross
+      expect(glCredit(rows), 1180); // Cr Income 1000 + Cr VAT 180
+
+      final income = rows.firstWhere((r) => r.id == 'GL-SINV-2-credit');
+      expect(income.payload['credit'], 1000); // net of tax
+
+      final vat = rows.firstWhere((r) => r.id == 'GL-SINV-2-tax-0');
+      expect(vat.payload['account'], 'VAT Output');
+      expect(vat.payload['credit'], 180); // output VAT credited
+      expect(vat.payload['debit'], 0);
+
+      // Customer still owes the gross amount.
+      final ct = rows.firstWhere((r) => r.docType == 'Customer Transaction');
+      expect(ct.payload['amount'], 1180);
+    });
+
+    test('writes a signed Tax Transaction subledger row', () {
+      final rows = LedgerDerivation.derive(invoice(), reversal: false);
+      final tt = rows.firstWhere((r) => r.docType == 'Tax Transaction');
+      expect(tt.id, 'TT-SINV-2-0');
+      expect(tt.payload['tax_type'], 'VAT');
+      expect(tt.payload['tax'], 'VAT18');
+      expect(tt.payload['base_amount'], 1000);
+      expect(tt.payload['tax_amount'], 180);
+      expect(tt.payload['rate'], 18);
+      expect(tt.payload['party_type'], 'Customer');
+      expect(tt.payload['party'], 'C1');
+      expect(tt.payload['voucher_no'], 'SINV-2');
+    });
+
+    test('cancel reverses VAT: GL nets zero and the subledger backs out', () {
+      final all = [
+        ...LedgerDerivation.derive(invoice(), reversal: false),
+        ...LedgerDerivation.derive(invoice(), reversal: true),
+      ];
+      expect(glDebit(all), glCredit(all));
+      final net = all
+          .where((r) => r.docType == 'GL Entry')
+          .fold<num>(0, (s, r) => s + asNum(r.payload['debit']) - asNum(r.payload['credit']));
+      expect(net, 0);
+
+      final revVat = all.firstWhere((r) => r.id == 'GL-SINV-2-tax-0-reversal');
+      expect(revVat.payload['debit'], 180); // reversed output VAT debits
+
+      final revTt = all.firstWhere((r) => r.id == 'TT-SINV-2-0-reversal');
+      expect(revTt.payload['base_amount'], -1000);
+      expect(revTt.payload['tax_amount'], -180);
+      expect(revTt.payload['is_reversal'], true);
+    });
+
+    test('zero-rated line: no VAT GL leg but a Tax Transaction is still recorded', () {
+      final zero = src('Sales Invoice', id: 'SINV-3', payload: {
+        'grand_total': 500,
+        'customer': 'C1',
+        'debit_to': 'Debtors',
+        'income_account': 'Sales',
+        'posting_date': '2026-01-01',
+      }, children: {
+        'taxes': [
+          {'tax_code': 'VAT0', 'tax_type': 'VAT', 'rate': 0, 'tax_account': 'VAT Output', 'taxable_amount': 500, 'tax_amount': 0},
+        ],
+      });
+      final rows = LedgerDerivation.derive(zero, reversal: false);
+      expect(rows.where((r) => r.id == 'GL-SINV-3-tax-0'), isEmpty); // no zero leg
+      expect(glDebit(rows), 500);
+      expect(glCredit(rows), 500); // income == gross (net of 0 tax)
+      final tt = rows.firstWhere((r) => r.docType == 'Tax Transaction');
+      expect(tt.payload['base_amount'], 500);
+      expect(tt.payload['tax_amount'], 0);
+    });
+  });
+
+  group('Purchase Invoice with VAT', () {
+    test('splits expense net + input VAT (debit) into a balanced 3-leg GL', () {
+      final rows = LedgerDerivation.derive(
+        src('Purchase Invoice', id: 'PINV-2', payload: {
+          'grand_total': 590,
+          'supplier': 'S1',
+          'credit_to': 'Creditors',
+          'expense_account': 'Expenses',
+          'posting_date': '2026-01-01',
+        }, children: {
+          'taxes': [
+            {'tax_code': 'VAT18', 'tax_type': 'VAT', 'rate': 18, 'tax_account': 'VAT Input', 'taxable_amount': 500, 'tax_amount': 90},
+          ],
+        }),
+        reversal: false,
+      );
+      expect(glCount(rows), 3);
+      expect(glDebit(rows), 590); // Dr Expense 500 + Dr Input VAT 90
+      expect(glCredit(rows), 590); // Cr Payable gross
+
+      final expense = rows.firstWhere((r) => r.id == 'GL-PINV-2-debit');
+      expect(expense.payload['debit'], 500); // net of tax
+
+      final vat = rows.firstWhere((r) => r.id == 'GL-PINV-2-tax-0');
+      expect(vat.payload['account'], 'VAT Input');
+      expect(vat.payload['debit'], 90); // input VAT debited (recoverable)
+      expect(vat.payload['credit'], 0);
+
+      final tt = rows.firstWhere((r) => r.docType == 'Tax Transaction');
+      expect(tt.payload['party_type'], 'Supplier');
+      expect(tt.payload['party'], 'S1');
+      expect(tt.payload['tax_amount'], 90);
+    });
+  });
+
   group('Purchase Invoice', () {
     test('balanced GL with payable credit + supplier owes row', () {
       final rows = LedgerDerivation.derive(
