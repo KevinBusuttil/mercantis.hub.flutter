@@ -4,6 +4,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'manifest/hub_manifest.dart';
 import 'navigation/hub_navigation.dart';
 import 'ledger/ledger_derivation_service.dart';
+import 'manufacturing/manufacturing_service.dart';
 import 'onboarding/onboarding_providers.dart';
 import 'screens/onboarding_screen.dart';
 
@@ -105,6 +106,8 @@ final _bootProvider = FutureProvider<void>((ref) async {
   }
   // Subscribe the ledger spine to document events (kept alive for app life).
   await ref.watch(ledgerDerivationServiceProvider.future);
+  // Subscribe the manufacturing service (Production Plan → Work Orders).
+  await ref.watch(manufacturingDerivationServiceProvider.future);
 });
 
 class _HubSplashScreen extends StatelessWidget {
