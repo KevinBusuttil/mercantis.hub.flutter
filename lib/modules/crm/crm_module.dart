@@ -105,6 +105,7 @@ abstract final class CrmModule {
           FieldDefinition(key: 'customer_group', label: 'Customer Group', type: FieldType.data),
           FieldDefinition(key: 'territory', label: 'Territory', type: FieldType.data),
           FieldDefinition(key: 'tax_id', label: 'Tax ID', type: FieldType.data),
+          FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
           FieldDefinition(key: 'default_currency', label: 'Default Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
           FieldDefinition(key: 'website', label: 'Website', type: FieldType.data),
         ],

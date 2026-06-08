@@ -31,6 +31,7 @@ abstract final class BuyingModule {
           FieldDefinition(key: 'supplier_group', label: 'Supplier Group', type: FieldType.data),
           FieldDefinition(key: 'country', label: 'Country', type: FieldType.data),
           FieldDefinition(key: 'tax_id', label: 'Tax ID', type: FieldType.data),
+          FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
           FieldDefinition(key: 'default_currency', label: 'Default Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
           FieldDefinition(key: 'payment_terms', label: 'Payment Terms', type: FieldType.data),
           FieldDefinition(key: 'website', label: 'Website', type: FieldType.data),
@@ -74,8 +75,13 @@ abstract final class BuyingModule {
           FieldDefinition(key: 'credit_to', label: 'Credit To (Payable)', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'expense_account', label: 'Expense Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'cost_center', label: 'Cost Center', type: FieldType.link, linkDocType: 'Cost Center', options: 'Cost Center'),
+          // Document-level default tax code — third in the line → item →
+          // document → party fallback chain resolved on save.
+          FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Purchase Invoice Item', options: 'Purchase Invoice Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
+          // Computed VAT rows (input tax) — one per distinct tax code on submit.
+          FieldDefinition(key: 'taxes', label: 'Taxes', type: FieldType.table, tableDocType: 'Tax Charge', options: 'Tax Charge'),
           FieldDefinition(key: 'tax_total', label: 'Tax Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'grand_total', label: 'Grand Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'outstanding_amount', label: 'Outstanding', type: FieldType.currency, readOnly: true, allowOnSubmit: true),

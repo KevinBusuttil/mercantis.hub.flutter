@@ -26,6 +26,7 @@ abstract final class SetupModule {
           FieldDefinition(key: 'default_payable_account', label: 'Default Payable Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'default_expense_account', label: 'Default Expense Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'default_cash_account', label: 'Default Cash/Bank Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
+          FieldDefinition(key: 'default_vat_account', label: 'Default VAT Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'tax_id', label: 'Tax ID', type: FieldType.data),
           FieldDefinition(key: 'website', label: 'Website', type: FieldType.data),
           FieldDefinition(key: 'phone_no', label: 'Phone No', type: FieldType.data),

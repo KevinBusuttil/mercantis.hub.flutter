@@ -24,7 +24,7 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 | Deliveries | SalesDelivery, Route, DeliveryRouteStop, Driver, Vehicle, StatusEvent | 🟡 | Delivery Note + items + journey workflow only; **Route/Driver/Vehicle/StatusEvent not ported as DocTypes — mock screens only** |
 | Manufacturing | BOM, WorkOrder, JobCard, ProductionPlan, Workstation, Operation | ❌ | module not ported (workflows defined, inert) |
 | POS | POSProfile, POSSession, POSInvoice, PaymentTender | ❌ | not ported (workflow defined, inert) |
-| Tax | TaxCode, TaxCategory, TaxCharge | ❌ | not ported (Tax Transaction subledger stub present) |
+| Tax | TaxCode, TaxCategory, TaxCharge | ✅ | **Tax Code/Category masters + Tax Charge child ported; VAT calc on save + tax-leg derivation + Tax Transaction subledger live.** WHT/excise tax types pending |
 
 ## Business logic (the critical path)
 
@@ -35,12 +35,12 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 | **StockBalanceService** (Bin recompute) | ✅ | ✅ | **Phase 3:** pure `StockBalance` fold + `recomputeBin` after stock moves |
 | ManufacturingDerivationService | ✅ | ❌ | pending Manufacturing module (Phase 6) |
 | DeliveryRouteService | ✅ | ❌ | pending (Phase 6) |
-| Line-item & document totals | ✅ | ✅ | `LineItemTotalsInterceptor` (beforeSave) computes per-row `amount = qty*rate`, `total` = Σ amount, `grand_total` = total (until tax legs) — authoritative on every save path; child grid also evaluates `formulaExpression` live (core `applyRowFormulas`) |
+| Line-item & document totals | ✅ | ✅ | `LineItemTotalsInterceptor` (beforeSave) computes per-row `amount = qty*rate`, `total` = Σ amount; `grand_total` = total on non-tax docs, and `total + tax` on invoices (owned by `TaxCalculationInterceptor`) — authoritative on every save path; child grid also evaluates `formulaExpression` live (core `applyRowFormulas`) |
 | Business Profile defaults policy | ✅ | ✅ | `BusinessProfileDefaultsInterceptor` (core `DocumentInterceptor.beforeSave`) stamps company, default currency, default posting accounts + today's posting date on new drafts; only fills blanks |
 | Fiscal-year posting validation | ✅ | ✅ | `FiscalYearGuardInterceptor` (core `DocumentInterceptor.beforeSubmit`) blocks a posting dated outside every defined Fiscal Year; no-op until at least one year exists |
 | Posting-account resolution | ✅ | ✅ | explicit voucher fields win; blank accounts fall back to Company defaults (default_receivable/income/payable/expense/cash) resolved by the runner before derivation |
 | Invoice `outstanding_amount` update on settlement | ✅ | ✅ | **core `applyOnSubmitUpdate` added**; runner recomputes outstanding from the Settlement subledger (idempotent) on invoice submit + payment submit/cancel |
-| Tax legs (VAT split + TaxTrans rows) | ✅ | ❌ | pending Tax module; invoices post 2-leg GL meanwhile |
+| Tax legs (VAT split + TaxTrans rows) | ✅ | ✅ | `TaxCalculationInterceptor` computes VAT on save (line → item → document → party code fallback, default-VAT-account fallback, zero-rated rows kept); `LedgerDerivation` splits income/expense net + posts output/input VAT GL legs + signed `Tax Transaction` rows, reversal-on-cancel. Covered by `test/hub_tax_engine_test.dart`, `test/hub_tax_calc_test.dart`, `test/ledger_derivation_test.dart` |
 
 ## Reports, dashboards & flows
 
@@ -79,7 +79,8 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 3. **Phase 4 — reports/dashboards + de-mock.** 14 reports (using Core
    ReportEngine), 5 dashboards on real data, replace mock screens.
 4. **Phase 5 — UX/menu parity.** 3-level nav, presets, settings, guided flows.
-5. **Phase 6 — optional modules.** POS, Manufacturing, Tax, full Deliveries.
+5. **Phase 6 — optional modules.** Tax ✅ (VAT codes + tax legs); remaining:
+   POS, Manufacturing, full Deliveries (routes/fleet).
 
 > Depends on Core repo Phase 1 (report/dashboard execution engine) — landed.
 > See `mercantis.core.flutter/PARITY.md`.

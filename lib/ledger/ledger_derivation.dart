@@ -16,9 +16,13 @@ import 'ledger_values.dart';
 /// the runner (see [accountFallbacks]) before derivation, so a minimal voucher
 /// still posts to balanced accounts.
 ///
-/// Deliberately NOT yet handled (Phase 3 follow-ups, flagged in PARITY.md):
-///  * tax legs (no taxes child table until the Tax module lands) — invoices
-///    therefore post a 2-leg GL (Dr/Cr grand_total), which still balances;
+/// Invoices split the income/expense side into net + VAT: when a `taxes` child
+/// table is present (populated on save by `TaxCalculationInterceptor`) each tax
+/// row posts a GL leg (output VAT credited on sales, input VAT debited on
+/// purchases) plus a `Tax Transaction` subledger row. With no tax rows this
+/// collapses to the original balanced 2-leg posting.
+///
+/// Deliberately NOT yet handled (flagged in PARITY.md):
 ///  * POSInvoice (POS module not ported).
 abstract final class LedgerDerivation {
   // Derived DocType ids (match the Phase 2 manifest).
@@ -26,6 +30,7 @@ abstract final class LedgerDerivation {
   static const customerTxn = 'Customer Transaction';
   static const supplierTxn = 'Supplier Transaction';
   static const settlement = 'Settlement';
+  static const taxTxn = 'Tax Transaction';
   static const stockLedger = 'Stock Ledger Entry';
   static const bin = 'Bin';
 
@@ -97,10 +102,12 @@ abstract final class LedgerDerivation {
     final id = doc.id;
     final p = doc.payload;
     final grand = asNum(p['grand_total']);
+    final taxRows = doc.children['taxes'] ?? const [];
+    final net = grand - _totalTax(taxRows); // income net of VAT
     final customer = asNonEmpty(p['customer']);
     final sfx = reversalSuffix(reversal);
     return [
-      // Dr Accounts Receivable
+      // Dr Accounts Receivable (gross — customer owes net + VAT)
       _gl(
         id: 'GL-$id-debit$sfx',
         account: asNonEmpty(p['debit_to']),
@@ -113,12 +120,12 @@ abstract final class LedgerDerivation {
         postingDate: p['posting_date'],
         reversal: reversal,
       ),
-      // Cr Income (net == grand until tax legs exist)
+      // Cr Income (net of tax)
       _gl(
         id: 'GL-$id-credit$sfx',
         account: asNonEmpty(p['income_account']),
-        debit: reversal ? grand : 0,
-        credit: reversal ? 0 : grand,
+        debit: reversal ? net : 0,
+        credit: reversal ? 0 : net,
         voucherType: doc.docType,
         voucherNo: id,
         postingDate: p['posting_date'],
@@ -136,6 +143,9 @@ abstract final class LedgerDerivation {
         'voucher_no': id,
         'is_reversal': reversal,
       }),
+      // Cr Output VAT — one GL leg + one Tax Transaction row per tax line.
+      ..._taxLegs(doc, reversal,
+          isOutput: true, partyType: 'Customer', party: customer),
     ];
   }
 
@@ -143,10 +153,12 @@ abstract final class LedgerDerivation {
     final id = doc.id;
     final p = doc.payload;
     final grand = asNum(p['grand_total']);
+    final taxRows = doc.children['taxes'] ?? const [];
+    final net = grand - _totalTax(taxRows); // expense net of VAT
     final supplier = asNonEmpty(p['supplier']);
     final sfx = reversalSuffix(reversal);
     return [
-      // Cr Accounts Payable
+      // Cr Accounts Payable (gross — we owe net + VAT)
       _gl(
         id: 'GL-$id-credit$sfx',
         account: asNonEmpty(p['credit_to']),
@@ -159,12 +171,12 @@ abstract final class LedgerDerivation {
         postingDate: p['posting_date'],
         reversal: reversal,
       ),
-      // Dr Expense
+      // Dr Expense (net of tax)
       _gl(
         id: 'GL-$id-debit$sfx',
         account: asNonEmpty(p['expense_account']),
-        debit: reversal ? 0 : grand,
-        credit: reversal ? grand : 0,
+        debit: reversal ? 0 : net,
+        credit: reversal ? net : 0,
         voucherType: doc.docType,
         voucherNo: id,
         postingDate: p['posting_date'],
@@ -182,7 +194,70 @@ abstract final class LedgerDerivation {
         'voucher_no': id,
         'is_reversal': reversal,
       }),
+      // Dr Input VAT — one GL leg + one Tax Transaction row per tax line.
+      ..._taxLegs(doc, reversal,
+          isOutput: false, partyType: 'Supplier', party: supplier),
     ];
+  }
+
+  // ---- tax legs (VAT) -----------------------------------------------------
+
+  /// Sum of `tax_amount` across an invoice's `taxes` child rows.
+  static num _totalTax(List<ChildRow> rows) =>
+      rows.fold<num>(0, (s, r) => s + asNum(r.payload['tax_amount']));
+
+  /// For each invoice tax row, post the VAT GL leg (credit for output / sales,
+  /// debit for input / purchases) to the row's `tax_account`, plus a signed
+  /// `Tax Transaction` subledger row. A zero-amount row posts no GL leg but
+  /// still records its taxable base in the subledger (needed for the VAT
+  /// return). Reversal swaps the GL leg and negates the subledger amounts, so
+  /// the VAT summary nets out on cancel.
+  static List<DerivedDoc> _taxLegs(
+    Document doc,
+    bool reversal, {
+    required bool isOutput,
+    required String partyType,
+    String? party,
+  }) {
+    final id = doc.id;
+    final p = doc.payload;
+    final rows = doc.children['taxes'] ?? const [];
+    final sfx = reversalSuffix(reversal);
+    final out = <DerivedDoc>[];
+    for (var i = 0; i < rows.length; i++) {
+      final rp = rows[i].payload;
+      final taxAmount = asNum(rp['tax_amount']);
+      final taxable = asNum(rp['taxable_amount']);
+      final account = asNonEmpty(rp['tax_account']);
+      if (taxAmount != 0 && account != null) {
+        // Output VAT is a credit (we owe the tax authority); input VAT is a
+        // debit (recoverable). Reversal flips each.
+        out.add(_gl(
+          id: 'GL-$id-tax-$i$sfx',
+          account: account,
+          debit: isOutput ? (reversal ? taxAmount : 0) : (reversal ? 0 : taxAmount),
+          credit: isOutput ? (reversal ? 0 : taxAmount) : (reversal ? taxAmount : 0),
+          voucherType: doc.docType,
+          voucherNo: id,
+          postingDate: p['posting_date'],
+          reversal: reversal,
+        ));
+      }
+      out.add(DerivedDoc(taxTxn, 'TT-$id-$i$sfx', {
+        'tax_type': asNonEmpty(rp['tax_type']) ?? 'VAT',
+        if (asNonEmpty(rp['tax_code']) != null) 'tax': asNonEmpty(rp['tax_code']),
+        'posting_date': p['posting_date'],
+        'base_amount': negate(taxable, reversal),
+        'tax_amount': negate(taxAmount, reversal),
+        'rate': asNum(rp['rate']),
+        'party_type': partyType,
+        if (party != null) 'party': party,
+        'voucher_type': doc.docType,
+        'voucher_no': id,
+        'is_reversal': reversal,
+      }));
+    }
+    return out;
   }
 
   // ---- payment entry ------------------------------------------------------

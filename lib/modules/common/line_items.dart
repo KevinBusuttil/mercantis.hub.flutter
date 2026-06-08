@@ -11,8 +11,9 @@ const String kUomOptions = 'Nos\nKg\nGrams\nLitre\nMetre\nBox\nPair\nSet';
 /// shape in the Swift Hub (`SalesItem` / `PurchaseItem`); the `amount` column is
 /// a read-only formula (`qty * rate`) evaluated by the core expression engine.
 ///
-/// `tax_code` is intentionally omitted until the Tax module is ported, to avoid
-/// a link to a DocType that does not exist yet.
+/// `tax_code` is the highest-priority entry in the tax fallback chain
+/// (line → item → document → party) consumed by `TaxCalculationInterceptor`.
+/// Optional: a blank line falls back to the item/document/party default.
 DocType lineItemDocType({
   required String id,
   required String module,
@@ -30,6 +31,7 @@ DocType lineItemDocType({
         const FieldDefinition(key: 'uom', label: 'UOM', type: FieldType.select, options: kUomOptions, defaultValue: 'Nos'),
         const FieldDefinition(key: 'rate', label: 'Rate', type: FieldType.currency, required: true),
         const FieldDefinition(key: 'amount', label: 'Amount', type: FieldType.currency, readOnly: true, formulaExpression: 'qty * rate'),
+        const FieldDefinition(key: 'tax_code', label: 'Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
         FieldDefinition(key: 'warehouse', label: warehouseLabel, type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
       ],
     );
