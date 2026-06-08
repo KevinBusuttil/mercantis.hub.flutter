@@ -17,7 +17,7 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 |--------|:----:|:----:|-------|
 | CRM | Customer, Contact, Address, Lead, DynamicLink | 🟡 | Customer, Contact, Lead live (+ Opportunity, Flutter-only); **Address + DynamicLink missing** |
 | Setup | 14 (Company, groups, masters, PriceList, FiscalYear, UOM…) | 🟡 | live: Company, Currency, CostCenter, FiscalYear (+ Fiscal Year Company child); ItemGroup/Warehouse live under Stock. **Pending: UOM, Brand, PriceList, ItemPrice, NumberingSeries, CustomerGroup, SupplierGroup, Territory** |
-| Selling | Item, Quotation, SalesOrder, SalesInvoice + line items | ✅ | **line-item child DocTypes added (Phase 2)**; Item child tables (ItemSupplier, UOMConversionDetail) pending |
+| Selling | Item, Quotation, SalesOrder, SalesInvoice + line items | 🟡 | **line-item child DocTypes added (Phase 2)**; Item child tables (ItemSupplier, UOMConversionDetail) pending |
 | Buying | Supplier, SQ, PO, PurchaseInvoice, Receipt + items | 🟡 | Supplier, PO, PurchaseInvoice + items, Receipt (under Fulfilment); **Supplier Quotation pending** |
 | Stock | Item, StockEntry, **StockLedgerEntry, Bin** | ✅ | **Stock Entry Detail + Stock Ledger Entry + Bin added (Phase 2)**; hosts Item, Item Group, Warehouse |
 | Accounting | Account, JE, PaymentEntry + **GL/CustTrans/VendTrans/Settlement/TaxTrans** | ✅ | **all subledger tables + JE Account + PE Reference added (Phase 2)** — full DocType parity |
