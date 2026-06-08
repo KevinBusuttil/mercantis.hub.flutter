@@ -4,6 +4,7 @@ import '../modules/selling/selling_module.dart';
 import '../modules/buying/buying_module.dart';
 import '../modules/stock/stock_module.dart';
 import '../modules/accounting/accounting_module.dart';
+import '../modules/deliveries/deliveries_module.dart';
 import '../modules/fulfilment/fulfilment_module.dart';
 import '../modules/manufacturing/manufacturing_module.dart';
 import '../modules/pos/pos_module.dart';
@@ -26,6 +27,7 @@ abstract final class HubManifest {
       ...FulfilmentModule.docTypes(),
       ...PosModule.docTypes(),
       ...ManufacturingModule.docTypes(),
+      ...DeliveriesModule.docTypes(),
     ];
 
     return AppManifest(

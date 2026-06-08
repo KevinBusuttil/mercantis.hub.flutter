@@ -9,7 +9,24 @@ abstract final class SetupModule {
         _fiscalYear(),
         _fiscalYearCompany(),
         _costCenter(),
+        _hubSettings(),
       ];
+
+  /// Single-record app preferences (advanced mode, optional-module visibility,
+  /// operator identity). Managed by the Settings screen.
+  static DocType _hubSettings() => const DocType(
+        id: 'Hub Settings',
+        name: 'Hub Settings',
+        module: _module,
+        fields: [
+          FieldDefinition(key: 'advanced_mode', label: 'Advanced Mode', type: FieldType.check),
+          FieldDefinition(key: 'pos_enabled', label: 'POS Enabled', type: FieldType.check, defaultValue: '1'),
+          FieldDefinition(key: 'manufacturing_enabled', label: 'Manufacturing Enabled', type: FieldType.check, defaultValue: '1'),
+          FieldDefinition(key: 'deliveries_enabled', label: 'Deliveries Enabled', type: FieldType.check, defaultValue: '1'),
+          FieldDefinition(key: 'operator_name', label: 'Operator Name', type: FieldType.data),
+          FieldDefinition(key: 'operator_email', label: 'Operator Email', type: FieldType.data),
+        ],
+      );
 
   static DocType _company() => const DocType(
         id: 'Company',

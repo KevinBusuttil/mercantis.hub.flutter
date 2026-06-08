@@ -16,6 +16,9 @@ const manufacturingWorkspace = WorkspaceDescriptor(
       items: [
         DocTypeWorkspaceItem(docType: 'Production Plan', icon: Icons.event_note_outlined),
         DocTypeWorkspaceItem(docType: 'Work Order', icon: Icons.build_circle_outlined),
+        CustomWorkspaceItem(routeName: 'work-order-complete',
+          label: 'Complete Work Order', icon: Icons.task_alt_outlined,
+          description: 'Post production: consume materials, produce goods'),
         DocTypeWorkspaceItem(docType: 'Job Card', icon: Icons.assignment_turned_in_outlined),
       ],
     ),
@@ -36,5 +39,7 @@ const manufacturingWorkspace = WorkspaceDescriptor(
       icon: Icons.build_circle_outlined, docType: 'Work Order'),
     QuickAction(id: 'mf_new_pp', label: 'New Production Plan',
       icon: Icons.event_note_outlined, docType: 'Production Plan'),
+    QuickAction(id: 'mf_complete_wo', label: 'Complete Work Order',
+      icon: Icons.task_alt_outlined, routeName: '/w/manufacturing/work-order-complete'),
   ],
 );

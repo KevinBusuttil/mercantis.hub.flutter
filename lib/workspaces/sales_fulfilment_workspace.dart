@@ -47,6 +47,9 @@ const salesFulfilmentWorkspace = WorkspaceDescriptor(
       label: 'Point of Sale',
       description: 'Over-the-counter cash sales',
       items: [
+        CustomWorkspaceItem(routeName: 'pos-till',
+          label: 'Open Till', icon: Icons.point_of_sale,
+          description: 'Cart, live VAT and cash checkout'),
         DocTypeWorkspaceItem(docType: 'POS Invoice',
           icon: Icons.point_of_sale_outlined),
         DocTypeWorkspaceItem(docType: 'POS Profile',
@@ -80,8 +83,8 @@ const salesFulfilmentWorkspace = WorkspaceDescriptor(
       icon: Icons.receipt_long_outlined, docType: 'Sales Invoice'),
     QuickAction(id: 'sf_collect', label: 'Collect payment',
       icon: Icons.payments_outlined, docType: 'Payment Entry'),
-    QuickAction(id: 'sf_new_pos', label: 'New POS Sale',
-      icon: Icons.point_of_sale_outlined, docType: 'POS Invoice'),
+    QuickAction(id: 'sf_pos_till', label: 'Open Till',
+      icon: Icons.point_of_sale, routeName: '/w/sales_fulfilment/pos-till'),
   ],
   dashboardCards: [
     DashboardCardSpec.kpi(id: 'sales_today',     title: 'Sales today'),
