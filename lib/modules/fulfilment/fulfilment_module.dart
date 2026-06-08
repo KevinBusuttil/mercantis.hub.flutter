@@ -46,6 +46,13 @@ abstract final class FulfilmentModule {
             type: FieldType.data),
           FieldDefinition(key: 'driver', label: 'Driver',
             type: FieldType.data),
+          // Set by the DeliveryRouteService when this note is added to a route;
+          // route_status mirrors the stop's status. Editable after submit.
+          FieldDefinition(key: 'delivery_route', label: 'Delivery Route',
+            type: FieldType.link, linkDocType: 'Delivery Route',
+            options: 'Delivery Route', readOnly: true, allowOnSubmit: true),
+          FieldDefinition(key: 'route_status', label: 'Route Status',
+            type: FieldType.data, readOnly: true, allowOnSubmit: true),
           FieldDefinition(key: 'remarks', label: 'Remarks',
             type: FieldType.longText),
         ],

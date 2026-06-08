@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'manifest/hub_manifest.dart';
 import 'navigation/hub_navigation.dart';
+import 'deliveries/delivery_route_service.dart';
 import 'ledger/ledger_derivation_service.dart';
 import 'manufacturing/manufacturing_service.dart';
 import 'onboarding/onboarding_providers.dart';
@@ -108,6 +109,8 @@ final _bootProvider = FutureProvider<void>((ref) async {
   await ref.watch(ledgerDerivationServiceProvider.future);
   // Subscribe the manufacturing service (Production Plan → Work Orders).
   await ref.watch(manufacturingDerivationServiceProvider.future);
+  // Subscribe the delivery-route service (status events + Delivery Note mirror).
+  await ref.watch(deliveryRouteServiceProvider.future);
 });
 
 class _HubSplashScreen extends StatelessWidget {

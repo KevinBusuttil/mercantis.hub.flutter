@@ -21,7 +21,7 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 | Buying | Supplier, SQ, PO, PurchaseInvoice, Receipt + items | 🟡 | Supplier, PO, PurchaseInvoice + items, Receipt (under Fulfilment); **Supplier Quotation pending** |
 | Stock | Item, StockEntry, **StockLedgerEntry, Bin** | ✅ | **Stock Entry Detail + Stock Ledger Entry + Bin added (Phase 2)**; hosts Item, Item Group, Warehouse |
 | Accounting | Account, JE, PaymentEntry + **GL/CustTrans/VendTrans/Settlement/TaxTrans** | ✅ | **all subledger tables + JE Account + PE Reference added (Phase 2)** — full DocType parity |
-| Deliveries | SalesDelivery, Route, DeliveryRouteStop, Driver, Vehicle, StatusEvent | 🟡 | Delivery Note + items + journey workflow only; **Route/Driver/Vehicle/StatusEvent not ported as DocTypes — mock screens only** |
+| Deliveries | SalesDelivery, Route, DeliveryRouteStop, Driver, Vehicle, StatusEvent | ✅ | Delivery Note + items + journey workflow **plus routes/fleet now ported**: Delivery Route (+ Stop child), Driver, Vehicle, Delivery Status Event; `DeliveryRouteService` appends status events + mirrors route/status onto the Delivery Note. In the Delivery workspace. Covered by `test/deliveries_test.dart` |
 | Manufacturing | BOM, WorkOrder, JobCard, ProductionPlan, Workstation, Operation | 🟡 | **DocTypes ported** (BOM+items+operations w/ cost rollup, Work Order+required items, Job Card, Production Plan, Workstation, Operation); `wf-bom`/`wf-work-order`/`wf-production-plan` bound; submitting a Production Plan auto-creates Work Orders (BOM-exploded). Stock-only posting via `Manufacturing.completionStockEntry` (consume raw + produce finished → existing Stock Entry derivation). Covered by `test/manufacturing_test.dart`. **Auto-post-on-completion + dedicated UI deferred** (no workflow-transition event yet; usable via generic form) |
 | POS | POSProfile, POSSession, POSInvoice, PaymentTender | 🟡 | **DocTypes + ledger posting ported**: POS Invoice (cash sale) issues stock + posts Dr Cash / Cr Income(net) / output VAT (reuses tax engine + stock derivation), `wf-pos-invoice` bound, pure `PosCheckout` builder, in Sales workspace. Covered by `test/pos_checkout_test.dart` + POS group in `ledger_derivation_test.dart`. **Dedicated till UI deferred** (usable via generic form meanwhile) |
 | Tax | TaxCode, TaxCategory, TaxCharge | ✅ | **Tax Code/Category masters + Tax Charge child ported; VAT calc on save + tax-leg derivation + Tax Transaction subledger live.** WHT/excise tax types pending |
@@ -34,7 +34,7 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 | **LedgerDerivationService** (GL/SLE/Cust/Vend/Settlement on submit & cancel) | ✅ | ✅ | **Phase 3:** pure `LedgerDerivation` + runner wired at boot; deterministic ids + reversal; covered by `test/ledger_derivation_test.dart` |
 | **StockBalanceService** (Bin recompute) | ✅ | ✅ | **Phase 3:** pure `StockBalance` fold + `recomputeBin` after stock moves |
 | ManufacturingDerivationService | ✅ | 🟡 | `Manufacturing` helpers (BOM explosion, cost rollup, completion Stock Entry) + `ManufacturingDerivationService` (Production Plan → Work Orders on submit). Stock-only (Swift posts no GL). Auto-post-on-WO-completion pending a workflow-transition event |
-| DeliveryRouteService | ✅ | ❌ | pending (Phase 6) |
+| DeliveryRouteService | ✅ | ✅ | `DeliveryRoutePlanner` (pure: change detection + deterministic event ids) + `DeliveryRouteService` (on route save: append status events, mirror route/status onto Delivery Notes). Started at boot; covered by `test/deliveries_test.dart` |
 | Line-item & document totals | ✅ | ✅ | `LineItemTotalsInterceptor` (beforeSave) computes per-row `amount = qty*rate`, `total` = Σ amount; `grand_total` = total on non-tax docs, and `total + tax` on invoices (owned by `TaxCalculationInterceptor`) — authoritative on every save path; child grid also evaluates `formulaExpression` live (core `applyRowFormulas`) |
 | Business Profile defaults policy | ✅ | ✅ | `BusinessProfileDefaultsInterceptor` (core `DocumentInterceptor.beforeSave`) stamps company, default currency, default posting accounts + today's posting date on new drafts; only fills blanks |
 | Fiscal-year posting validation | ✅ | ✅ | `FiscalYearGuardInterceptor` (core `DocumentInterceptor.beforeSubmit`) blocks a posting dated outside every defined Fiscal Year; no-op until at least one year exists |
@@ -81,8 +81,10 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 4. **Phase 5 — UX/menu parity.** 3-level nav, presets, settings, guided flows.
 5. **Phase 6 — optional modules.** Tax ✅ (VAT codes + tax legs); POS ✅
    (cash-sale posting; till UI pending); Manufacturing ✅ (BOM/WO/plan +
-   stock-only production posting; auto-complete + UI pending); remaining:
-   full Deliveries (routes/fleet).
+   stock-only production posting; auto-complete + UI pending); Deliveries
+   routes/fleet ✅ (routes, fleet, status-event log + Delivery Note mirror).
+   All modules ported. Remaining work is UI capstones (POS till,
+   shop-floor) + Settings/auth.
 
 > Depends on Core repo Phase 1 (report/dashboard execution engine) — landed.
 > See `mercantis.core.flutter/PARITY.md`.
