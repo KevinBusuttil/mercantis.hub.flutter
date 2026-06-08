@@ -23,7 +23,7 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 | Accounting | Account, JE, PaymentEntry + **GL/CustTrans/VendTrans/Settlement/TaxTrans** | ✅ | **all subledger tables + JE Account + PE Reference added (Phase 2)** — full DocType parity |
 | Deliveries | SalesDelivery, Route, DeliveryRouteStop, Driver, Vehicle, StatusEvent | 🟡 | Delivery Note + items + journey workflow only; **Route/Driver/Vehicle/StatusEvent not ported as DocTypes — mock screens only** |
 | Manufacturing | BOM, WorkOrder, JobCard, ProductionPlan, Workstation, Operation | ❌ | module not ported (workflows defined, inert) |
-| POS | POSProfile, POSSession, POSInvoice, PaymentTender | ❌ | not ported (workflow defined, inert) |
+| POS | POSProfile, POSSession, POSInvoice, PaymentTender | 🟡 | **DocTypes + ledger posting ported**: POS Invoice (cash sale) issues stock + posts Dr Cash / Cr Income(net) / output VAT (reuses tax engine + stock derivation), `wf-pos-invoice` bound, pure `PosCheckout` builder, in Sales workspace. Covered by `test/pos_checkout_test.dart` + POS group in `ledger_derivation_test.dart`. **Dedicated till UI deferred** (usable via generic form meanwhile) |
 | Tax | TaxCode, TaxCategory, TaxCharge | ✅ | **Tax Code/Category masters + Tax Charge child ported; VAT calc on save + tax-leg derivation + Tax Transaction subledger live.** WHT/excise tax types pending |
 
 ## Business logic (the critical path)
@@ -79,8 +79,9 @@ Legend: ✅ parity · 🟡 partial · ❌ missing/mock
 3. **Phase 4 — reports/dashboards + de-mock.** 14 reports (using Core
    ReportEngine), 5 dashboards on real data, replace mock screens.
 4. **Phase 5 — UX/menu parity.** 3-level nav, presets, settings, guided flows.
-5. **Phase 6 — optional modules.** Tax ✅ (VAT codes + tax legs); remaining:
-   POS, Manufacturing, full Deliveries (routes/fleet).
+5. **Phase 6 — optional modules.** Tax ✅ (VAT codes + tax legs); POS ✅
+   (cash-sale posting; till UI pending); remaining: Manufacturing, full
+   Deliveries (routes/fleet).
 
 > Depends on Core repo Phase 1 (report/dashboard execution engine) — landed.
 > See `mercantis.core.flutter/PARITY.md`.

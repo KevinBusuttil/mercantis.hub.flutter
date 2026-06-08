@@ -35,7 +35,7 @@ abstract final class LedgerDerivation {
   static const bin = 'Bin';
 
   /// Source DocTypes that move stock and therefore require a Bin recompute.
-  static const stockSources = {'Stock Entry', 'Purchase Receipt', 'Delivery Note'};
+  static const stockSources = {'Stock Entry', 'Purchase Receipt', 'Delivery Note', 'POS Invoice'};
 
   /// Maps each posting-account field that a voucher may leave blank to the
   /// `Company` default field that should fill it. The runner uses this to
@@ -53,6 +53,11 @@ abstract final class LedgerDerivation {
         return const {
           'credit_to': 'default_payable_account',
           'expense_account': 'default_expense_account',
+        };
+      case 'POS Invoice':
+        return const {
+          'cash_account': 'default_cash_account',
+          'income_account': 'default_income_account',
         };
       case 'Payment Entry':
         if (paymentType == 'Receive') {
@@ -81,6 +86,8 @@ abstract final class LedgerDerivation {
         return _salesInvoice(doc, reversal);
       case 'Purchase Invoice':
         return _purchaseInvoice(doc, reversal);
+      case 'POS Invoice':
+        return _posInvoice(doc, reversal);
       case 'Payment Entry':
         return _paymentEntry(doc, reversal);
       case 'Journal Entry':
@@ -197,6 +204,49 @@ abstract final class LedgerDerivation {
       // Dr Input VAT — one GL leg + one Tax Transaction row per tax line.
       ..._taxLegs(doc, reversal,
           isOutput: false, partyType: 'Supplier', party: supplier),
+    ];
+  }
+
+  // ---- POS invoice (cash sale) -------------------------------------------
+
+  /// Cash sale: issue stock (like a delivery), then Dr Cash / Cr Income (net) +
+  /// output VAT. No receivable and no party subledger — payment is inline.
+  static List<DerivedDoc> _posInvoice(Document doc, bool reversal) {
+    final id = doc.id;
+    final p = doc.payload;
+    final grand = asNum(p['grand_total']);
+    final taxRows = doc.children['taxes'] ?? const [];
+    final net = grand - _totalTax(taxRows);
+    final customer = asNonEmpty(p['customer']);
+    final sfx = reversalSuffix(reversal);
+    return [
+      // Stock issue per line (−qty on submit, flipped on reversal).
+      ..._stockDocument(doc, reversal, incoming: false, transType: 'Issue'),
+      // Dr Cash / Bank — gross received.
+      _gl(
+        id: 'GL-$id-cash$sfx',
+        account: asNonEmpty(p['cash_account']),
+        debit: reversal ? 0 : grand,
+        credit: reversal ? grand : 0,
+        voucherType: doc.docType,
+        voucherNo: id,
+        postingDate: p['posting_date'],
+        reversal: reversal,
+      ),
+      // Cr Income — net of tax.
+      _gl(
+        id: 'GL-$id-income$sfx',
+        account: asNonEmpty(p['income_account']),
+        debit: reversal ? net : 0,
+        credit: reversal ? 0 : net,
+        voucherType: doc.docType,
+        voucherNo: id,
+        postingDate: p['posting_date'],
+        reversal: reversal,
+      ),
+      // Cr Output VAT — one GL leg + one Tax Transaction row per tax line.
+      ..._taxLegs(doc, reversal,
+          isOutput: true, partyType: 'Customer', party: customer),
     ];
   }
 

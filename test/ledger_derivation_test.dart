@@ -237,6 +237,64 @@ void main() {
     });
   });
 
+  group('POS Invoice (cash sale)', () {
+    Document pos() => src('POS Invoice', id: 'POS-1', payload: {
+          'grand_total': 1180,
+          'customer': 'C1',
+          'cash_account': 'Bank',
+          'income_account': 'Sales',
+          'set_warehouse': 'WH1',
+          'posting_date': '2026-01-01',
+        }, children: {
+          'items': [
+            {'item': 'ITM', 'qty': 2, 'rate': 500, 'warehouse': 'WH1'},
+          ],
+          'taxes': [
+            {'tax_code': 'VAT18', 'tax_type': 'VAT', 'rate': 18, 'tax_account': 'VAT Output', 'taxable_amount': 1000, 'tax_amount': 180},
+          ],
+        });
+
+    test('Dr Cash / Cr Income(net) + output VAT, issues stock, no receivable', () {
+      final rows = LedgerDerivation.derive(pos(), reversal: false);
+
+      // Balanced cash sale: Dr Cash 1180 = Cr Income 1000 + Cr VAT 180.
+      expect(glDebit(rows), 1180);
+      expect(glCredit(rows), 1180);
+      expect(rows.firstWhere((r) => r.id == 'GL-POS-1-cash').payload['debit'], 1180);
+      expect(rows.firstWhere((r) => r.id == 'GL-POS-1-income').payload['credit'], 1000);
+      expect(rows.firstWhere((r) => r.id == 'GL-POS-1-tax-0').payload['credit'], 180);
+
+      // Stock issued from the line warehouse.
+      final sle = rows.firstWhere((r) => r.docType == 'Stock Ledger Entry');
+      expect(sle.id, 'SLE-POS-1-0');
+      expect(sle.payload['warehouse'], 'WH1');
+      expect(sle.payload['qty_change'], -2);
+      expect(sle.payload['trans_type'], 'Issue');
+
+      // Cash sale → no customer subledger / settlement.
+      expect(rows.where((r) => r.docType == 'Customer Transaction'), isEmpty);
+      expect(rows.where((r) => r.docType == 'Settlement'), isEmpty);
+
+      // Tax subledger still recorded.
+      final tt = rows.firstWhere((r) => r.docType == 'Tax Transaction');
+      expect(tt.id, 'TT-POS-1-0');
+      expect(tt.payload['party_type'], 'Customer');
+    });
+
+    test('cancel reverses GL to zero and returns stock', () {
+      final all = [
+        ...LedgerDerivation.derive(pos(), reversal: false),
+        ...LedgerDerivation.derive(pos(), reversal: true),
+      ];
+      expect(glDebit(all), glCredit(all));
+      final net = all
+          .where((r) => r.docType == 'GL Entry')
+          .fold<num>(0, (s, r) => s + asNum(r.payload['debit']) - asNum(r.payload['credit']));
+      expect(net, 0);
+      expect(all.firstWhere((r) => r.id == 'SLE-POS-1-0-reversal').payload['qty_change'], 2);
+    });
+  });
+
   group('Payment Entry (Receive)', () {
     test('balanced GL + negative customer payment + settlement', () {
       final rows = LedgerDerivation.derive(

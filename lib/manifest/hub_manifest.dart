@@ -5,6 +5,7 @@ import '../modules/buying/buying_module.dart';
 import '../modules/stock/stock_module.dart';
 import '../modules/accounting/accounting_module.dart';
 import '../modules/fulfilment/fulfilment_module.dart';
+import '../modules/pos/pos_module.dart';
 import '../modules/setup/setup_module.dart';
 import '../modules/tax/tax_module.dart';
 import '../workflows/hub_workflows.dart';
@@ -22,6 +23,7 @@ abstract final class HubManifest {
       ...StockModule.docTypes(),
       ...AccountingModule.docTypes(),
       ...FulfilmentModule.docTypes(),
+      ...PosModule.docTypes(),
     ];
 
     return AppManifest(

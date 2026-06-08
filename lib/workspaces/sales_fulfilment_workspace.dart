@@ -44,6 +44,18 @@ const salesFulfilmentWorkspace = WorkspaceDescriptor(
       ],
     ),
     WorkspaceSection(
+      label: 'Point of Sale',
+      description: 'Over-the-counter cash sales',
+      items: [
+        DocTypeWorkspaceItem(docType: 'POS Invoice',
+          icon: Icons.point_of_sale_outlined),
+        DocTypeWorkspaceItem(docType: 'POS Profile',
+          icon: Icons.storefront_outlined),
+        DocTypeWorkspaceItem(docType: 'POS Session',
+          icon: Icons.schedule_outlined),
+      ],
+    ),
+    WorkspaceSection(
       label: 'Customer base',
       items: [
         DocTypeWorkspaceItem(docType: 'Customer', icon: Icons.person_outline),
@@ -68,6 +80,8 @@ const salesFulfilmentWorkspace = WorkspaceDescriptor(
       icon: Icons.receipt_long_outlined, docType: 'Sales Invoice'),
     QuickAction(id: 'sf_collect', label: 'Collect payment',
       icon: Icons.payments_outlined, docType: 'Payment Entry'),
+    QuickAction(id: 'sf_new_pos', label: 'New POS Sale',
+      icon: Icons.point_of_sale_outlined, docType: 'POS Invoice'),
   ],
   dashboardCards: [
     DashboardCardSpec.kpi(id: 'sales_today',     title: 'Sales today'),
