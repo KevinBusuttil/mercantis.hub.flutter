@@ -4,6 +4,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../manifest/hub_dashboards.dart';
 import '../manifest/hub_reports.dart';
+import 'aggregating_reports.dart';
 
 /// The Hub's [ReportEngine], reading the real document store via
 /// `DocumentEngine.list` and pre-loaded with the [HubReports] catalogue.
@@ -19,6 +20,35 @@ final reportResultProvider =
   final engine = await ref.watch(reportEngineProvider.future);
   final roles = ref.watch(currentUserProvider).roles;
   return engine.execute(reportId, userRoles: roles);
+});
+
+/// App-side aggregating reports (Trial Balance, AR/AP aging), reading the real
+/// document store. Separate from [reportEngineProvider] because these group/sum
+/// rather than flat-project.
+final aggregatingReportsProvider = FutureProvider<HubAggregatingReports>((ref) async {
+  final engine = await ref.watch(documentEngineProvider.future);
+  return HubAggregatingReports(engine.list);
+});
+
+/// Trial Balance for the current user's roles.
+final trialBalanceProvider = FutureProvider<ReportResult>((ref) async {
+  final reports = await ref.watch(aggregatingReportsProvider.future);
+  final roles = ref.watch(currentUserProvider).roles;
+  return reports.trialBalance(userRoles: roles);
+});
+
+/// Accounts-receivable aging as of today, for the current user's roles.
+final arAgingProvider = FutureProvider<ReportResult>((ref) async {
+  final reports = await ref.watch(aggregatingReportsProvider.future);
+  final roles = ref.watch(currentUserProvider).roles;
+  return reports.arAging(userRoles: roles);
+});
+
+/// Accounts-payable aging as of today, for the current user's roles.
+final apAgingProvider = FutureProvider<ReportResult>((ref) async {
+  final reports = await ref.watch(aggregatingReportsProvider.future);
+  final roles = ref.watch(currentUserProvider).roles;
+  return reports.apAging(userRoles: roles);
 });
 
 /// The Hub's [DashboardEngine], sharing the report engine (for `chart` tiles)
