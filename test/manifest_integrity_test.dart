@@ -92,6 +92,29 @@ void main() {
     });
   });
 
+  group('Item child tables + Supplier Quotation', () {
+    test('Item carries uoms + suppliers child tables', () {
+      final item = byId['Item']!;
+      for (final key in ['uoms', 'suppliers']) {
+        final f = item.fields.firstWhere((f) => f.key == key);
+        expect(f.type, FieldType.table, reason: 'Item.$key must be a table');
+        expect(byId[f.tableDocType]?.isChild, isTrue,
+            reason: 'Item.$key -> ${f.tableDocType} must be a child DocType');
+      }
+    });
+
+    test('Supplier Quotation is submittable, bound, with a line-item table', () {
+      final sq = byId['Supplier Quotation'];
+      expect(sq, isNotNull);
+      expect(sq!.isSubmittable, isTrue);
+      expect(sq.workflowId, 'wf-supplier-quotation');
+      expect(workflowIds.contains(sq.workflowId), isTrue);
+      final items = sq.fields.firstWhere((f) => f.key == 'items');
+      expect(items.tableDocType, 'Supplier Quotation Item');
+      expect(byId['Supplier Quotation Item']?.isChild, isTrue);
+    });
+  });
+
   group('Ledger subledgers', () {
     test('derived ledgers exist and are append-only, non-submittable', () {
       const ledgers = [

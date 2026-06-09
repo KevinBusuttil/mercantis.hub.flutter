@@ -13,6 +13,8 @@ const purchasingWorkspace = WorkspaceDescriptor(
     WorkspaceSection(
       label: 'Orders & Receipts',
       items: [
+        DocTypeWorkspaceItem(docType: 'Supplier Quotation',
+          icon: Icons.request_quote_outlined),
         DocTypeWorkspaceItem(docType: 'Purchase Order',
           icon: Icons.shopping_basket_outlined),
         DocTypeWorkspaceItem(docType: 'Purchase Receipt',
@@ -40,6 +42,8 @@ const purchasingWorkspace = WorkspaceDescriptor(
     ),
   ],
   quickActions: [
+    QuickAction(id: 'p_new_sq', label: 'New Supplier Quotation',
+      icon: Icons.request_quote_outlined, docType: 'Supplier Quotation'),
     QuickAction(id: 'p_new_po', label: 'New Purchase Order',
       icon: Icons.shopping_basket_outlined, docType: 'Purchase Order'),
     QuickAction(id: 'p_new_receipt', label: 'New Purchase Receipt',
