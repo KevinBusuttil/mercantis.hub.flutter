@@ -1,0 +1,60 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mercantis_core_ui/mercantis_core_ui.dart';
+
+import '../ledger/ledger_values.dart';
+
+/// Real data sources for the Hub's bespoke custom screens, replacing the old
+/// `MockData` prototypes. Each provider reads the live document store via
+/// `DocumentEngine.list`.
+
+// ─── Low stock ───────────────────────────────────────────────────────────────
+
+/// One Item/Warehouse below its configured reorder level.
+class LowStockRow {
+  const LowStockRow({
+    required this.itemCode,
+    required this.itemName,
+    required this.warehouse,
+    required this.uom,
+    required this.qty,
+    required this.reorderLevel,
+  });
+
+  final String itemCode;
+  final String itemName;
+  final String warehouse;
+  final String uom;
+  final double qty;
+  final double reorderLevel;
+}
+
+/// Bins whose on-hand qty is below the item's `reorder_level` (items with no
+/// reorder level configured are ignored), neediest first.
+final lowStockProvider = FutureProvider<List<LowStockRow>>((ref) async {
+  final engine = await ref.watch(documentEngineProvider.future);
+  final items = await engine.list('Item');
+  final bins = await engine.list('Bin');
+
+  final byItem = {for (final it in items) it.id: it};
+
+  final rows = <LowStockRow>[];
+  for (final bin in bins) {
+    final itemId = asNonEmpty(bin.payload['item']);
+    final item = itemId == null ? null : byItem[itemId];
+    if (item == null) continue;
+    final reorder = asNum(item.payload['reorder_level']).toDouble();
+    if (reorder <= 0) continue;
+    final qty = asNum(bin.payload['actual_qty']).toDouble();
+    if (qty >= reorder) continue;
+    rows.add(LowStockRow(
+      itemCode: asNonEmpty(item.payload['item_code']) ?? item.id,
+      itemName: asNonEmpty(item.payload['item_name']) ?? '',
+      warehouse: asNonEmpty(bin.payload['warehouse']) ?? '',
+      uom: asNonEmpty(item.payload['stock_uom']) ?? '',
+      qty: qty,
+      reorderLevel: reorder,
+    ));
+  }
+  rows.sort((a, b) => a.qty.compareTo(b.qty));
+  return rows;
+});
