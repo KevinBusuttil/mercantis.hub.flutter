@@ -7,6 +7,9 @@ import '../ledger/ledger_values.dart';
 /// `MockData` prototypes. Each provider reads the live document store via
 /// `DocumentEngine.list`.
 
+/// Shared light currency format (no intl locale dependency).
+String money(num v) => '€${v.toDouble().toStringAsFixed(2)}';
+
 // ─── Low stock ───────────────────────────────────────────────────────────────
 
 /// One Item/Warehouse below its configured reorder level.
@@ -191,5 +194,128 @@ final latestDeliveryRouteProvider =
     date: asNonEmpty(route.payload['route_date']) ?? '',
     status: asNonEmpty(route.payload['status']) ?? 'Draft',
     stops: stops,
+  );
+});
+
+// ─── Sales orders ────────────────────────────────────────────────────────────
+
+class SalesOrderRow {
+  const SalesOrderRow({
+    required this.id,
+    required this.customer,
+    required this.date,
+    required this.deliveryDate,
+    required this.amount,
+    required this.docStatus,
+  });
+
+  final String id;
+  final String customer;
+  final String date;
+  final String deliveryDate;
+  final String amount;
+  final int docStatus;
+}
+
+/// All Sales Orders (customer resolved, grand total formatted), newest first.
+final salesOrdersProvider = FutureProvider<List<SalesOrderRow>>((ref) async {
+  final engine = await ref.watch(documentEngineProvider.future);
+  final orders = await engine.list('Sales Order');
+  final customers = {
+    for (final c in await engine.list('Customer'))
+      c.id: asNonEmpty(c.payload['customer_name']) ?? c.id,
+  };
+  final rows = [
+    for (final o in orders)
+      SalesOrderRow(
+        id: o.id,
+        customer: customers[asNonEmpty(o.payload['customer'])] ??
+            asNonEmpty(o.payload['customer']) ??
+            '—',
+        date: asNonEmpty(o.payload['transaction_date']) ?? '',
+        deliveryDate: asNonEmpty(o.payload['delivery_date']) ?? '',
+        amount: money(asNum(o.payload['grand_total'])),
+        docStatus: o.docStatus,
+      ),
+  ];
+  rows.sort((a, b) => b.date.compareTo(a.date));
+  return rows;
+});
+
+class SalesOrderLine {
+  const SalesOrderLine({
+    required this.qty,
+    required this.item,
+    required this.rate,
+    required this.amount,
+  });
+
+  final String qty;
+  final String item;
+  final String rate;
+  final String amount;
+}
+
+class SalesOrderDetail {
+  const SalesOrderDetail({
+    required this.header,
+    required this.currency,
+    required this.subtotal,
+    required this.grandTotal,
+    required this.items,
+  });
+
+  final SalesOrderRow header;
+  final String currency;
+  final String subtotal;
+  final String grandTotal;
+  final List<SalesOrderLine> items;
+}
+
+/// One Sales Order with its line items resolved to item names. Null if missing.
+final salesOrderDetailProvider =
+    FutureProvider.family<SalesOrderDetail?, String>((ref, id) async {
+  final engine = await ref.watch(documentEngineProvider.future);
+  final doc = await engine.fetch('Sales Order', id);
+  if (doc == null) return null;
+
+  final customerName = () async {
+    final cid = asNonEmpty(doc.payload['customer']);
+    if (cid == null) return '—';
+    final c = await engine.fetch('Customer', cid);
+    return asNonEmpty(c?.payload['customer_name']) ?? cid;
+  };
+  final itemsCat = {
+    for (final it in await engine.list('Item'))
+      it.id: asNonEmpty(it.payload['item_name']) ?? it.id,
+  };
+
+  final lines = [
+    for (final r in doc.children['items'] ?? const [])
+      SalesOrderLine(
+        qty: asNum(r.payload['qty']).toString(),
+        item: () {
+          final iid = asNonEmpty(r.payload['item']);
+          final name = iid == null ? null : itemsCat[iid];
+          return name == null ? (iid ?? '—') : '$iid · $name';
+        }(),
+        rate: money(asNum(r.payload['rate'])),
+        amount: money(asNum(r.payload['amount'])),
+      ),
+  ];
+
+  return SalesOrderDetail(
+    header: SalesOrderRow(
+      id: doc.id,
+      customer: await customerName(),
+      date: asNonEmpty(doc.payload['transaction_date']) ?? '',
+      deliveryDate: asNonEmpty(doc.payload['delivery_date']) ?? '',
+      amount: money(asNum(doc.payload['grand_total'])),
+      docStatus: doc.docStatus,
+    ),
+    currency: asNonEmpty(doc.payload['currency']) ?? 'EUR',
+    subtotal: money(asNum(doc.payload['total'])),
+    grandTotal: money(asNum(doc.payload['grand_total'])),
+    items: lines,
   );
 });

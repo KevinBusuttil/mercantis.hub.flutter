@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
-import '../mock/mock_data.dart';
 
-/// Prototype Sales Order list-detail screen using mock data.
-/// On phone: only the list (taps push a detail route).
-/// On tablet: list + detail.
-/// On desktop: list + detail + activity.
+import 'screen_providers.dart';
+
+/// Sales Order list-detail screen on real data.
+/// Phone: list only (taps push the generic record form).
+/// Tablet/desktop: list + detail (+ activity aside).
 class SalesOrdersScreen extends ConsumerStatefulWidget {
   const SalesOrdersScreen({super.key, this.initialId});
   final String? initialId;
@@ -17,18 +17,18 @@ class SalesOrdersScreen extends ConsumerStatefulWidget {
 }
 
 class _SalesOrdersScreenState extends ConsumerState<SalesOrdersScreen> {
-  late String _selectedId;
+  String? _selectedId;
   String _filter = 'all';
   String _query = '';
 
   @override
   void initState() {
     super.initState();
-    _selectedId = widget.initialId ?? MockData.salesOrders.first.id;
+    _selectedId = widget.initialId;
   }
 
-  List<HubSalesOrderMock> _rows() {
-    return MockData.salesOrders.where((o) {
+  List<SalesOrderRow> _filtered(List<SalesOrderRow> all) {
+    return all.where((o) {
       if (_filter == 'draft' && o.docStatus != 0) return false;
       if (_filter == 'submitted' && o.docStatus != 1) return false;
       if (_filter == 'cancelled' && o.docStatus != 2) return false;
@@ -42,68 +42,103 @@ class _SalesOrdersScreenState extends ConsumerState<SalesOrdersScreen> {
   @override
   Widget build(BuildContext context) {
     final bp = Breakpoint.of(context);
-    final orders = _rows();
-    final selected = MockData.salesOrders.firstWhere(
-      (o) => o.id == _selectedId,
-      orElse: () => orders.isNotEmpty ? orders.first : MockData.salesOrders.first,
-    );
+    final async = ref.watch(salesOrdersProvider);
 
-    final list = DocumentListPane(
-      title: 'Sales Orders',
-      subtitle: '${MockData.salesOrders.length} total',
-      searchHint: 'Search by number or customer',
-      onSearchChanged: (v) => setState(() => _query = v),
-      filterChips: [
-        for (final entry in const {
-          'all': 'All', 'draft': 'Draft',
-          'submitted': 'Submitted', 'cancelled': 'Cancelled',
-        }.entries)
-          FilterChip(
-            label: Text(entry.value),
-            selected: _filter == entry.key,
-            onSelected: (_) => setState(() => _filter = entry.key),
-          ),
-      ],
-      rows: [
-        for (final o in orders)
-          DocumentListPaneRow(
-            id: o.id,
-            title: '${o.id} · ${o.customer}',
-            subtitle: 'Delivery ${o.deliveryDate}',
-            amount: o.amount,
-            statusLabel: _statusLabel(o.docStatus),
-            statusTone: _statusTone(o.docStatus),
-            timestamp: o.date,
-          ),
-      ],
-      selectedId: _selectedId,
-      onRowTap: (r) {
-        if (bp.isPhone) {
-          context.go('/form/Sales Order/${r.id}');
-        } else {
-          setState(() => _selectedId = r.id);
+    return async.when(
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
+      data: (allOrders) {
+        if (allOrders.isEmpty) {
+          return Scaffold(
+            body: EmptyState(
+              title: 'No sales orders yet',
+              message: 'Create your first Sales Order to get started.',
+              icon: Icons.shopping_cart_outlined,
+              action: FilledButton.icon(
+                onPressed: () => context.go('/form/Sales Order/new'),
+                icon: const Icon(Icons.add),
+                label: const Text('New Sales Order'),
+              ),
+            ),
+          );
         }
+
+        final orders = _filtered(allOrders);
+        final selectedId = _selectedId ??
+            (orders.isNotEmpty ? orders.first.id : allOrders.first.id);
+
+        final list = DocumentListPane(
+          title: 'Sales Orders',
+          subtitle: '${allOrders.length} total',
+          searchHint: 'Search by number or customer',
+          onSearchChanged: (v) => setState(() => _query = v),
+          filterChips: [
+            for (final entry in const {
+              'all': 'All',
+              'draft': 'Draft',
+              'submitted': 'Submitted',
+              'cancelled': 'Cancelled',
+            }.entries)
+              FilterChip(
+                label: Text(entry.value),
+                selected: _filter == entry.key,
+                onSelected: (_) => setState(() => _filter = entry.key),
+              ),
+          ],
+          rows: [
+            for (final o in orders)
+              DocumentListPaneRow(
+                id: o.id,
+                title: '${o.id} · ${o.customer}',
+                subtitle: o.deliveryDate.isEmpty
+                    ? null
+                    : 'Delivery ${o.deliveryDate}',
+                amount: o.amount,
+                statusLabel: _statusLabel(o.docStatus),
+                statusTone: _statusTone(o.docStatus),
+                timestamp: o.date,
+              ),
+          ],
+          selectedId: selectedId,
+          onRowTap: (r) {
+            if (bp.isPhone) {
+              context.go('/form/Sales Order/${r.id}');
+            } else {
+              setState(() => _selectedId = r.id);
+            }
+          },
+          onNew: () => context.go('/form/Sales Order/new'),
+          newLabel: 'New Sales Order',
+        );
+
+        if (bp.isPhone) return Scaffold(body: list);
+
+        final detailAsync = ref.watch(salesOrderDetailProvider(selectedId));
+        final detail = detailAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
+          data: (d) => d == null
+              ? const Center(child: Text('Order not found'))
+              : _SalesOrderDetail(detail: d),
+        );
+
+        return Scaffold(
+          body: ResponsiveSplit(
+            list: list,
+            detail: detail,
+            aside: _SalesOrderActivity(id: selectedId),
+          ),
+        );
       },
-      onNew: () => context.go('/form/Sales Order/new'),
-      newLabel: 'New Sales Order',
-    );
-
-    if (bp.isPhone) return Scaffold(body: list);
-
-    final detail = _SalesOrderDetail(order: selected);
-    final aside = _SalesOrderActivity(order: selected);
-
-    return Scaffold(
-      body: ResponsiveSplit(
-        list: list,
-        detail: detail,
-        aside: aside,
-      ),
     );
   }
 
   String _statusLabel(int s) => switch (s) {
-        0 => 'Draft', 1 => 'Submitted', 2 => 'Cancelled', _ => 'Unknown',
+        0 => 'Draft',
+        1 => 'Submitted',
+        2 => 'Cancelled',
+        _ => 'Unknown',
       };
   StatusTone _statusTone(int s) => switch (s) {
         0 => StatusTone.draft,
@@ -114,50 +149,36 @@ class _SalesOrdersScreenState extends ConsumerState<SalesOrdersScreen> {
 }
 
 class _SalesOrderDetail extends StatelessWidget {
-  const _SalesOrderDetail({required this.order});
-  final HubSalesOrderMock order;
+  const _SalesOrderDetail({required this.detail});
+  final SalesOrderDetail detail;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final statusLabel = switch (order.docStatus) {
-      0 => 'Draft', 1 => 'Submitted', 2 => 'Cancelled', _ => 'Unknown',
+    final s = detail.header.docStatus;
+    final statusLabel = switch (s) {
+      0 => 'Draft',
+      1 => 'Submitted',
+      2 => 'Cancelled',
+      _ => 'Unknown',
     };
-    final statusTone = switch (order.docStatus) {
+    final statusTone = switch (s) {
       0 => StatusTone.draft,
       1 => StatusTone.submitted,
       2 => StatusTone.cancelled,
       _ => StatusTone.neutral,
     };
     return DocumentDetailPane(
-      title: '${order.id} · ${order.customer}',
-      subtitle: '${order.date}  ·  Delivery ${order.deliveryDate}',
+      title: '${detail.header.id} · ${detail.header.customer}',
+      subtitle: detail.header.deliveryDate.isEmpty
+          ? detail.header.date
+          : '${detail.header.date}  ·  Delivery ${detail.header.deliveryDate}',
       statusLabel: statusLabel,
       statusTone: statusTone,
-      actions: [
-        if (order.docStatus == 0) ...[
-          WorkflowActionButton(
-            label: 'Save', icon: Icons.save_outlined,
-            style: WorkflowActionStyle.secondary,
-            onPressed: () {},
-          ),
-          WorkflowActionButton(
-            label: 'Submit', icon: Icons.check,
-            style: WorkflowActionStyle.primary,
-            onPressed: () {},
-          ),
-        ] else if (order.docStatus == 1)
-          WorkflowActionButton(
-            label: 'Cancel', icon: Icons.cancel_outlined,
-            style: WorkflowActionStyle.danger,
-            onPressed: () {},
-          ),
-      ],
-      tabs: const ['Overview', 'Items', 'Timeline'],
+      tabs: const ['Overview', 'Items'],
       tabViews: [
-        _Overview(order: order, theme: theme),
-        _Items(order: order),
-        _Timeline(order: order),
+        _Overview(detail: detail, theme: theme),
+        _Items(items: detail.items),
       ],
       child: const SizedBox.shrink(),
     );
@@ -165,8 +186,8 @@ class _SalesOrderDetail extends StatelessWidget {
 }
 
 class _Overview extends StatelessWidget {
-  const _Overview({required this.order, required this.theme});
-  final HubSalesOrderMock order;
+  const _Overview({required this.detail, required this.theme});
+  final SalesOrderDetail detail;
   final ThemeData theme;
 
   @override
@@ -174,16 +195,15 @@ class _Overview extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(MercantisSpacing.xl),
       children: [
-        _kv('Customer', order.customer, theme),
-        _kv('Order date', order.date, theme),
-        _kv('Delivery date', order.deliveryDate, theme),
-        _kv('Currency', 'EUR', theme),
+        _kv('Customer', detail.header.customer, theme),
+        _kv('Order date', detail.header.date, theme),
+        _kv('Delivery date', detail.header.deliveryDate, theme),
+        _kv('Currency', detail.currency, theme),
         const SizedBox(height: MercantisSpacing.lg),
         Text('Totals', style: theme.textTheme.titleSmall),
         const SizedBox(height: MercantisSpacing.sm),
-        _kv('Subtotal', order.amount, theme),
-        _kv('Tax', '€0.00', theme),
-        _kv('Grand total', order.amount, theme, bold: true),
+        _kv('Subtotal', detail.subtotal, theme),
+        _kv('Grand total', detail.grandTotal, theme, bold: true),
       ],
     );
   }
@@ -193,13 +213,10 @@ class _Overview extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          SizedBox(
-            width: 160,
-            child: Text(k, style: t.textTheme.bodySmall),
-          ),
+          SizedBox(width: 160, child: Text(k, style: t.textTheme.bodySmall)),
           Expanded(
             child: Text(
-              v,
+              v.isEmpty ? '—' : v,
               style: t.textTheme.bodyMedium?.copyWith(
                 fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
               ),
@@ -212,11 +229,17 @@ class _Overview extends StatelessWidget {
 }
 
 class _Items extends StatelessWidget {
-  const _Items({required this.order});
-  final HubSalesOrderMock order;
+  const _Items({required this.items});
+  final List<SalesOrderLine> items;
 
   @override
   Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const EmptyState(
+        title: 'No line items',
+        icon: Icons.list_alt_outlined,
+      );
+    }
     return ListView(
       padding: const EdgeInsets.all(MercantisSpacing.xl),
       children: [
@@ -228,13 +251,13 @@ class _Items extends StatelessWidget {
             ErpDataColumn(label: 'Amount', flex: 2, numeric: true),
           ],
           rows: [
-            for (final l in order.items)
+            for (final l in items)
               ErpDataRow(cells: [
-                Text(l.qty.toStringAsFixed(0)),
-                Text('${l.itemCode} · ${l.itemName}'),
+                Text(l.qty),
+                Text(l.item),
                 Text(l.rate),
                 Text(l.amount,
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
               ]),
           ],
         ),
@@ -243,95 +266,38 @@ class _Items extends StatelessWidget {
   }
 }
 
-class _Timeline extends StatelessWidget {
-  const _Timeline({required this.order});
-  final HubSalesOrderMock order;
-
-  @override
-  Widget build(BuildContext context) {
-    return DocumentTimelinePanel(
-      entries: [
-        TimelineEntry(
-          title: 'Order created',
-          actor: 'A. Borg',
-          timestamp: order.date,
-          icon: Icons.add,
-        ),
-        if (order.docStatus >= 1)
-          TimelineEntry(
-            title: 'Submitted',
-            actor: 'M. Said',
-            timestamp: order.date,
-            icon: Icons.check,
-            tone: MercantisBrandColors.statusSubmitted,
-          ),
-        if (order.docStatus == 2)
-          TimelineEntry(
-            title: 'Cancelled',
-            actor: 'K. Busuttil',
-            timestamp: order.date,
-            icon: Icons.cancel,
-            tone: MercantisBrandColors.statusCancelled,
-          ),
-      ],
-    );
-  }
-}
-
 class _SalesOrderActivity extends StatelessWidget {
-  const _SalesOrderActivity({required this.order});
-  final HubSalesOrderMock order;
+  const _SalesOrderActivity({required this.id});
+  final String id;
 
   @override
   Widget build(BuildContext context) {
     return DocumentActionPanel(
-      title: 'Order ${order.id}',
+      title: 'Order $id',
       groups: [
         DocumentActionGroup(
-          label: 'Workflow',
+          label: 'Open',
           actions: [
-            if (order.docStatus == 0) ...[
-              WorkflowActionButton(
-                label: 'Submit', icon: Icons.check,
-                style: WorkflowActionStyle.primary,
-                onPressed: () {},
-              ),
-              WorkflowActionButton(
-                label: 'Save', icon: Icons.save_outlined,
-                onPressed: () {},
-              ),
-            ] else if (order.docStatus == 1) ...[
-              WorkflowActionButton(
-                label: 'Cancel', icon: Icons.cancel_outlined,
-                style: WorkflowActionStyle.danger,
-                onPressed: () {},
-              ),
-            ],
+            WorkflowActionButton(
+              label: 'Open full record',
+              icon: Icons.open_in_full,
+              style: WorkflowActionStyle.primary,
+              onPressed: () => context.go('/form/Sales Order/$id'),
+            ),
           ],
         ),
         DocumentActionGroup(
           label: 'Linked',
           actions: [
             WorkflowActionButton(
-              label: 'Delivery Note', icon: Icons.local_shipping_outlined,
-              onPressed: () {},
+              label: 'Delivery Note',
+              icon: Icons.local_shipping_outlined,
+              onPressed: () => context.go('/list/Delivery Note'),
             ),
             WorkflowActionButton(
-              label: 'Sales Invoice', icon: Icons.receipt_long_outlined,
-              onPressed: () {},
-            ),
-          ],
-        ),
-        DocumentActionGroup(
-          label: 'Share',
-          actions: [
-            WorkflowActionButton(
-              label: 'Email PDF', icon: Icons.email_outlined,
-              onPressed: () {},
-            ),
-            WorkflowActionButton(
-              label: 'Print', icon: Icons.print_outlined,
-              onPressed: () {},
+              label: 'Sales Invoice',
+              icon: Icons.receipt_long_outlined,
+              onPressed: () => context.go('/list/Sales Invoice'),
             ),
           ],
         ),
