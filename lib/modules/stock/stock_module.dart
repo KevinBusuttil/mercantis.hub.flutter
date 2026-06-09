@@ -6,6 +6,9 @@ abstract final class StockModule {
   static List<DocType> docTypes() => [
         _itemGroup(),
         _item(),
+        // Item child tables (per-supplier sourcing + alternative UOMs).
+        _itemSupplier(),
+        _uomConversionDetail(),
         _warehouse(),
         _stockEntry(),
         _stockEntryDetail(),
@@ -52,6 +55,37 @@ abstract final class StockModule {
           FieldDefinition(key: 'disabled', label: 'Disabled', type: FieldType.check),
           FieldDefinition(key: 'image', label: 'Image', type: FieldType.attachImage),
           FieldDefinition(key: 'barcode', label: 'Barcode', type: FieldType.barcode),
+          // Child tables (Swift parity: Item.uoms / Item.suppliers).
+          FieldDefinition(key: 'uoms', label: 'UOM Conversions', type: FieldType.table, tableDocType: 'UOM Conversion Detail', options: 'UOM Conversion Detail'),
+          FieldDefinition(key: 'suppliers', label: 'Suppliers', type: FieldType.table, tableDocType: 'Item Supplier', options: 'Item Supplier'),
+        ],
+      );
+
+  /// One row inside `Item.suppliers` — per-supplier sourcing detail
+  /// (alternative part number, lead time). Mirrors Swift `ItemSupplier`.
+  static DocType _itemSupplier() => const DocType(
+        id: 'Item Supplier',
+        name: 'Item Supplier',
+        module: _module,
+        isChild: true,
+        fields: [
+          FieldDefinition(key: 'supplier', label: 'Supplier', type: FieldType.link, linkDocType: 'Supplier', options: 'Supplier', required: true),
+          FieldDefinition(key: 'supplier_part_no', label: 'Supplier Part No', type: FieldType.data),
+          FieldDefinition(key: 'lead_time_days', label: 'Lead Time (days)', type: FieldType.integer),
+        ],
+      );
+
+  /// One row inside `Item.uoms` — an alternative unit of measure plus its
+  /// conversion factor relative to the item's `stock_uom`. Mirrors Swift
+  /// `UOMConversionDetail`.
+  static DocType _uomConversionDetail() => const DocType(
+        id: 'UOM Conversion Detail',
+        name: 'UOM Conversion',
+        module: _module,
+        isChild: true,
+        fields: [
+          FieldDefinition(key: 'uom', label: 'UOM', type: FieldType.link, linkDocType: 'UOM', options: 'UOM', required: true),
+          FieldDefinition(key: 'conversion_factor', label: 'Conversion Factor', type: FieldType.float, required: true, defaultValue: '1'),
         ],
       );
 

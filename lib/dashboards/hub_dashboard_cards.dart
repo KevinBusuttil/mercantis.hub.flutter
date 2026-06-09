@@ -3,21 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
-import '../mock/mock_data.dart';
 import '../reports/report_providers.dart';
 
 /// Registers dashboard card builders into the Core registry, keyed by spec.id.
 ///
-/// The Home workspace cards are fed by the real `home` dashboard (Core
-/// [DashboardEngine]); the Sales and Inventory workspace cards are still mock
-/// pending their own de-mock.
+/// Home, Sales and Inventory workspace cards are all fed by their matching Core
+/// [DashboardEngine] dashboards (`home` / `sales` / `inventory`) — no mock data.
 void registerHubDashboardCards(WidgetRef ref) {
   final registry = ref.read(dashboardCardHostRegistryProvider);
 
   // ---- Home: real data via the `home` dashboard -------------------------
   registry.registerCard(
     'home_open_orders',
-    (context, spec) => _HomeMetricCard(
+    (context, spec) => _DashboardMetricCard(
+      dashboardId: 'home',
       widgetId: 'home_open_orders',
       title: spec.title,
       icon: Icons.shopping_cart_outlined,
@@ -26,7 +25,8 @@ void registerHubDashboardCards(WidgetRef ref) {
   );
   registry.registerCard(
     'home_receivables',
-    (context, spec) => _HomeMetricCard(
+    (context, spec) => _DashboardMetricCard(
+      dashboardId: 'home',
       widgetId: 'home_receivables',
       title: spec.title,
       icon: Icons.south_west,
@@ -35,7 +35,8 @@ void registerHubDashboardCards(WidgetRef ref) {
   );
   registry.registerCard(
     'home_payables',
-    (context, spec) => _HomeMetricCard(
+    (context, spec) => _DashboardMetricCard(
+      dashboardId: 'home',
       widgetId: 'home_payables',
       title: spec.title,
       icon: Icons.north_east,
@@ -44,7 +45,20 @@ void registerHubDashboardCards(WidgetRef ref) {
   );
   registry.registerCard(
     'home_recent_sales',
-    (context, spec) => _HomeRecentInvoicesCard(title: spec.title),
+    (context, spec) => _DashboardListCard(
+      dashboardId: 'home',
+      widgetId: 'home_recent_sales',
+      title: spec.title,
+      icon: Icons.history,
+      accent: MercantisBrandColors.accentSales,
+      titleKeys: const ['id', 'customer'],
+      trailingKey: 'grand_total',
+      subtitle: 'Sales Invoice',
+      rowDocType: 'Sales Invoice',
+      idKey: 'id',
+      seeAllRoute: '/list/Sales Invoice',
+      emptyLabel: 'No invoices yet',
+    ),
   );
 
   // Approvals card (already real — backed by the approval inbox source).
@@ -62,85 +76,80 @@ void registerHubDashboardCards(WidgetRef ref) {
     );
   });
 
-  // ---- Sales workspace KPIs (still mock) --------------------------------
-  for (final kpi in MockData.salesKpis) {
-    registry.registerCard(kpi.id, (context, spec) => _buildKpi(kpi));
-  }
-
-  // ---- Inventory workspace KPIs (still mock) ----------------------------
-  for (final kpi in MockData.inventoryKpis) {
-    registry.registerCard(kpi.id, (context, spec) => _buildKpi(kpi));
-  }
-
-  // Recent documents list card (sales workspace — still mock).
-  registry.registerCard('sales_recent_documents', (context, spec) {
-    return ListCard(
-      title: 'Recent documents',
+  // ---- Sales workspace: real data via the `sales` dashboard -------------
+  registry.registerCard(
+    'sales_orders',
+    (context, spec) => _DashboardMetricCard(
+      dashboardId: 'sales',
+      widgetId: 'sales_orders',
+      title: spec.title,
+      icon: Icons.shopping_cart_outlined,
+      accent: MercantisBrandColors.accentSales,
+    ),
+  );
+  registry.registerCard(
+    'sales_invoiced',
+    (context, spec) => _DashboardMetricCard(
+      dashboardId: 'sales',
+      widgetId: 'sales_invoiced',
+      title: spec.title,
+      icon: Icons.receipt_long_outlined,
+      accent: MercantisBrandColors.accentSales,
+    ),
+  );
+  registry.registerCard(
+    'sales_recent',
+    (context, spec) => _DashboardListCard(
+      dashboardId: 'sales',
+      widgetId: 'sales_recent',
+      title: spec.title,
       icon: Icons.history,
-      accentColor: MercantisBrandColors.accentSales,
-      onSeeAll: () => context.go('/list/Sales Order'),
-      rows: [
-        for (final r in MockData.salesRecent)
-          ListCardRow(
-            title: '${r.title} · ${r.subtitle}',
-            subtitle: '${r.docType} · ${r.timestamp}',
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (r.amount != null) ...[
-                  Text(r.amount!,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    )),
-                  const SizedBox(width: 8),
-                ],
-                if (r.statusLabel != null)
-                  StatusChip(
-                    label: r.statusLabel!,
-                    tone: r.statusTone ?? StatusTone.neutral,
-                    dense: true,
-                  ),
-              ],
-            ),
-            onTap: () => context.go('/form/${r.docType}/${r.id}'),
-          ),
-      ],
-    );
-  });
+      accent: MercantisBrandColors.accentSales,
+      titleKeys: const ['id', 'customer'],
+      trailingKey: 'grand_total',
+      subtitle: 'Sales Order',
+      rowDocType: 'Sales Order',
+      idKey: 'id',
+      seeAllRoute: '/list/Sales Order',
+      emptyLabel: 'No orders yet',
+    ),
+  );
 
-  // Low-stock list card (inventory workspace — still mock).
-  registry.registerCard('inventory_low_stock_list', (context, spec) {
-    final lows = MockData.inventoryItems.where((i) => i.belowReorder).toList();
-    return ListCard(
-      title: 'Low stock items',
-      icon: Icons.warning_amber_outlined,
-      accentColor: MercantisBrandColors.statusOverdue,
-      onSeeAll: () => context.go('/list/Item'),
-      rows: [
-        for (final it in lows)
-          ListCardRow(
-            title: '${it.code} · ${it.name}',
-            subtitle: '${it.warehouse} · reorder ${it.reorderLevel.toStringAsFixed(0)}',
-            trailing: Text('${it.qty.toStringAsFixed(0)} ${it.uom}',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: MercantisBrandColors.statusOverdue,
-              )),
-          ),
-      ],
-    );
-  });
-}
-
-Widget _buildKpi(HubKpi kpi) {
-  return KpiCard(
-    title: kpi.title,
-    value: kpi.value,
-    subtitle: kpi.subtitle,
-    trend: kpi.trend,
-    trendLabel: kpi.trendLabel,
-    icon: kpi.icon,
-    accentColor: kpi.accent,
+  // ---- Inventory workspace: real data via the `inventory` dashboard -----
+  registry.registerCard(
+    'inv_bins',
+    (context, spec) => _DashboardMetricCard(
+      dashboardId: 'inventory',
+      widgetId: 'inv_bins',
+      title: spec.title,
+      icon: Icons.inventory_2_outlined,
+      accent: MercantisBrandColors.accentInventory,
+    ),
+  );
+  registry.registerCard(
+    'inv_value',
+    (context, spec) => _DashboardMetricCard(
+      dashboardId: 'inventory',
+      widgetId: 'inv_value',
+      title: spec.title,
+      icon: Icons.savings_outlined,
+      accent: MercantisBrandColors.accentInventory,
+    ),
+  );
+  registry.registerCard(
+    'inv_recent',
+    (context, spec) => _DashboardListCard(
+      dashboardId: 'inventory',
+      widgetId: 'inv_recent',
+      title: spec.title,
+      icon: Icons.swap_horiz,
+      accent: MercantisBrandColors.accentInventory,
+      titleKeys: const ['item', 'warehouse'],
+      trailingKey: 'qty_change',
+      subtitle: 'Stock movement',
+      seeAllRoute: '/list/Stock Ledger Entry',
+      emptyLabel: 'No movements yet',
+    ),
   );
 }
 
@@ -151,15 +160,17 @@ DashboardWidgetResult? _widget(DashboardResult result, String id) {
   return null;
 }
 
-/// A KPI card whose value is one tile of the real `home` dashboard.
-class _HomeMetricCard extends ConsumerWidget {
-  const _HomeMetricCard({
+/// A KPI card whose value is one `count`/`sum` tile of a real dashboard.
+class _DashboardMetricCard extends ConsumerWidget {
+  const _DashboardMetricCard({
+    required this.dashboardId,
     required this.widgetId,
     required this.title,
     required this.icon,
     required this.accent,
   });
 
+  final String dashboardId;
   final String widgetId;
   final String title;
   final IconData icon;
@@ -167,7 +178,7 @@ class _HomeMetricCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(dashboardResultProvider('home'));
+    final async = ref.watch(dashboardResultProvider(dashboardId));
     final value = async.when(
       loading: () => '…',
       error: (_, __) => '—',
@@ -183,40 +194,69 @@ class _HomeMetricCard extends ConsumerWidget {
   }
 }
 
-/// The Recent-invoices list card, fed by the `home` dashboard's list tile.
-class _HomeRecentInvoicesCard extends ConsumerWidget {
-  const _HomeRecentInvoicesCard({required this.title});
+/// A list card whose rows are a real dashboard `list` tile. Each row's title is
+/// the joined [titleKeys]; [trailingKey] (if any) is shown bold on the right;
+/// tapping routes to `/form/[rowDocType]/<idKey>` when both are supplied.
+class _DashboardListCard extends ConsumerWidget {
+  const _DashboardListCard({
+    required this.dashboardId,
+    required this.widgetId,
+    required this.title,
+    required this.icon,
+    required this.accent,
+    required this.titleKeys,
+    required this.seeAllRoute,
+    this.trailingKey,
+    this.subtitle,
+    this.rowDocType,
+    this.idKey,
+    this.emptyLabel,
+  });
 
+  final String dashboardId;
+  final String widgetId;
   final String title;
+  final IconData icon;
+  final Color accent;
+  final List<String> titleKeys;
+  final String seeAllRoute;
+  final String? trailingKey;
+  final String? subtitle;
+  final String? rowDocType;
+  final String? idKey;
+  final String? emptyLabel;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(dashboardResultProvider('home'));
-    final rows = async.maybeWhen(
-      data: (result) =>
-          _widget(result, 'home_recent_sales')?.rows ?? const <Map<String, String?>>[],
-      orElse: () => const <Map<String, String?>>[],
-    );
+    final rows = ref.watch(dashboardResultProvider(dashboardId)).maybeWhen(
+          data: (result) =>
+              _widget(result, widgetId)?.rows ?? const <Map<String, String?>>[],
+          orElse: () => const <Map<String, String?>>[],
+        );
     return ListCard(
       title: title,
-      icon: Icons.history,
-      accentColor: MercantisBrandColors.accentSales,
-      emptyLabel: 'No invoices yet',
-      onSeeAll: () => context.go('/list/Sales Invoice'),
+      icon: icon,
+      accentColor: accent,
+      emptyLabel: emptyLabel ?? 'Nothing here yet',
+      onSeeAll: () => context.go(seeAllRoute),
       rows: [
         for (final row in rows)
           ListCardRow(
-            title: [row['id'], row['customer']]
-                .where((v) => v != null && v.isNotEmpty)
+            title: titleKeys
+                .map((k) => row[k] ?? '')
+                .where((v) => v.isNotEmpty)
                 .join('  ·  '),
-            subtitle: 'Sales Invoice',
-            trailing: row['grand_total'] == null
+            subtitle: subtitle,
+            trailing: (trailingKey == null || row[trailingKey] == null)
                 ? null
-                : Text(row['grand_total']!,
+                : Text(row[trailingKey]!,
                     style: const TextStyle(fontWeight: FontWeight.w600)),
-            onTap: (row['id'] == null || row['id']!.isEmpty)
+            onTap: (rowDocType == null ||
+                    idKey == null ||
+                    row[idKey] == null ||
+                    row[idKey]!.isEmpty)
                 ? null
-                : () => context.go('/form/Sales Invoice/${row['id']}'),
+                : () => context.go('/form/$rowDocType/${row[idKey]}'),
           ),
       ],
     );

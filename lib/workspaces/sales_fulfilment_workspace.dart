@@ -87,10 +87,8 @@ const salesFulfilmentWorkspace = WorkspaceDescriptor(
       icon: Icons.point_of_sale, routeName: '/w/sales_fulfilment/pos-till'),
   ],
   dashboardCards: [
-    DashboardCardSpec.kpi(id: 'sales_today',     title: 'Sales today'),
-    DashboardCardSpec.kpi(id: 'open_orders',     title: 'Open orders'),
-    DashboardCardSpec.kpi(id: 'overdue_receivables', title: 'Overdue'),
-    DashboardCardSpec.kpi(id: 'avg_lead_time',   title: 'Lead time'),
-    DashboardCardSpec.list(id: 'sales_recent_documents', title: 'Recent', span: 2),
+    DashboardCardSpec.kpi(id: 'sales_orders', title: 'Sales Orders'),
+    DashboardCardSpec.kpi(id: 'sales_invoiced', title: 'Invoiced'),
+    DashboardCardSpec.list(id: 'sales_recent', title: 'Recent orders', span: 2),
   ],
 );

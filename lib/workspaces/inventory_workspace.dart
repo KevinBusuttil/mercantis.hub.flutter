@@ -47,11 +47,8 @@ const inventoryWorkspace = WorkspaceDescriptor(
       icon: Icons.warehouse_outlined, docType: 'Warehouse'),
   ],
   dashboardCards: [
-    DashboardCardSpec.kpi(id: 'inv_stock_value', title: 'Stock value'),
-    DashboardCardSpec.kpi(id: 'inv_low_stock', title: 'Below reorder'),
-    DashboardCardSpec.kpi(id: 'inv_to_receive', title: 'To receive'),
-    DashboardCardSpec.kpi(id: 'inv_to_pick', title: 'To pick'),
-    DashboardCardSpec.list(
-      id: 'inventory_low_stock_list', title: 'Low stock', span: 2),
+    DashboardCardSpec.kpi(id: 'inv_bins', title: 'Stocked items'),
+    DashboardCardSpec.kpi(id: 'inv_value', title: 'Stock value'),
+    DashboardCardSpec.list(id: 'inv_recent', title: 'Recent movements', span: 2),
   ],
 );

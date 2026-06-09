@@ -7,12 +7,36 @@ abstract final class BuyingModule {
 
   static List<DocType> docTypes() => [
         _supplier(),
+        _supplierQuotation(),
         _purchaseOrder(),
         _purchaseInvoice(),
         // Line-item child tables referenced by the documents above.
+        lineItemDocType(id: 'Supplier Quotation Item', module: _module),
         lineItemDocType(id: 'Purchase Order Item', module: _module),
         lineItemDocType(id: 'Purchase Invoice Item', module: _module),
       ];
+
+  /// Supplier Quotation — a supplier's RFQ response (pre-purchase). Submittable
+  /// via the (previously inert) `wf-supplier-quotation` workflow. Mirrors the
+  /// Purchase Order shape. Swift parity: `SupplierQuotation`.
+  static DocType _supplierQuotation() => const DocType(
+        id: 'Supplier Quotation',
+        name: 'Supplier Quotation',
+        module: _module,
+        isSubmittable: true,
+        namingRule: 'SQTN-.YYYY.-.####',
+        workflowId: 'wf-supplier-quotation',
+        fields: [
+          FieldDefinition(key: 'supplier', label: 'Supplier', type: FieldType.link, linkDocType: 'Supplier', options: 'Supplier', required: true),
+          FieldDefinition(key: 'transaction_date', label: 'Date', type: FieldType.date, required: true),
+          FieldDefinition(key: 'valid_till', label: 'Valid Till', type: FieldType.date),
+          FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Supplier Quotation Item', options: 'Supplier Quotation Item'),
+          FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
+          FieldDefinition(key: 'grand_total', label: 'Grand Total', type: FieldType.currency, readOnly: true),
+          FieldDefinition(key: 'terms', label: 'Terms and Conditions', type: FieldType.longText),
+        ],
+      );
 
   static DocType _supplier() => const DocType(
         id: 'Supplier',
