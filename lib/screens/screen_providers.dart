@@ -108,3 +108,88 @@ final customerAccountsProvider =
   rows.sort((a, b) => b.outstanding.compareTo(a.outstanding));
   return rows;
 });
+
+// ─── Delivery route (today) ──────────────────────────────────────────────────
+
+class RouteStopView {
+  const RouteStopView({
+    required this.sequence,
+    required this.customer,
+    required this.address,
+    required this.status,
+  });
+
+  final int sequence;
+  final String customer;
+  final String address;
+  final String status;
+
+  bool get isDone => status.toLowerCase() == 'delivered';
+}
+
+class DeliveryRouteView {
+  const DeliveryRouteView({
+    required this.id,
+    required this.routeName,
+    required this.driverName,
+    required this.date,
+    required this.status,
+    required this.stops,
+  });
+
+  final String id;
+  final String routeName;
+  final String driverName;
+  final String date;
+  final String status;
+  final List<RouteStopView> stops;
+
+  int get delivered => stops.where((s) => s.isDone).length;
+}
+
+/// The most recent Delivery Route (by `route_date`), with its stops resolved to
+/// customer/driver names. Returns null when no routes exist.
+final latestDeliveryRouteProvider =
+    FutureProvider<DeliveryRouteView?>((ref) async {
+  final engine = await ref.watch(documentEngineProvider.future);
+  final routes = await engine.list('Delivery Route');
+  if (routes.isEmpty) return null;
+
+  routes.sort((a, b) => (asNonEmpty(b.payload['route_date']) ?? '')
+      .compareTo(asNonEmpty(a.payload['route_date']) ?? ''));
+  final route = await engine.fetch('Delivery Route', routes.first.id) ??
+      routes.first;
+
+  String? driverName;
+  final driverId = asNonEmpty(route.payload['driver']);
+  if (driverId != null) {
+    final d = await engine.fetch('Driver', driverId);
+    driverName = asNonEmpty(d?.payload['driver_name']) ?? driverId;
+  }
+
+  final customers = {
+    for (final c in await engine.list('Customer'))
+      c.id: asNonEmpty(c.payload['customer_name']) ?? c.id,
+  };
+
+  final stops = [
+    for (final s in route.children['stops'] ?? const [])
+      RouteStopView(
+        sequence: asNum(s.payload['sequence']).toInt(),
+        customer: customers[asNonEmpty(s.payload['customer'])] ??
+            asNonEmpty(s.payload['customer']) ??
+            '—',
+        address: asNonEmpty(s.payload['address']) ?? '',
+        status: asNonEmpty(s.payload['status']) ?? 'Pending',
+      ),
+  ]..sort((a, b) => a.sequence.compareTo(b.sequence));
+
+  return DeliveryRouteView(
+    id: route.id,
+    routeName: asNonEmpty(route.payload['route_name']) ?? route.id,
+    driverName: driverName ?? 'Unassigned',
+    date: asNonEmpty(route.payload['route_date']) ?? '',
+    status: asNonEmpty(route.payload['status']) ?? 'Draft',
+    stops: stops,
+  );
+});
