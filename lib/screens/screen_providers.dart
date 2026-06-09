@@ -58,3 +58,53 @@ final lowStockProvider = FutureProvider<List<LowStockRow>>((ref) async {
   rows.sort((a, b) => a.qty.compareTo(b.qty));
   return rows;
 });
+
+// ─── Customer accounts ───────────────────────────────────────────────────────
+
+/// A customer plus their open receivable balance.
+class CustomerAccountRow {
+  const CustomerAccountRow({
+    required this.customerId,
+    required this.customerName,
+    required this.outstanding,
+    required this.openInvoices,
+  });
+
+  final String customerId;
+  final String customerName;
+  final double outstanding;
+  final int openInvoices;
+}
+
+/// Every customer with their total outstanding (summed from submitted Sales
+/// Invoices' `outstanding_amount`), largest balance first.
+final customerAccountsProvider =
+    FutureProvider<List<CustomerAccountRow>>((ref) async {
+  final engine = await ref.watch(documentEngineProvider.future);
+  final customers = await engine.list('Customer');
+  final invoices = await engine.list('Sales Invoice');
+
+  final outstandingByCust = <String, double>{};
+  final openByCust = <String, int>{};
+  for (final inv in invoices) {
+    if (inv.docStatus != 1) continue; // submitted only
+    final cust = asNonEmpty(inv.payload['customer']);
+    if (cust == null) continue;
+    final out = asNum(inv.payload['outstanding_amount']).toDouble();
+    if (out <= 0) continue;
+    outstandingByCust[cust] = (outstandingByCust[cust] ?? 0) + out;
+    openByCust[cust] = (openByCust[cust] ?? 0) + 1;
+  }
+
+  final rows = [
+    for (final c in customers)
+      CustomerAccountRow(
+        customerId: c.id,
+        customerName: asNonEmpty(c.payload['customer_name']) ?? c.id,
+        outstanding: outstandingByCust[c.id] ?? 0,
+        openInvoices: openByCust[c.id] ?? 0,
+      ),
+  ];
+  rows.sort((a, b) => b.outstanding.compareTo(a.outstanding));
+  return rows;
+});
