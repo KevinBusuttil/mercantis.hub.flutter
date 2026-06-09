@@ -279,12 +279,12 @@ final salesOrderDetailProvider =
   final doc = await engine.fetch('Sales Order', id);
   if (doc == null) return null;
 
-  final customerName = () async {
+  Future<String> resolveCustomerName() async {
     final cid = asNonEmpty(doc.payload['customer']);
     if (cid == null) return '—';
     final c = await engine.fetch('Customer', cid);
     return asNonEmpty(c?.payload['customer_name']) ?? cid;
-  };
+  }
   final itemsCat = {
     for (final it in await engine.list('Item'))
       it.id: asNonEmpty(it.payload['item_name']) ?? it.id,
@@ -307,7 +307,7 @@ final salesOrderDetailProvider =
   return SalesOrderDetail(
     header: SalesOrderRow(
       id: doc.id,
-      customer: await customerName(),
+      customer: await resolveCustomerName(),
       date: asNonEmpty(doc.payload['transaction_date']) ?? '',
       deliveryDate: asNonEmpty(doc.payload['delivery_date']) ?? '',
       amount: money(asNum(doc.payload['grand_total'])),
