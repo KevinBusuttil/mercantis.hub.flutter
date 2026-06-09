@@ -5,15 +5,15 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import '../ledger/ledger_values.dart';
 import 'manufacturing.dart';
 
-/// Subscribes to submit events and turns a submitted Production Plan into one
-/// draft Work Order per planned item, seeding each Work Order's required items
-/// from its BOM explosion. Deterministic ids (`WO-<planId>-<rowIndex>`) make it
-/// idempotent — re-firing the event upserts the same Work Orders.
+/// Subscribes to submit + workflow-transition events to automate two flows:
 ///
-/// (Work Order → completion Stock Entry is exposed as a pure helper,
-/// [Manufacturing.completionStockEntry], invoked from the Work Order UI action;
-/// the core workflow engine does not yet emit a transition event to automate
-/// it.)
+/// 1. A submitted **Production Plan** becomes one draft Work Order per planned
+///    item, seeding each Work Order's required items from its BOM explosion.
+///    Deterministic ids (`WO-<planId>-<rowIndex>`) make it idempotent.
+/// 2. A **Work Order** reaching `Completed` (via `wf-work-order`) auto-posts its
+///    completion Stock Entry ([Manufacturing.completionStockEntry], submitted so
+///    the stock moves derive). Deterministic id `SE-<woId>-completion` →
+///    idempotent.
 class ManufacturingDerivationService {
   ManufacturingDerivationService({
     required this.engine,
@@ -35,6 +35,27 @@ class ManufacturingDerivationService {
         _generateWorkOrders(e.document);
       }
     }));
+    _tokens.add(emitter.subscribe<WorkflowTransitionEvent>((e) {
+      if (e.workflow == 'wf-work-order' && e.toState == 'Completed') {
+        _postCompletion(e.documentId);
+      }
+    }));
+  }
+
+  /// Posts the completion Stock Entry for a Work Order that just reached
+  /// `Completed`. Idempotent: a no-op once `SE-<woId>-completion` exists.
+  Future<void> _postCompletion(String workOrderId) async {
+    try {
+      final seId = 'SE-$workOrderId-completion';
+      if (await engine.fetch('Stock Entry', seId) != null) return;
+      final wo = await engine.fetch('Work Order', workOrderId);
+      if (wo == null) return;
+      final se = Manufacturing.completionStockEntry(wo);
+      final saved = await engine.save(se, systemRoles);
+      await engine.submit(saved, systemRoles);
+    } catch (e, s) {
+      onError?.call(e, s);
+    }
   }
 
   void dispose() {
