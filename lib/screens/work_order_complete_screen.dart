@@ -106,7 +106,7 @@ class _WorkOrderCompleteScreenState extends ConsumerState<WorkOrderCompleteScree
           padding: const EdgeInsets.all(16),
           children: [
             DropdownButtonFormField<String>(
-              value: _woId,
+              initialValue: _woId,
               isExpanded: true,
               decoration: const InputDecoration(labelText: 'Work Order', border: OutlineInputBorder()),
               items: [

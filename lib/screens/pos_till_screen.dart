@@ -197,7 +197,7 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _customer,
+                  initialValue: _customer,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Customer (optional)', border: OutlineInputBorder()),
                   items: [
@@ -211,7 +211,7 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _warehouse ?? ctx.defaultWarehouse,
+                  initialValue: _warehouse ?? ctx.defaultWarehouse,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Warehouse', border: OutlineInputBorder()),
                   items: [
@@ -227,7 +227,7 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: DropdownButtonFormField<String>(
-            value: null,
+            initialValue: null,
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'Add item', border: OutlineInputBorder()),
             items: [
