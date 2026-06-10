@@ -79,14 +79,16 @@ void main() {
 
   tearDown(() => database.close());
 
-  // The service handles events fire-and-forget; poll until the SE lands.
+  // The service handles events fire-and-forget and posts then submits in
+  // separate async steps; poll until the SE is not just present but submitted,
+  // so the assertion can't race the submit.
   Future<Document?> awaitSe(String id) async {
-    for (var i = 0; i < 40; i++) {
+    for (var i = 0; i < 80; i++) {
       final d = await engine.fetch('Stock Entry', id);
-      if (d != null) return d;
+      if (d != null && d.docStatus == 1) return d;
       await Future<void>.delayed(const Duration(milliseconds: 25));
     }
-    return null;
+    return engine.fetch('Stock Entry', id);
   }
 
   WorkflowTransitionEvent completed(String woId) => WorkflowTransitionEvent(
