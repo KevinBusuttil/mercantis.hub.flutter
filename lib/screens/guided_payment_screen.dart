@@ -222,7 +222,7 @@ class _GuidedPaymentScreenState extends ConsumerState<GuidedPaymentScreen> {
       padding: const EdgeInsets.all(16),
       children: [
         DropdownButtonFormField<String>(
-          value: _party,
+          initialValue: _party,
           decoration: InputDecoration(labelText: '$_partyLabel *', border: const OutlineInputBorder()),
           items: [
             for (final p in ctx.parties)
@@ -232,7 +232,7 @@ class _GuidedPaymentScreenState extends ConsumerState<GuidedPaymentScreen> {
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
-          value: bankValue,
+          initialValue: bankValue,
           decoration: const InputDecoration(labelText: 'Cash / Bank account', border: OutlineInputBorder()),
           items: [
             for (final a in ctx.bankAccounts)
