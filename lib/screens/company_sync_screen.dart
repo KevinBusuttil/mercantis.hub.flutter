@@ -109,6 +109,15 @@ class CompanySyncScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Background sync'),
+                  subtitle: const Text(
+                      'Sync automatically every 30s, after changes, and on resume'),
+                  value: s.autoEnabled,
+                  onChanged: (v) =>
+                      ref.read(companySyncProvider.notifier).setAutoEnabled(v),
+                ),
               ],
               const Divider(height: 32),
               Text('Status', style: theme.textTheme.titleMedium),
