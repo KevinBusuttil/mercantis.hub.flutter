@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
+import 'auth/auth_gate.dart';
+import 'auth/auth_store.dart';
 import 'manifest/hub_manifest.dart';
 import 'navigation/hub_navigation.dart';
 import 'deliveries/delivery_route_service.dart';
@@ -57,7 +59,7 @@ class _OnboardingGate extends ConsumerWidget {
         home: Scaffold(body: Center(child: Text('Setup check failed: $e'))),
       ),
       data: (exists) => exists
-          ? const _HubRouterApp()
+          ? const AuthGate(child: _HubRouterApp())
           : MaterialApp(
               theme: MercantisTheme.light(),
               darkTheme: MercantisTheme.dark(),
@@ -112,9 +114,10 @@ final _bootProvider = FutureProvider<void>((ref) async {
   await ref.watch(manufacturingDerivationServiceProvider.future);
   // Subscribe the delivery-route service (status events + Delivery Note mirror).
   await ref.watch(deliveryRouteServiceProvider.future);
-  // Load persisted preferences (operator identity, module visibility).
+  // Load persisted preferences (module visibility) and operator profiles.
   final engine = await ref.watch(documentEngineProvider.future);
   await ref.read(hubSettingsProvider.notifier).hydrate(engine);
+  await ref.read(authProvider.notifier).hydrate(engine);
 });
 
 class _HubSplashScreen extends StatelessWidget {

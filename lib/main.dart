@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'auth/auth_store.dart';
 import 'hub_app.dart';
 import 'ledger/hub_interceptors.dart';
 import 'navigation/hub_navigation.dart';

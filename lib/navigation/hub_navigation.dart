@@ -35,19 +35,6 @@ final metadataApprovalInboxSourceOverride =
 /// Backwards-compatible alias used by main.dart.
 final hubApprovalInboxSourceOverride = mockApprovalInboxSourceOverride;
 
-/// The active operator, sourced from persisted [HubSettings] (editable in
-/// Settings) rather than hardcoded. Roles stay System Manager until a real
-/// identity provider is wired.
-final hubCurrentUserOverride = currentUserProvider.overrideWith((ref) {
-  final s = ref.watch(hubSettingsProvider);
-  return CurrentUser(
-    id: 'operator',
-    displayName: s.operatorName,
-    email: s.operatorEmail,
-    roles: const {'System Manager'},
-  );
-});
-
 /// Optional modules can be hidden via Settings; gate their workspaces here.
 /// (Takes effect on next launch, mirroring the Swift visibility model.)
 bool _workspaceEnabled(String id, HubSettings s) {
