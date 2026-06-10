@@ -6,6 +6,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import '../auth/auth_store.dart';
 import '../auth/operator_setup_screen.dart';
 import '../settings/hub_settings.dart';
+import 'numbering_series_screen.dart';
 
 /// App preferences: the signed-in operator (passcode lock managed by the auth
 /// gate), optional-module visibility, and the advanced toggle. Module/advanced
@@ -138,6 +139,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               child: Text('${auth.profiles.length} operators on this device',
                   style: theme.textTheme.bodySmall),
             ),
+          const Divider(height: 32),
+          Text('Setup', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.tag),
+              title: const Text('Numbering series'),
+              subtitle:
+                  const Text('Inspect and set document number sequences'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const NumberingSeriesScreen(),
+              )),
+            ),
+          ),
           const Divider(height: 32),
           Text('Optional modules', style: theme.textTheme.titleMedium),
           Text('Hidden modules apply on next launch.',

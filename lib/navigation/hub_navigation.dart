@@ -9,6 +9,7 @@ import '../screens/delivery_route_screen.dart';
 import '../screens/driver_today_screen.dart';
 import '../screens/guided_payment_screen.dart';
 import '../screens/low_stock_screen.dart';
+import '../screens/numbering_series_screen.dart';
 import '../screens/pos_till_screen.dart';
 import '../screens/reports_screen.dart';
 import '../screens/sales_orders_screen.dart';
@@ -79,6 +80,8 @@ void wireHubNavigation(WidgetRef ref) {
     registry.registerRoute(
         'work-order-complete', (c, s) => const WorkOrderCompleteScreen());
     registry.registerRoute('settings', (c, s) => const SettingsScreen());
+    registry.registerRoute(
+        'numbering-series', (c, s) => const NumberingSeriesScreen());
   }
 
   registerHubDashboardCards(ref);
