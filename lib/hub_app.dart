@@ -22,7 +22,7 @@ class MercantisHubApp extends ConsumerWidget {
       loading: () => MaterialApp(
         theme: MercantisTheme.light(),
         darkTheme: MercantisTheme.dark(),
-        themeMode: ThemeMode.system,
+        themeMode: ref.watch(themeModeProvider),
         debugShowCheckedModeBanner: false,
         home: const _HubSplashScreen(),
       ),
@@ -49,7 +49,7 @@ class _OnboardingGate extends ConsumerWidget {
       loading: () => MaterialApp(
         theme: MercantisTheme.light(),
         darkTheme: MercantisTheme.dark(),
-        themeMode: ThemeMode.system,
+        themeMode: ref.watch(themeModeProvider),
         debugShowCheckedModeBanner: false,
         home: const _HubSplashScreen(),
       ),
@@ -63,7 +63,7 @@ class _OnboardingGate extends ConsumerWidget {
           : MaterialApp(
               theme: MercantisTheme.light(),
               darkTheme: MercantisTheme.dark(),
-              themeMode: ThemeMode.system,
+              themeMode: ref.watch(themeModeProvider),
               debugShowCheckedModeBanner: false,
               home: const OnboardingScreen(),
             ),
@@ -118,6 +118,8 @@ final _bootProvider = FutureProvider<void>((ref) async {
   final engine = await ref.watch(documentEngineProvider.future);
   await ref.read(hubSettingsProvider.notifier).hydrate(engine);
   await ref.read(authProvider.notifier).hydrate(engine);
+  // Load the persisted theme mode (light/dark/system).
+  await ref.read(themeModeProvider.notifier).hydrate();
 });
 
 class _HubSplashScreen extends StatelessWidget {
