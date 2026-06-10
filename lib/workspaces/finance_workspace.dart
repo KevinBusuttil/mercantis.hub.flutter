@@ -4,6 +4,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 const financeWorkspace = WorkspaceDescriptor(
   id: 'finance',
   label: 'Finance & Collections',
+  shortLabel: 'Finance',
   icon: Icons.account_balance_outlined,
   selectedIcon: Icons.account_balance,
   subtitle: 'Ledger, payments, tax',
