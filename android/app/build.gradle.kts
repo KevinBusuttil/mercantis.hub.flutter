@@ -6,7 +6,9 @@ plugins {
 
 android {
     namespace = "com.mercantis.mercantis_hub_app"
-    compileSdk = flutter.compileSdkVersion
+    // Pinned to 36: file_picker pulls in flutter_plugin_android_lifecycle,
+    // which requires consumers to compile against API 36+.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
