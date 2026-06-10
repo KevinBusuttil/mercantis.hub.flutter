@@ -6,6 +6,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import '../auth/auth_store.dart';
 import '../auth/operator_setup_screen.dart';
 import '../settings/hub_settings.dart';
+import 'company_sync_screen.dart';
 import 'numbering_series_screen.dart';
 
 /// App preferences: the signed-in operator (passcode lock managed by the auth
@@ -155,6 +156,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       appName: 'Mercantis Hub',
                       appVersion: '1.0.0',
                     ),
+                  )),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.cloud_sync_outlined),
+                  title: const Text('Company sync'),
+                  subtitle:
+                      const Text('Share this company across devices, serverless'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const CompanySyncScreen(),
                   )),
                 ),
                 const Divider(height: 1),
