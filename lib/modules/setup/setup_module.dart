@@ -10,6 +10,7 @@ abstract final class SetupModule {
         _fiscalYearCompany(),
         _costCenter(),
         _hubSettings(),
+        _hubAuth(),
         _uom(),
         _brand(),
         _priceList(),
@@ -120,6 +121,20 @@ abstract final class SetupModule {
           FieldDefinition(key: 'deliveries_enabled', label: 'Deliveries Enabled', type: FieldType.check, defaultValue: '1'),
           FieldDefinition(key: 'operator_name', label: 'Operator Name', type: FieldType.data),
           FieldDefinition(key: 'operator_email', label: 'Operator Email', type: FieldType.data),
+        ],
+      );
+
+  /// Single-record store of on-device operator profiles (the local passcode
+  /// lock). `profiles` holds a JSON array of profiles with salted passcode
+  /// digests; `active_id` remembers the signed-in operator. Managed by the
+  /// auth gate and Settings, never browsed directly.
+  static DocType _hubAuth() => const DocType(
+        id: 'Hub Auth',
+        name: 'Hub Auth',
+        module: _module,
+        fields: [
+          FieldDefinition(key: 'profiles', label: 'Profiles', type: FieldType.longText),
+          FieldDefinition(key: 'active_id', label: 'Active Operator', type: FieldType.data),
         ],
       );
 

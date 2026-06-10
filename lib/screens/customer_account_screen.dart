@@ -1,103 +1,110 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
-import '../mock/mock_data.dart';
 
-class CustomerAccountScreen extends StatelessWidget {
+import 'screen_providers.dart';
+
+/// Customer-accounts overview: every customer with their open receivable
+/// balance, summed live from submitted Sales Invoices.
+class CustomerAccountScreen extends ConsumerWidget {
   const CustomerAccountScreen({super.key, this.customerId});
   final String? customerId;
 
+  static String _money(double v) => '€${v.toStringAsFixed(2)}';
+
   @override
-  Widget build(BuildContext context) {
-    final customer = customerId ?? 'ACME Ltd';
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final bp = Breakpoint.of(context);
-
-    final body = ListView(
-      padding: EdgeInsets.all(bp.isPhone ? MercantisSpacing.lg : MercantisSpacing.xl),
-      children: [
-        Wrap(
-          spacing: MercantisSpacing.md,
-          runSpacing: MercantisSpacing.md,
-          children: [
-            SizedBox(
-              width: bp.isPhone ? double.infinity : 220,
-              child: const KpiCard(
-                title: 'Outstanding', value: '€3,240',
-                subtitle: '4 invoices',
-                icon: Icons.account_balance_wallet_outlined,
-                accentColor: MercantisBrandColors.accentFinance,
-              ),
-            ),
-            SizedBox(
-              width: bp.isPhone ? double.infinity : 220,
-              child: const KpiCard(
-                title: 'Overdue', value: '€1,100',
-                subtitle: '12 days late',
-                trend: KpiTrend.flat,
-                icon: Icons.error_outline,
-                accentColor: MercantisBrandColors.statusOverdue,
-              ),
-            ),
-            SizedBox(
-              width: bp.isPhone ? double.infinity : 220,
-              child: const KpiCard(
-                title: 'Sales YTD', value: '€54,210',
-                subtitle: 'last 12 months',
-                trend: KpiTrend.up, trendLabel: '+12%',
-                icon: Icons.trending_up,
-                accentColor: MercantisBrandColors.accentSales,
-              ),
-            ),
-            SizedBox(
-              width: bp.isPhone ? double.infinity : 220,
-              child: const KpiCard(
-                title: 'Last order', value: '3 days',
-                subtitle: 'SO-0142',
-                icon: Icons.schedule,
-                accentColor: MercantisBrandColors.accentSales,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: MercantisSpacing.xl),
-        Text('Documents', style: theme.textTheme.titleMedium),
-        const SizedBox(height: MercantisSpacing.sm),
-        ListCard(
-          title: 'Recent documents',
-          icon: Icons.history,
-          accentColor: MercantisBrandColors.accentSales,
-          rows: [
-            for (final r in MockData.salesRecent.take(4))
-              ListCardRow(
-                title: r.title,
-                subtitle: '${r.docType} · ${r.timestamp}',
-                trailing: r.amount != null
-                    ? Text(r.amount!,
-                        style: const TextStyle(fontWeight: FontWeight.w600))
-                    : null,
-              ),
-          ],
-        ),
-      ],
-    );
+    final async = ref.watch(customerAccountsProvider);
 
     return ResponsiveScaffold(
-      title: customer,
-      subtitle: 'Customer account',
-      actions: [
-        OutlinedButton.icon(
-          onPressed: () {},
-          icon: const Icon(Icons.email_outlined, size: 16),
-          label: const Text('Email statement'),
-        ),
-        FilledButton.icon(
-          onPressed: () {},
-          icon: const Icon(Icons.payments_outlined, size: 16),
-          label: const Text('Collect payment'),
-        ),
-      ],
-      body: body,
-      padBody: false,
+      title: 'Customer accounts',
+      subtitle: 'Receivables by customer',
+      body: async.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
+        data: (rows) {
+          final withBalance = rows.where((r) => r.outstanding > 0).toList();
+          final totalReceivable =
+              rows.fold<double>(0, (s, r) => s + r.outstanding);
+
+          if (rows.isEmpty) {
+            return const EmptyState(
+              title: 'No customers yet',
+              message: 'Add a customer to start tracking receivables.',
+              icon: Icons.people_outline,
+            );
+          }
+
+          return ListView(
+            padding: EdgeInsets.all(
+                bp.isPhone ? MercantisSpacing.lg : MercantisSpacing.xl),
+            children: [
+              Wrap(
+                spacing: MercantisSpacing.md,
+                runSpacing: MercantisSpacing.md,
+                children: [
+                  SizedBox(
+                    width: bp.isPhone ? double.infinity : 240,
+                    child: KpiCard(
+                      title: 'Total receivable',
+                      value: _money(totalReceivable),
+                      subtitle: '${withBalance.length} customer(s) with balance',
+                      icon: Icons.account_balance_wallet_outlined,
+                      accentColor: MercantisBrandColors.accentFinance,
+                    ),
+                  ),
+                  SizedBox(
+                    width: bp.isPhone ? double.infinity : 240,
+                    child: KpiCard(
+                      title: 'Customers',
+                      value: '${rows.length}',
+                      subtitle: 'on file',
+                      icon: Icons.people_outline,
+                      accentColor: MercantisBrandColors.accentSales,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: MercantisSpacing.xl),
+              Text('Balances', style: theme.textTheme.titleMedium),
+              const SizedBox(height: MercantisSpacing.sm),
+              ErpDataTable(
+                columns: const [
+                  ErpDataColumn(label: 'Customer', flex: 5),
+                  ErpDataColumn(label: 'Open invoices', flex: 2, numeric: true),
+                  ErpDataColumn(label: 'Outstanding', flex: 3, numeric: true),
+                  ErpDataColumn(label: '', flex: 2),
+                ],
+                rows: [
+                  for (final r in rows)
+                    ErpDataRow(
+                      onTap: () =>
+                          context.go('/form/Customer/${r.customerId}'),
+                      cells: [
+                        Text(r.customerName),
+                        Text('${r.openInvoices}'),
+                        Text(_money(r.outstanding)),
+                        if (r.outstanding > 0)
+                          const StatusChip(
+                              label: 'Due',
+                              tone: StatusTone.overdue,
+                              dense: true)
+                        else
+                          const StatusChip(
+                              label: 'Clear',
+                              tone: StatusTone.approved,
+                              dense: true),
+                      ],
+                    ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
