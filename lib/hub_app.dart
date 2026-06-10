@@ -11,6 +11,7 @@ import 'manufacturing/manufacturing_service.dart';
 import 'onboarding/onboarding_providers.dart';
 import 'screens/onboarding_screen.dart';
 import 'settings/hub_settings.dart';
+import 'sync/company_sync.dart';
 
 class MercantisHubApp extends ConsumerWidget {
   const MercantisHubApp({super.key});
@@ -22,7 +23,7 @@ class MercantisHubApp extends ConsumerWidget {
       loading: () => MaterialApp(
         theme: MercantisTheme.light(),
         darkTheme: MercantisTheme.dark(),
-        themeMode: ThemeMode.system,
+        themeMode: ref.watch(themeModeProvider),
         debugShowCheckedModeBanner: false,
         home: const _HubSplashScreen(),
       ),
@@ -49,7 +50,7 @@ class _OnboardingGate extends ConsumerWidget {
       loading: () => MaterialApp(
         theme: MercantisTheme.light(),
         darkTheme: MercantisTheme.dark(),
-        themeMode: ThemeMode.system,
+        themeMode: ref.watch(themeModeProvider),
         debugShowCheckedModeBanner: false,
         home: const _HubSplashScreen(),
       ),
@@ -63,7 +64,7 @@ class _OnboardingGate extends ConsumerWidget {
           : MaterialApp(
               theme: MercantisTheme.light(),
               darkTheme: MercantisTheme.dark(),
-              themeMode: ThemeMode.system,
+              themeMode: ref.watch(themeModeProvider),
               debugShowCheckedModeBanner: false,
               home: const OnboardingScreen(),
             ),
@@ -78,12 +79,16 @@ class _HubRouterApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Lazily wire workspaces + dashboard cards. Idempotent.
     wireHubNavigation(ref);
+    // Instantiate the company-sync controller so background sync runs while
+    // signed in. Reading the notifier (not its state) keeps it alive without
+    // rebuilding the app on every sync tick.
+    ref.read(companySyncProvider.notifier);
     final router = ref.watch(_hubRouterProvider);
     return MaterialApp.router(
       title: 'Mercantis Hub',
       theme: MercantisTheme.light(),
       darkTheme: MercantisTheme.dark(),
-      themeMode: ThemeMode.system,
+      themeMode: ref.watch(themeModeProvider),
       routerConfig: router,
       debugShowCheckedModeBanner: false,
     );
@@ -118,6 +123,8 @@ final _bootProvider = FutureProvider<void>((ref) async {
   final engine = await ref.watch(documentEngineProvider.future);
   await ref.read(hubSettingsProvider.notifier).hydrate(engine);
   await ref.read(authProvider.notifier).hydrate(engine);
+  // Load the persisted theme mode (light/dark/system).
+  await ref.read(themeModeProvider.notifier).hydrate();
 });
 
 class _HubSplashScreen extends StatelessWidget {

@@ -4,6 +4,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 const inventoryWorkspace = WorkspaceDescriptor(
   id: 'inventory',
   label: 'Inventory & Warehouse',
+  shortLabel: 'Inventory',
   icon: Icons.inventory_2_outlined,
   selectedIcon: Icons.inventory_2,
   subtitle: 'Items, stock and warehouse operations',

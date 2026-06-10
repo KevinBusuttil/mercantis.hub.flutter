@@ -4,6 +4,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 const purchasingWorkspace = WorkspaceDescriptor(
   id: 'purchasing',
   label: 'Purchasing & Receiving',
+  shortLabel: 'Buying',
   icon: Icons.shopping_basket_outlined,
   selectedIcon: Icons.shopping_basket,
   subtitle: 'Orders, receipts and supplier billing',

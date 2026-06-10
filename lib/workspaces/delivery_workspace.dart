@@ -4,6 +4,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 const deliveryWorkspace = WorkspaceDescriptor(
   id: 'delivery',
   label: 'Delivery & Routes',
+  shortLabel: 'Delivery',
   icon: Icons.local_shipping_outlined,
   selectedIcon: Icons.local_shipping,
   subtitle: 'Plan routes, drive deliveries, capture POD',

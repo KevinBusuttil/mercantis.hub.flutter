@@ -4,6 +4,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 const manufacturingWorkspace = WorkspaceDescriptor(
   id: 'manufacturing',
   label: 'Manufacturing',
+  shortLabel: 'Mfg',
   icon: Icons.precision_manufacturing_outlined,
   selectedIcon: Icons.precision_manufacturing,
   subtitle: 'BOMs, work orders and production',

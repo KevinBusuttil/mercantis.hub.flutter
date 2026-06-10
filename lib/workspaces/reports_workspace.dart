@@ -4,6 +4,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 const reportsWorkspace = WorkspaceDescriptor(
   id: 'reports',
   label: 'Reports & Insights',
+  shortLabel: 'Reports',
   icon: Icons.insights_outlined,
   selectedIcon: Icons.insights,
   subtitle: 'Dashboards and operational KPIs',

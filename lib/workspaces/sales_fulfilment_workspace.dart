@@ -4,6 +4,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 const salesFulfilmentWorkspace = WorkspaceDescriptor(
   id: 'sales_fulfilment',
   label: 'Sales & Fulfilment',
+  shortLabel: 'Sales',
   icon: Icons.point_of_sale_outlined,
   selectedIcon: Icons.point_of_sale,
   subtitle: 'Quotes, orders, deliveries and collections',
