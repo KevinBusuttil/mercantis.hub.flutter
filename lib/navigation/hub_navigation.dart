@@ -8,8 +8,11 @@ import '../screens/customer_account_screen.dart';
 import '../screens/delivery_route_screen.dart';
 import '../screens/driver_today_screen.dart';
 import '../screens/guided_payment_screen.dart';
+import '../screens/captures_screen.dart';
+import '../screens/capture_review_screen.dart';
 import '../screens/company_sync_screen.dart';
 import '../screens/low_stock_screen.dart';
+import '../screens/scan_receipt_screen.dart';
 import '../screens/numbering_series_screen.dart';
 import '../screens/pos_till_screen.dart';
 import '../screens/reports_screen.dart';
@@ -85,6 +88,13 @@ void wireHubNavigation(WidgetRef ref) {
         'numbering-series', (c, s) => const NumberingSeriesScreen());
     registry.registerRoute(
         'company-sync', (c, s) => const CompanySyncScreen());
+    // Document Capture (ADR-049).
+    registry.registerRoute('captures', (c, s) => const CapturesScreen());
+    registry.registerRoute('scan-receipt', (c, s) => const ScanReceiptScreen());
+    registry.registerRoute(
+        'capture-review',
+        (c, s) => CaptureReviewScreen(
+            captureId: s.uri.queryParameters['id'] ?? ''));
   }
 
   registerHubDashboardCards(ref);
