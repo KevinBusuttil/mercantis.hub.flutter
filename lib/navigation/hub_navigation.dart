@@ -9,6 +9,7 @@ import '../screens/delivery_route_screen.dart';
 import '../screens/driver_today_screen.dart';
 import '../screens/guided_payment_screen.dart';
 import '../screens/captures_screen.dart';
+import '../screens/capture_ai_settings_screen.dart';
 import '../screens/capture_review_screen.dart';
 import '../screens/company_sync_screen.dart';
 import '../screens/low_stock_screen.dart';
@@ -90,6 +91,8 @@ void wireHubNavigation(WidgetRef ref) {
         'company-sync', (c, s) => const CompanySyncScreen());
     // Document Capture (ADR-049).
     registry.registerRoute('captures', (c, s) => const CapturesScreen());
+    registry.registerRoute(
+        'capture-ai-settings', (c, s) => const CaptureAiSettingsScreen());
     registry.registerRoute('scan-receipt', (c, s) => const ScanReceiptScreen());
     registry.registerRoute(
         'capture-review',

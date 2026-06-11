@@ -7,6 +7,8 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import '../ledger/ledger_values.dart';
 import '../modules/capture/capture_module.dart';
 import 'capture_service.dart';
+import 'capture_settings_providers.dart';
+import 'llm_receipt_extractor.dart';
 import 'receipt_text_recognizer.dart';
 
 /// The capture orchestration service, wired to the live engine, attachment
@@ -16,12 +18,31 @@ final captureServiceProvider = FutureProvider<CaptureService>((ref) async {
   final attachments = await ref.watch(attachmentManagerProvider.future);
   final recognizer = ref.watch(receiptTextRecognizerProvider);
   final user = ref.watch(currentUserProvider);
+
+  // Build the opt-in AI fallback only when enabled and a key is present.
+  final ai = await ref.watch(captureAiSettingsProvider.future);
+  final apiKey = await ref.watch(captureAiApiKeyProvider.future);
+  LlmReceiptExtractor? extractor;
+  Future<bool> Function()? quota;
+  if (ai.enabled && apiKey != null && apiKey.isNotEmpty) {
+    extractor = LlmReceiptExtractor(
+      provider: ai.provider,
+      endpoint: ai.endpoint,
+      model: ai.model,
+      apiKey: apiKey,
+    );
+    quota = () => consumeMonthlyCaptureQuota(ai.monthlyLimit);
+  }
+
   return CaptureService(
     engine: engine,
     attachments: attachments,
     recognizer: recognizer,
     roles: user.roles,
     userId: user.id,
+    llmExtractor: extractor,
+    llmThreshold: ai.threshold,
+    llmQuota: quota,
   );
 });
 

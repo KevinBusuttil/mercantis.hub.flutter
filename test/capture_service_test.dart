@@ -1,8 +1,12 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_hub_app/capture/capture_service.dart';
+import 'package:mercantis_hub_app/capture/llm_receipt_extractor.dart';
 import 'package:mercantis_hub_app/capture/receipt_parser.dart';
 import 'package:mercantis_hub_app/capture/receipt_text_recognizer.dart';
 import 'package:mercantis_hub_app/manifest/hub_manifest.dart';
@@ -164,6 +168,75 @@ void main() {
     final piFiles =
         await attachments.attachmentsForField('document_file', pi.id);
     expect(piFiles, hasLength(1));
+  });
+
+  test('AI fallback fills the fields when the on-device read is weak', () async {
+    // No OCR ⇒ local confidence 0 ⇒ below threshold ⇒ the AI extractor runs.
+    final aiClient = MockClient((_) async => http.Response(
+          jsonEncode({
+            'content': [
+              {
+                'type': 'text',
+                'text': jsonEncode({
+                  'merchant_name': 'Corner Cafe',
+                  'grand_total': 5.20,
+                  'document_date': '2026-02-07',
+                }),
+              },
+            ],
+          }),
+          200,
+        ));
+    final aiService = CaptureService(
+      engine: engine,
+      attachments: attachments,
+      recognizer: const UnavailableTextRecognizer(),
+      roles: roles,
+      userId: 'u',
+      llmExtractor: LlmReceiptExtractor(
+        provider: LlmProvider.anthropic,
+        endpoint: LlmReceiptExtractor.anthropicBaseUrl,
+        model: 'claude-opus-4-8',
+        apiKey: 'k',
+        client: aiClient,
+      ),
+    );
+
+    final capture = await aiService.captureFromImage(
+        imagePath: imageFile('ai.jpg', 9).path);
+
+    expect(capture.payload['merchant_name'], 'Corner Cafe');
+    expect(capture.payload['grand_total'], 5.20);
+    // A confident AI read with a total lands Ready, not Needs Review.
+    expect(capture.payload['status'], CaptureModule.statusReady);
+  });
+
+  test('AI fallback respects the monthly quota gate', () async {
+    var called = false;
+    final aiService = CaptureService(
+      engine: engine,
+      attachments: attachments,
+      recognizer: const UnavailableTextRecognizer(),
+      roles: roles,
+      userId: 'u',
+      llmExtractor: LlmReceiptExtractor(
+        provider: LlmProvider.anthropic,
+        endpoint: LlmReceiptExtractor.anthropicBaseUrl,
+        model: 'claude-opus-4-8',
+        apiKey: 'k',
+        client: MockClient((_) async {
+          called = true;
+          return http.Response('{}', 200);
+        }),
+      ),
+      llmQuota: () async => false, // cap reached
+    );
+
+    final capture = await aiService.captureFromImage(
+        imagePath: imageFile('q.jpg', 3).path);
+
+    expect(called, isFalse); // quota denied ⇒ no network call
+    expect(capture.payload['status'], CaptureModule.statusNeedsReview);
   });
 
   test('createDraftInvoice honours an explicitly chosen supplier', () async {

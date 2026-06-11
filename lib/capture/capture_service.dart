@@ -4,6 +4,7 @@ import 'package:mercantis_core/mercantis_core.dart';
 
 import '../ledger/ledger_values.dart';
 import '../modules/capture/capture_module.dart';
+import 'llm_receipt_extractor.dart';
 import 'receipt_parser.dart';
 import 'receipt_text_recognizer.dart';
 
@@ -21,6 +22,9 @@ class CaptureService {
     required this.recognizer,
     this.roles = const {'System Manager'},
     this.userId = 'local-user',
+    this.llmExtractor,
+    this.llmThreshold = 0.6,
+    this.llmQuota,
   });
 
   final DocumentEngine engine;
@@ -28,6 +32,13 @@ class CaptureService {
   final ReceiptTextRecognizer recognizer;
   final Set<String> roles;
   final String userId;
+
+  /// Opt-in AI fallback (ADR-049). Null when disabled / no key. Consulted only
+  /// when the on-device read is weaker than [llmThreshold], and only if
+  /// [llmQuota] (the monthly cost cap) permits the call.
+  final LlmReceiptExtractor? llmExtractor;
+  final double llmThreshold;
+  final Future<bool> Function()? llmQuota;
 
   /// Confidence at/above which a parse is trusted enough to mark "Ready".
   static const readyThreshold = 0.6;
@@ -65,10 +76,39 @@ class CaptureService {
     );
 
     final text = await recognizer.recognise(imagePath);
-    final parsed =
+    var parsed =
         text == null ? const ParsedReceipt() : ReceiptParser.parse(text);
+
+    // AI fallback: only when the local read is weak, the user enabled it, and
+    // the monthly cap allows. The LLM result wins where present; local fills
+    // the gaps. Any failure leaves the local parse untouched.
+    final extractor = llmExtractor;
+    if (extractor != null && parsed.confidence < llmThreshold) {
+      if (llmQuota == null || await llmQuota!()) {
+        final ai = await extractor.extract(
+            imageBytes: bytes, mimeType: _mimeFor(imagePath), ocrText: text);
+        if (ai != null && !ai.isEmpty) parsed = _mergeReceipts(ai, parsed);
+      }
+    }
+
     return applyExtraction(created, parsed);
   }
+
+  /// Combine two parses: [primary] wins per-field, [fallback] fills nulls.
+  static ParsedReceipt _mergeReceipts(
+          ParsedReceipt primary, ParsedReceipt fallback) =>
+      ParsedReceipt(
+        merchantName: primary.merchantName ?? fallback.merchantName,
+        documentDate: primary.documentDate ?? fallback.documentDate,
+        invoiceNo: primary.invoiceNo ?? fallback.invoiceNo,
+        netTotal: primary.netTotal ?? fallback.netTotal,
+        vatTotal: primary.vatTotal ?? fallback.vatTotal,
+        grandTotal: primary.grandTotal ?? fallback.grandTotal,
+        currencyCode: primary.currencyCode ?? fallback.currencyCode,
+        confidence: primary.confidence > fallback.confidence
+            ? primary.confidence
+            : fallback.confidence,
+      );
 
   /// Write parsed fields onto [capture] and set its review status. A confident
   /// read with a total lands in "Ready"; anything weaker is "Needs Review".
