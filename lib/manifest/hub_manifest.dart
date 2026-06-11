@@ -2,6 +2,7 @@ import 'package:mercantis_core/mercantis_core.dart';
 import '../modules/crm/crm_module.dart';
 import '../modules/selling/selling_module.dart';
 import '../modules/buying/buying_module.dart';
+import '../modules/capture/capture_module.dart';
 import '../modules/stock/stock_module.dart';
 import '../modules/accounting/accounting_module.dart';
 import '../modules/deliveries/deliveries_module.dart';
@@ -28,6 +29,7 @@ abstract final class HubManifest {
       ...PosModule.docTypes(),
       ...ManufacturingModule.docTypes(),
       ...DeliveriesModule.docTypes(),
+      ...CaptureModule.docTypes(),
     ];
 
     return AppManifest(
