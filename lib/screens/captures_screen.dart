@@ -14,7 +14,16 @@ class CapturesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final captures = ref.watch(capturesProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Captures')),
+      appBar: AppBar(
+        title: const Text('Captures'),
+        actions: [
+          IconButton(
+            tooltip: 'Smart capture (AI)',
+            icon: const Icon(Icons.auto_awesome_outlined),
+            onPressed: () => context.go('/w/purchasing/capture-ai-settings'),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.go('/w/home/scan-receipt'),
         icon: const Icon(Icons.document_scanner_outlined),

@@ -4,6 +4,7 @@ import 'package:mercantis_core/mercantis_core.dart';
 
 import '../ledger/ledger_values.dart';
 import '../modules/capture/capture_module.dart';
+import 'llm_receipt_extractor.dart';
 import 'receipt_parser.dart';
 import 'receipt_text_recognizer.dart';
 
@@ -21,6 +22,9 @@ class CaptureService {
     required this.recognizer,
     this.roles = const {'System Manager'},
     this.userId = 'local-user',
+    this.llmExtractor,
+    this.llmThreshold = 0.6,
+    this.llmQuota,
   });
 
   final DocumentEngine engine;
@@ -28,6 +32,13 @@ class CaptureService {
   final ReceiptTextRecognizer recognizer;
   final Set<String> roles;
   final String userId;
+
+  /// Opt-in AI fallback (ADR-049). Null when disabled / no key. Consulted only
+  /// when the on-device read is weaker than [llmThreshold], and only if
+  /// [llmQuota] (the monthly cost cap) permits the call.
+  final LlmReceiptExtractor? llmExtractor;
+  final double llmThreshold;
+  final Future<bool> Function()? llmQuota;
 
   /// Confidence at/above which a parse is trusted enough to mark "Ready".
   static const readyThreshold = 0.6;
@@ -65,16 +76,51 @@ class CaptureService {
     );
 
     final text = await recognizer.recognise(imagePath);
-    final parsed =
+    var parsed =
         text == null ? const ParsedReceipt() : ReceiptParser.parse(text);
+
+    // AI fallback: only when the local read is weak, the user enabled it, and
+    // the monthly cap allows. The LLM result wins where present; local fills
+    // the gaps. Any failure leaves the local parse untouched.
+    final extractor = llmExtractor;
+    if (extractor != null && parsed.confidence < llmThreshold) {
+      if (llmQuota == null || await llmQuota!()) {
+        final ai = await extractor.extract(
+            imageBytes: bytes, mimeType: _mimeFor(imagePath), ocrText: text);
+        if (ai != null && !ai.isEmpty) parsed = _mergeReceipts(ai, parsed);
+      }
+    }
+
     return applyExtraction(created, parsed);
   }
+
+  /// Combine two parses: [primary] wins per-field, [fallback] fills nulls.
+  static ParsedReceipt _mergeReceipts(
+          ParsedReceipt primary, ParsedReceipt fallback) =>
+      ParsedReceipt(
+        merchantName: primary.merchantName ?? fallback.merchantName,
+        documentDate: primary.documentDate ?? fallback.documentDate,
+        invoiceNo: primary.invoiceNo ?? fallback.invoiceNo,
+        netTotal: primary.netTotal ?? fallback.netTotal,
+        vatTotal: primary.vatTotal ?? fallback.vatTotal,
+        grandTotal: primary.grandTotal ?? fallback.grandTotal,
+        currencyCode: primary.currencyCode ?? fallback.currencyCode,
+        confidence: primary.confidence > fallback.confidence
+            ? primary.confidence
+            : fallback.confidence,
+      );
 
   /// Write parsed fields onto [capture] and set its review status. A confident
   /// read with a total lands in "Ready"; anything weaker is "Needs Review".
   Future<Document> applyExtraction(Document capture, ParsedReceipt parsed) async {
     final currencyOk = parsed.currencyCode != null &&
         await _exists('Currency', parsed.currencyCode!);
+    // Merchant memory: if we've seen this merchant before, prefill the supplier
+    // we learned — unless one is already set.
+    final learnedSupplier =
+        asNonEmpty(capture.payload['supplier']) == null && parsed.merchantName != null
+            ? await _rememberedSupplier(parsed.merchantName!)
+            : null;
     capture.payload.addAll({
       if (parsed.merchantName != null) 'merchant_name': parsed.merchantName,
       if (parsed.documentDate != null) 'document_date': parsed.documentDate,
@@ -83,12 +129,41 @@ class CaptureService {
       if (parsed.vatTotal != null) 'vat_total': parsed.vatTotal,
       if (parsed.grandTotal != null) 'grand_total': parsed.grandTotal,
       if (currencyOk) 'currency': parsed.currencyCode,
+      if (learnedSupplier != null) 'supplier': learnedSupplier,
       'extraction_confidence': (parsed.confidence * 100).round(),
       'status': parsed.confidence >= readyThreshold && parsed.grandTotal != null
           ? CaptureModule.statusReady
           : CaptureModule.statusNeedsReview,
     });
     return engine.save(capture, roles);
+  }
+
+  /// The supplier learned for [merchant] from a prior draft, or null.
+  Future<String?> _rememberedSupplier(String merchant) async {
+    final key = CaptureModule.merchantKey(merchant);
+    if (key.isEmpty) return null;
+    final rule = await engine.fetch('Capture Rule', key);
+    return rule == null ? null : asNonEmpty(rule.payload['supplier']);
+  }
+
+  /// Remember merchant→supplier so the next capture from this merchant prefills
+  /// it. Skips the placeholder supplier — we only learn real choices.
+  Future<void> _learnSupplier(Document capture, String supplierId) async {
+    final merchant = asNonEmpty(capture.payload['merchant_name']);
+    if (merchant == null || supplierId == unspecifiedSupplierId) return;
+    final key = CaptureModule.merchantKey(merchant);
+    if (key.isEmpty) return;
+    final existing = await engine.fetch('Capture Rule', key);
+    final seen =
+        existing == null ? 1 : (asNum(existing.payload['times_seen']) + 1).toInt();
+    await engine.save(
+      Document(id: key, docType: 'Capture Rule', payload: {
+        'merchant_name': merchant,
+        'supplier': supplierId,
+        'times_seen': seen,
+      }),
+      roles,
+    );
   }
 
   /// Create a DRAFT Purchase Invoice from a confirmed [capture]. Copies the
@@ -136,6 +211,9 @@ class CaptureService {
     capture.payload['status'] = CaptureModule.statusDraftCreated;
     if (supplierId != null) capture.payload['supplier'] = supplierId;
     await engine.save(capture, roles);
+
+    // Remember this merchant→supplier so the next capture prefills it.
+    await _learnSupplier(capture, supplier);
     return saved;
   }
 
