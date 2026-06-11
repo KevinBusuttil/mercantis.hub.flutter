@@ -32,7 +32,40 @@ abstract final class CaptureModule {
   static const roleAnyone = 'Anyone';
   static const _roleOptions = '$roleAnyone\nBookkeeping\nManagement\nField';
 
-  static List<DocType> docTypes() => [_capturedDocument()];
+  static List<DocType> docTypes() => [_capturedDocument(), _captureRule()];
+
+  /// Normalised merchant key used to remember a merchant→supplier mapping.
+  /// Lower-cased, with digits and punctuation stripped and whitespace
+  /// collapsed — so "BP Service Station #4471" and "BP SERVICE STATION" share
+  /// a memory even when a store/receipt number is appended to the name.
+  static String merchantKey(String merchant) => merchant
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z ]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  /// Internal learning rule (ADR-049): a remembered merchant→supplier mapping,
+  /// keyed by [merchantKey]. Written silently when a draft is created and read
+  /// back to prefill future captures. Not user-facing — no regex, no setup.
+  static DocType _captureRule() => const DocType(
+        id: 'Capture Rule',
+        name: 'Capture Rule',
+        module: _module,
+        isSubmittable: false,
+        fields: [
+          FieldDefinition(
+              key: 'merchant_name', label: 'Merchant', type: FieldType.data),
+          FieldDefinition(
+            key: 'supplier',
+            label: 'Supplier',
+            type: FieldType.link,
+            linkDocType: 'Supplier',
+            options: 'Supplier',
+          ),
+          FieldDefinition(
+              key: 'times_seen', label: 'Times Seen', type: FieldType.integer),
+        ],
+      );
 
   /// Lifecycle values that still want a human's eyes in the review queue.
   static const openStatuses = {

@@ -239,6 +239,42 @@ void main() {
     expect(capture.payload['status'], CaptureModule.statusNeedsReview);
   });
 
+  test('merchant memory: learns a supplier and prefills the next capture',
+      () async {
+    await engine.save(
+        Document(id: 'ACME-SUP', docType: 'Supplier', payload: {
+          'supplier_name': 'Acme Supplies',
+          'supplier_type': 'Company',
+        }),
+        roles);
+
+    // First receipt from "Corner Cafe": user picks Acme as the supplier.
+    final first = await engine.save(
+        Document(id: '', docType: 'Captured Document', payload: {
+          'merchant_name': 'Corner Cafe',
+          'grand_total': 5.20,
+        }),
+        roles);
+    await service.createDraftInvoice(first, supplierId: 'ACME-SUP');
+
+    // The mapping was remembered.
+    final rule = await engine.fetch('Capture Rule',
+        CaptureModule.merchantKey('Corner Cafe'));
+    expect(rule, isNotNull);
+    expect(rule!.payload['supplier'], 'ACME-SUP');
+    expect(rule.payload['times_seen'], 1);
+
+    // A *new* capture from the same merchant auto-fills the supplier.
+    final second = await engine.save(
+        Document(id: '', docType: 'Captured Document', payload: {}), roles);
+    final prefilled = await service.applyExtraction(
+      second,
+      const ParsedReceipt(
+          merchantName: 'CORNER CAFE #12', grandTotal: 3.10, confidence: 0.7),
+    );
+    expect(prefilled.payload['supplier'], 'ACME-SUP');
+  });
+
   test('createDraftInvoice honours an explicitly chosen supplier', () async {
     await engine.save(
         Document(id: 'ACME-SUP', docType: 'Supplier', payload: {

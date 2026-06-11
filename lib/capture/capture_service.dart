@@ -115,6 +115,12 @@ class CaptureService {
   Future<Document> applyExtraction(Document capture, ParsedReceipt parsed) async {
     final currencyOk = parsed.currencyCode != null &&
         await _exists('Currency', parsed.currencyCode!);
+    // Merchant memory: if we've seen this merchant before, prefill the supplier
+    // we learned — unless one is already set.
+    final learnedSupplier =
+        asNonEmpty(capture.payload['supplier']) == null && parsed.merchantName != null
+            ? await _rememberedSupplier(parsed.merchantName!)
+            : null;
     capture.payload.addAll({
       if (parsed.merchantName != null) 'merchant_name': parsed.merchantName,
       if (parsed.documentDate != null) 'document_date': parsed.documentDate,
@@ -123,12 +129,41 @@ class CaptureService {
       if (parsed.vatTotal != null) 'vat_total': parsed.vatTotal,
       if (parsed.grandTotal != null) 'grand_total': parsed.grandTotal,
       if (currencyOk) 'currency': parsed.currencyCode,
+      if (learnedSupplier != null) 'supplier': learnedSupplier,
       'extraction_confidence': (parsed.confidence * 100).round(),
       'status': parsed.confidence >= readyThreshold && parsed.grandTotal != null
           ? CaptureModule.statusReady
           : CaptureModule.statusNeedsReview,
     });
     return engine.save(capture, roles);
+  }
+
+  /// The supplier learned for [merchant] from a prior draft, or null.
+  Future<String?> _rememberedSupplier(String merchant) async {
+    final key = CaptureModule.merchantKey(merchant);
+    if (key.isEmpty) return null;
+    final rule = await engine.fetch('Capture Rule', key);
+    return rule == null ? null : asNonEmpty(rule.payload['supplier']);
+  }
+
+  /// Remember merchant→supplier so the next capture from this merchant prefills
+  /// it. Skips the placeholder supplier — we only learn real choices.
+  Future<void> _learnSupplier(Document capture, String supplierId) async {
+    final merchant = asNonEmpty(capture.payload['merchant_name']);
+    if (merchant == null || supplierId == unspecifiedSupplierId) return;
+    final key = CaptureModule.merchantKey(merchant);
+    if (key.isEmpty) return;
+    final existing = await engine.fetch('Capture Rule', key);
+    final seen =
+        existing == null ? 1 : (asNum(existing.payload['times_seen']) + 1).toInt();
+    await engine.save(
+      Document(id: key, docType: 'Capture Rule', payload: {
+        'merchant_name': merchant,
+        'supplier': supplierId,
+        'times_seen': seen,
+      }),
+      roles,
+    );
   }
 
   /// Create a DRAFT Purchase Invoice from a confirmed [capture]. Copies the
@@ -176,6 +211,9 @@ class CaptureService {
     capture.payload['status'] = CaptureModule.statusDraftCreated;
     if (supplierId != null) capture.payload['supplier'] = supplierId;
     await engine.save(capture, roles);
+
+    // Remember this merchant→supplier so the next capture prefills it.
+    await _learnSupplier(capture, supplier);
     return saved;
   }
 
