@@ -34,6 +34,28 @@ abstract final class CaptureModule {
 
   static List<DocType> docTypes() => [_capturedDocument()];
 
+  /// Lifecycle values that still want a human's eyes in the review queue.
+  static const openStatuses = {
+    statusReceived,
+    statusReady,
+    statusNeedsReview,
+  };
+
+  /// View-only role scoping (ADR-049): every company member receives every
+  /// capture (sync is not partitioned), but a capture tagged for a specific
+  /// role only surfaces in that role's review queue. "Anyone"/empty shows to
+  /// all; a System Manager sees everything.
+  static bool visibleToRole(String? intendedRole, Set<String> userRoles) {
+    if (intendedRole == null ||
+        intendedRole.isEmpty ||
+        intendedRole == roleAnyone) {
+      return true;
+    }
+    if (userRoles.contains('System Manager')) return true;
+    final wanted = intendedRole.toLowerCase();
+    return userRoles.any((r) => r.toLowerCase() == wanted);
+  }
+
   static DocType _capturedDocument() => const DocType(
         id: 'Captured Document',
         name: 'Captured Document',

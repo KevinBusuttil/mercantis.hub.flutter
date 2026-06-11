@@ -43,6 +43,9 @@ const purchasingWorkspace = WorkspaceDescriptor(
     ),
   ],
   quickActions: [
+    QuickAction(id: 'p_captures', label: 'Receipt captures',
+      icon: Icons.document_scanner_outlined,
+      routeName: '/w/purchasing/captures'),
     QuickAction(id: 'p_new_sq', label: 'New Supplier Quotation',
       icon: Icons.request_quote_outlined, docType: 'Supplier Quotation'),
     QuickAction(id: 'p_new_po', label: 'New Purchase Order',

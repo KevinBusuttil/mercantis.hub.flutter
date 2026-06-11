@@ -46,6 +46,25 @@ void main() {
     expect(fields['linked_voucher']!.readOnly, isTrue);
   });
 
+  group('visibleToRole (view-only scoping)', () {
+    test('Anyone / empty / null shows to everyone', () {
+      for (final v in [CaptureModule.roleAnyone, '', null]) {
+        expect(CaptureModule.visibleToRole(v, {'Field'}), isTrue);
+      }
+    });
+
+    test('a role-tagged capture shows only to matching roles', () {
+      expect(CaptureModule.visibleToRole('Bookkeeping', {'Bookkeeping'}), isTrue);
+      expect(CaptureModule.visibleToRole('Bookkeeping', {'bookkeeping'}), isTrue);
+      expect(CaptureModule.visibleToRole('Bookkeeping', {'Field'}), isFalse);
+    });
+
+    test('System Manager sees everything', () {
+      expect(
+          CaptureModule.visibleToRole('Management', {'System Manager'}), isTrue);
+    });
+  });
+
   test('status select advertises the documented lifecycle values', () {
     final cap = byId['Captured Document']!;
     final status = cap.fields.firstWhere((f) => f.key == 'status');
