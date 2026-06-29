@@ -97,11 +97,11 @@ void main() {
     final pi = await submittedInvoice('PO-1', 4);
     expect(pi.docStatus, 1);
 
-    // list() alone leaves children empty — summing it would total nothing,
-    // which is exactly the bug this guards against.
+    // list() alone hydrates no child rows (the children map is empty) — summing
+    // it would total nothing, which is exactly the bug this guards against.
     final listed =
         await engine.list('Purchase Invoice', filters: {'purchase_order': 'PO-1'});
-    expect(listed.single.children['items'], isEmpty);
+    expect(listed.single.children, isEmpty);
 
     // The helper re-fetches each match, so the billed qty is counted.
     final totals = await fulfilledByItemFromEngine(
