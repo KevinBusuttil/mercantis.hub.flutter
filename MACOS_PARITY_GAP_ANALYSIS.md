@@ -84,7 +84,7 @@ Effort (T-shirt, one engineer): **S** ≤2d · **M** 3–5d · **L** 1–2wk · 
 
 | # | Gap | Swift | Flutter status | Sev | Eff |
 |---|-----|-------|----------------|:---:|:---:|
-| CU1 | **Tree view + view-mode switcher** ⭐ | `UIShell/RecordViewMode.swift` (list/browse/tree/detail) + `RecordTreeView.swift` (135) + `RecordCollectionHostView.swift` (661) | Missing — `isTree` flag exists in `doc_type.dart` but **no tree widget and no view-mode toggle**; list only | High | L |
+| CU1 | **Tree view + view-mode switcher** ⭐ | `UIShell/RecordViewMode.swift` (list/browse/tree/detail) + `RecordTreeView.swift` (135) + `RecordCollectionHostView.swift` (661) | 🟡 **Tree view + List/Tree toggle landed** — `record_tree_view.dart` (pure `RecordTree` builder + outline widget) + `record_view_mode.dart`, gated on `isTree`, persisted per-DocType, wired into `GenericListView` (and `RecordCollectionView`). Covered by `record_tree_view_test.dart`. _Remaining:_ `browse`/`detail` split panes. | High | L |
 | CU2 | **Form-UX layer** | `GenericFormView.swift` (+518), `FormPrerequisites.swift` (91), `LinkPickerField.swift` (+204): field help/placeholder, inline validation, prerequisite nudge, **inline create from picker**, currency-symbol affordance, file picker, module hints | Missing (depends on C4) | High | L |
 | CU3 | **Data Browser** | `UIShell/DataBrowserView.swift` (461) — read-only SQL runner + schema/columns inspector (System-Manager gated) | Missing | Medium | M |
 | CU4 | **Glossary** | `UIShell/Glossary.swift` (203) — plain-language jargon window | Missing | Low | S |
