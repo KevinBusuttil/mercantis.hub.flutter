@@ -10,6 +10,10 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 /// `document_children` — so [fulfilledByItemFromEngine] re-fetches each match by
 /// id; otherwise totals come back empty and every repeat conversion re-proposes
 /// the full original quantity (risking duplicate drafts).
+///
+/// Uses Purchase Invoice as the downstream doc (the save+submit shape exercised
+/// by capture_service_test / ledger_derivation_test) so the test turns on the
+/// hydration behaviour, not on any one DocType's required fields.
 void main() {
   setUpAll(sqfliteFfiInit);
 
@@ -44,73 +48,59 @@ void main() {
 
   tearDown(() async => db.close());
 
-  Future<Document> submittedDelivery(
-      String orderId, List<({String item, num qty})> lines) async {
-    final dn = Document(
+  Document invoice(String orderId, num qty) {
+    final pi = Document(
       id: '',
-      docType: 'Delivery Note',
+      docType: 'Purchase Invoice',
       payload: {
-        'customer': 'CUST-1',
+        'supplier': 'SUP-1',
         'posting_date': '2026-06-01',
-        'sales_order': orderId,
+        'purchase_order': orderId,
       },
     );
-    dn.children['items'] = [
-      for (var i = 0; i < lines.length; i++)
-        ChildRow(
-          id: '',
-          parentId: '',
-          parentDocType: 'Delivery Note',
-          tableName: 'items',
-          rowIndex: i,
-          payload: {'item': lines[i].item, 'qty': lines[i].qty, 'rate': 10},
-        ),
-    ];
-    final saved = await engine.save(dn, roles);
-    return engine.submit(saved, roles);
-  }
-
-  test('totals the shipped qty across submitted deliveries (children hydrated)',
-      () async {
-    final dn = await submittedDelivery('SO-1', [(item: 'ITEM-A', qty: 4)]);
-    expect(dn.docStatus, 1);
-
-    // list() alone leaves children empty — summing it would total nothing.
-    final listed =
-        await engine.list('Delivery Note', filters: {'sales_order': 'SO-1'});
-    expect(listed.single.children['items'], isEmpty);
-
-    // The helper re-fetches each match, so the shipped qty is counted.
-    final totals = await fulfilledByItemFromEngine(
-        engine, 'Delivery Note', 'sales_order', 'SO-1');
-    expect(totals['ITEM-A'], 4);
-  });
-
-  test('sums across multiple submitted deliveries and ignores drafts',
-      () async {
-    await submittedDelivery('SO-2', [(item: 'ITEM-A', qty: 3)]);
-    await submittedDelivery('SO-2', [(item: 'ITEM-A', qty: 2)]);
-
-    // A draft (docStatus 0) for the same order must not be counted.
-    final draft = Document(
-      id: '',
-      docType: 'Delivery Note',
-      payload: {'customer': 'CUST-1', 'posting_date': '2026-06-01', 'sales_order': 'SO-2'},
-    );
-    draft.children['items'] = [
+    pi.children['items'] = [
       ChildRow(
         id: '',
         parentId: '',
-        parentDocType: 'Delivery Note',
+        parentDocType: 'Purchase Invoice',
         tableName: 'items',
         rowIndex: 0,
-        payload: {'item': 'ITEM-A', 'qty': 99, 'rate': 10},
+        payload: {'item': 'ITEM-A', 'description': 'A', 'qty': qty, 'rate': 10},
       ),
     ];
-    await engine.save(draft, roles);
+    return pi;
+  }
+
+  Future<Document> submittedInvoice(String orderId, num qty) async {
+    final saved = await engine.save(invoice(orderId, qty), roles);
+    return engine.submit(saved, roles);
+  }
+
+  test('totals the billed qty of submitted downstream docs (children hydrated)',
+      () async {
+    final pi = await submittedInvoice('PO-1', 4);
+    expect(pi.docStatus, 1);
+
+    // list() alone leaves children empty — summing it would total nothing,
+    // which is exactly the bug this guards against.
+    final listed =
+        await engine.list('Purchase Invoice', filters: {'purchase_order': 'PO-1'});
+    expect(listed.single.children['items'], isEmpty);
+
+    // The helper re-fetches each match, so the billed qty is counted.
+    final totals = await fulfilledByItemFromEngine(
+        engine, 'Purchase Invoice', 'purchase_order', 'PO-1');
+    expect(totals['ITEM-A'], 4);
+  });
+
+  test('sums across submitted docs and ignores drafts', () async {
+    await submittedInvoice('PO-2', 3);
+    await submittedInvoice('PO-2', 2);
+    // A draft (docStatus 0) for the same order must not be counted.
+    await engine.save(invoice('PO-2', 99), roles);
 
     final totals = await fulfilledByItemFromEngine(
-        engine, 'Delivery Note', 'sales_order', 'SO-2');
+        engine, 'Purchase Invoice', 'purchase_order', 'PO-2');
     expect(totals['ITEM-A'], 5); // 3 + 2, draft's 99 excluded
   });
 }
