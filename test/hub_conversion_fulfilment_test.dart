@@ -44,6 +44,22 @@ void main() {
     );
     await HubSeeder(engine, roles: roles).seed(
         businessName: 'Acme', currencyCode: 'EUR', year: DateTime.now().year);
+    // The link-validation stage checks that link values reference existing
+    // records, so seed the supplier + item the invoice lines point at.
+    await engine.save(
+        Document(id: 'SUP-1', docType: 'Supplier', payload: {
+          'supplier_name': 'Supplier One',
+          'supplier_type': 'Company',
+        }),
+        roles);
+    await engine.save(
+        Document(id: 'ITEM-A', docType: 'Item', payload: {
+          'item_code': 'ITEM-A',
+          'item_name': 'Item A',
+          'is_stock_item': 0,
+          'is_service_item': 1,
+        }),
+        roles);
   });
 
   tearDown(() async => db.close());
