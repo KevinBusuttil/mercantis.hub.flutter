@@ -48,6 +48,12 @@ class CaptureService {
   /// from the extracted merchant name.)
   static const unspecifiedSupplierId = 'Unspecified Supplier';
 
+  /// Placeholder item for the single expense line of a captured receipt — the
+  /// scan isn't matched to a catalogue item, but the line table requires one.
+  /// A non-stock service item so the draft carries no stock implication; the
+  /// reviewer can re-itemise on the draft.
+  static const unspecifiedItemId = 'Uncategorised';
+
   /// Full intake: persist the record, attach the image, OCR + parse, prefill.
   Future<Document> captureFromImage({
     required String imagePath,
@@ -171,6 +177,7 @@ class CaptureService {
   /// "Draft Created". Never submits — the user completes & posts it later.
   Future<Document> createDraftInvoice(Document capture, {String? supplierId}) async {
     final supplier = supplierId ?? await _ensureUnspecifiedSupplier();
+    final item = await _ensureUnspecifiedItem();
     final grand = asNum(capture.payload['grand_total']);
     final merchant = asNonEmpty(capture.payload['merchant_name']);
 
@@ -195,6 +202,7 @@ class CaptureService {
         tableName: 'items',
         rowIndex: 0,
         payload: {
+          'item': item,
           'description':
               merchant == null ? 'Captured receipt' : '$merchant — receipt',
           'qty': 1,
@@ -230,6 +238,21 @@ class CaptureService {
       );
     }
     return unspecifiedSupplierId;
+  }
+
+  Future<String> _ensureUnspecifiedItem() async {
+    if (await engine.fetch('Item', unspecifiedItemId) == null) {
+      await engine.save(
+        Document(id: unspecifiedItemId, docType: 'Item', payload: {
+          'item_code': unspecifiedItemId,
+          'item_name': unspecifiedItemId,
+          'is_stock_item': 0,
+          'is_service_item': 1,
+        }),
+        roles,
+      );
+    }
+    return unspecifiedItemId;
   }
 
   Future<String?> _companyId() async {
