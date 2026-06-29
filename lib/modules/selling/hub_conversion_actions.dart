@@ -125,8 +125,8 @@ Future<void> _salesOrderToDelivery(
     BuildContext context, WidgetRef ref, Document doc) async {
   final nav = _Nav.of(context);
   final engine = await ref.read(documentEngineProvider.future);
-  final delivered =
-      await _fulfilledByItem(engine, 'Delivery Note', 'sales_order', doc.id);
+  final delivered = await fulfilledByItemFromEngine(
+      engine, 'Delivery Note', 'sales_order', doc.id);
   await _saveAndOpen(
     nav,
     ref,
@@ -140,8 +140,8 @@ Future<void> _salesOrderToInvoice(
     BuildContext context, WidgetRef ref, Document doc) async {
   final nav = _Nav.of(context);
   final engine = await ref.read(documentEngineProvider.future);
-  final billed =
-      await _fulfilledByItem(engine, 'Sales Invoice', 'sales_order', doc.id);
+  final billed = await fulfilledByItemFromEngine(
+      engine, 'Sales Invoice', 'sales_order', doc.id);
   await _saveAndOpen(
     nav,
     ref,
@@ -165,7 +165,7 @@ Future<void> _purchaseOrderToReceipt(
     BuildContext context, WidgetRef ref, Document doc) async {
   final nav = _Nav.of(context);
   final engine = await ref.read(documentEngineProvider.future);
-  final received = await _fulfilledByItem(
+  final received = await fulfilledByItemFromEngine(
       engine, 'Purchase Receipt', 'purchase_order', doc.id);
   await _saveAndOpen(
     nav,
@@ -180,7 +180,7 @@ Future<void> _purchaseOrderToInvoice(
     BuildContext context, WidgetRef ref, Document doc) async {
   final nav = _Nav.of(context);
   final engine = await ref.read(documentEngineProvider.future);
-  final billed = await _fulfilledByItem(
+  final billed = await fulfilledByItemFromEngine(
       engine, 'Purchase Invoice', 'purchase_order', doc.id);
   await _saveAndOpen(
     nav,
@@ -241,16 +241,29 @@ class _Nav {
 /// Sums fulfilled qty per item across the *submitted* downstream documents of
 /// [downstreamDocType] that link back to [sourceId] via [linkField] — the
 /// `deliveredByItem` / `billedByItem` map the remaining-qty converters consume.
-Future<Map<String, double>> _fulfilledByItem(
+///
+/// Each match is re-fetched by id because `DocumentEngine.list` hydrates only
+/// the parent payload, not `document_children`; only `fetch` loads child rows,
+/// and [HubDocumentConversion.fulfilledByItem] sums `children['items']`. Listing
+/// alone would total nothing, so every repeat conversion would re-propose the
+/// full original quantities and risk duplicate drafts.
+///
+/// Visible for testing.
+Future<Map<String, double>> fulfilledByItemFromEngine(
   DocumentEngine engine,
   String downstreamDocType,
   String linkField,
   String sourceId,
 ) async {
-  final docs =
+  final matches =
       await engine.list(downstreamDocType, filters: {linkField: sourceId});
-  final submitted = docs.where((d) => d.docStatus == 1);
-  return HubDocumentConversion.fulfilledByItem(submitted);
+  final hydrated = <Document>[];
+  for (final match in matches) {
+    if (match.docStatus != 1) continue; // only submitted documents count
+    final full = await engine.fetch(downstreamDocType, match.id);
+    if (full != null) hydrated.add(full);
+  }
+  return HubDocumentConversion.fulfilledByItem(hydrated);
 }
 
 /// Saves [draft] and opens it. For remaining-qty conversions a fully fulfilled
