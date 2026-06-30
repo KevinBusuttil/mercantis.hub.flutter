@@ -88,5 +88,41 @@ void main() {
       expect(c.grandTotal, 0);
       expect(c.taxRows, isEmpty);
     });
+
+    test('excise is added like VAT (its own type/account)', () {
+      final c = HubTaxEngine.compute(
+        const [TaxLine(100, 'EXC')],
+        {'EXC': info('EXC', 10, account: 'Excise Payable', type: 'Excise')},
+      );
+      expect(c.taxRows.single.taxAmount, 10);
+      expect(c.taxRows.single.taxType, 'Excise');
+      expect(c.totalTax, 10);
+      expect(c.grandTotal, 110);
+    });
+
+    test('withholding is deducted from the total (negative tax amount)', () {
+      final c = HubTaxEngine.compute(
+        const [TaxLine(1000, 'WHT')],
+        {'WHT': info('WHT', 5, account: 'WHT Payable', type: 'Withholding')},
+      );
+      expect(c.taxRows.single.taxAmount, -50); // withheld, not added
+      expect(c.totalTax, -50);
+      expect(c.netTotal, 1000);
+      expect(c.grandTotal, 950); // net − withholding
+    });
+
+    test('VAT and withholding combine: net + VAT − WHT', () {
+      final c = HubTaxEngine.compute(
+        const [TaxLine(1000, 'V18'), TaxLine(1000, 'WHT')],
+        {
+          'V18': info('V18', 18),
+          'WHT': info('WHT', 5, account: 'WHT Payable', type: 'Withholding'),
+        },
+      );
+      // Two lines net 2000; VAT 18% of its 1000 = 180; WHT 5% of its 1000 = 50.
+      expect(c.netTotal, 2000);
+      expect(c.totalTax, 130); // 180 − 50
+      expect(c.grandTotal, 2130);
+    });
   });
 }
