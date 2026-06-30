@@ -465,4 +465,111 @@ void main() {
       expect(outstandingAmount(1000, [600, 400]), 0);
     });
   });
+
+  group('Multi-currency posting (H4)', () {
+    num baseDebit(List rows) => rows
+        .where((r) => r.docType == 'GL Entry')
+        .fold<num>(0, (s, r) => s + asNum(r.payload['base_debit']));
+    num baseCredit(List rows) => rows
+        .where((r) => r.docType == 'GL Entry')
+        .fold<num>(0, (s, r) => s + asNum(r.payload['base_credit']));
+
+    // USD invoice, 1000 net + 180 VAT = 1180 gross, booked at rate 1.1 → base 1298.
+    Document fxInvoice({num rate = 1.1}) => src('Sales Invoice', id: 'FX-1', payload: {
+          'grand_total': 1180,
+          'customer': 'C1',
+          'debit_to': 'Debtors',
+          'income_account': 'Sales',
+          'posting_date': '2026-01-01',
+          'currency': 'USD',
+          'conversion_rate': rate,
+        }, children: {
+          'taxes': [
+            {
+              'tax_code': 'VAT18',
+              'tax_type': 'VAT',
+              'rate': 18,
+              'tax_account': 'VAT Output',
+              'taxable_amount': 1000,
+              'tax_amount': 180,
+            },
+          ],
+        });
+
+    test('GL legs stay in transaction currency but carry balanced base amounts', () {
+      final rows = LedgerDerivation.derive(fxInvoice(), reversal: false);
+      expect(glDebit(rows), 1180); // transaction currency unchanged
+      expect(glCredit(rows), 1180);
+      expect(baseDebit(rows), closeTo(1298, 0.001)); // 1180 * 1.1
+      expect(baseCredit(rows), closeTo(1298, 0.001));
+      for (final gl in rows.where((r) => r.docType == 'GL Entry')) {
+        expect(gl.payload['conversion_rate'], 1.1);
+        expect(gl.payload['currency'], 'USD');
+      }
+    });
+
+    test('customer subledger carries base_amount + rate + currency', () {
+      final rows = LedgerDerivation.derive(fxInvoice(), reversal: false);
+      final ct = rows.firstWhere((r) => r.docType == 'Customer Transaction');
+      expect(ct.payload['amount'], 1180);
+      expect(ct.payload['base_amount'], closeTo(1298, 0.001));
+      expect(ct.payload['conversion_rate'], 1.1);
+      expect(ct.payload['currency'], 'USD');
+    });
+
+    test('rate defaults to 1.0 when conversion_rate is absent (base == transaction)', () {
+      final doc = src('Sales Invoice', id: 'FX-2', payload: {
+        'grand_total': 500,
+        'customer': 'C1',
+        'debit_to': 'Debtors',
+        'income_account': 'Sales',
+        'posting_date': '2026-01-01',
+        'currency': 'EUR',
+      });
+      final ar = LedgerDerivation.derive(doc, reversal: false)
+          .firstWhere((r) => r.id == 'GL-FX-2-debit');
+      expect(ar.payload['conversion_rate'], 1);
+      expect(ar.payload['base_debit'], 500);
+    });
+
+    test('reversal flips the base legs with the transaction legs', () {
+      final ar = LedgerDerivation.derive(fxInvoice(), reversal: true)
+          .firstWhere((r) => r.id == 'GL-FX-1-debit-reversal');
+      expect(ar.payload['debit'], 0);
+      expect(ar.payload['credit'], 1180);
+      expect(ar.payload['base_debit'], 0);
+      expect(ar.payload['base_credit'], closeTo(1298, 0.001));
+    });
+
+    test('tax subledger rows are not base-stamped (stay transaction currency)', () {
+      final tt = LedgerDerivation.derive(fxInvoice(), reversal: false)
+          .firstWhere((r) => r.docType == 'Tax Transaction');
+      expect(tt.payload.containsKey('conversion_rate'), isFalse);
+    });
+
+    test('payment entry stamps base on each leg at its own rate', () {
+      final pay = src('Payment Entry', id: 'PAY-FX', payload: {
+        'payment_type': 'Receive',
+        'party_type': 'Customer',
+        'party': 'C1',
+        'paid_from': 'Debtors',
+        'paid_to': 'Bank',
+        'paid_amount': 200,
+        'posting_date': '2026-01-01',
+        'currency': 'USD',
+        'conversion_rate': 1.25,
+      });
+      final gls =
+          LedgerDerivation.derive(pay, reversal: false).where((r) => r.docType == 'GL Entry');
+      expect(gls, isNotEmpty);
+      for (final gl in gls) {
+        expect(gl.payload['conversion_rate'], 1.25);
+        expect(gl.payload['currency'], 'USD');
+        expect(asNum(gl.payload['base_debit']),
+            closeTo(asNum(gl.payload['debit']) * 1.25, 0.001));
+        expect(asNum(gl.payload['base_credit']),
+            closeTo(asNum(gl.payload['credit']) * 1.25, 0.001));
+      }
+    });
+  });
 }
