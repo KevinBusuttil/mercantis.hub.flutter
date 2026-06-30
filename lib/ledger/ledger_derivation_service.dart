@@ -149,6 +149,9 @@ class LedgerDerivationService {
     final items = <String, Document?>{};
     // A Transfer line's source-leg cost, so its target leg can match it.
     final outCostByItem = <String, num>{};
+    // Total cost consumed by this voucher's outgoing legs. For a Manufacture
+    // entry that is the raw-material cost, rolled into the produced good's rate.
+    num consumedCost = 0;
 
     Future<List<Map<String, dynamic>>> priorFor(String item, String wh) async {
       final key = (item, wh);
@@ -193,10 +196,18 @@ class LedgerDerivationService {
         final rate = StockCosting.issueRate(prior, -qtyChange, method);
         row.payload['valuation_rate'] = rate;
         outCostByItem[item] = rate;
+        consumedCost += -qtyChange * rate;
       } else if (qtyChange > 0) {
-        if (row.payload['trans_type'] == 'Transfer') {
+        final transType = row.payload['trans_type'];
+        if (transType == 'Transfer') {
           final rate = outCostByItem[item];
           if (rate != null) row.payload['valuation_rate'] = rate;
+        } else if (transType == 'Production') {
+          // Manufactured goods enter at production cost: the raw material
+          // consumed by this entry's outgoing legs, spread over the qty made.
+          if (consumedCost > 0) {
+            row.payload['valuation_rate'] = consumedCost / qtyChange;
+          }
         } else if (factor != 1) {
           row.payload['valuation_rate'] =
               asNum(row.payload['valuation_rate']) / factor;
