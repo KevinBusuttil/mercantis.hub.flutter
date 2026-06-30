@@ -63,16 +63,22 @@ abstract final class BankStatementCsvImporter {
     final rows = _rows(csv);
     if (rows.isEmpty) return const BankStatementImport(lines: [], skipped: 0);
 
-    final delimiter = _detectDelimiter(rows);
-    // Find the header: the first row whose cells name known columns.
+    // Find the header and the delimiter together: the first row (skipping any
+    // export preamble) that maps to usable columns under some candidate
+    // delimiter — so detection isn't fooled by a separator-less preamble line.
     _Columns? cols;
+    var delimiter = ',';
     var dataStart = 0;
-    for (var i = 0; i < rows.length && i < 20; i++) {
-      final candidate = _mapColumns(_split(rows[i], delimiter));
-      if (candidate.usable) {
-        cols = candidate;
-        dataStart = i + 1;
-        break;
+    for (var i = 0; i < rows.length && i < 20 && cols == null; i++) {
+      if (rows[i].trim().isEmpty) continue;
+      for (final d in _delimiters) {
+        final candidate = _mapColumns(_split(rows[i], d));
+        if (candidate.usable) {
+          cols = candidate;
+          delimiter = d;
+          dataStart = i + 1;
+          break;
+        }
       }
     }
     if (cols == null) return const BankStatementImport(lines: [], skipped: 0);
@@ -94,23 +100,12 @@ abstract final class BankStatementCsvImporter {
 
   // ---- rows / delimiter --------------------------------------------------
 
+  /// Delimiters tried, in order, when resolving the header. Comma first so a
+  /// plain comma file isn't mis-read as something else.
+  static const _delimiters = [',', ';', '\t'];
+
   static List<String> _rows(String csv) =>
       csv.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n');
-
-  static String _detectDelimiter(List<String> rows) {
-    const candidates = [',', ';', '\t'];
-    final first = rows.firstWhere((r) => r.trim().isNotEmpty, orElse: () => '');
-    var best = ',';
-    var bestCount = -1;
-    for (final d in candidates) {
-      final count = d.allMatches(first).length;
-      if (count > bestCount) {
-        bestCount = count;
-        best = d;
-      }
-    }
-    return best;
-  }
 
   /// Splits one CSV line on [delimiter], honouring double-quoted fields (with
   /// `""` as an escaped quote).

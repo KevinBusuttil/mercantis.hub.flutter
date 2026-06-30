@@ -51,6 +51,18 @@ void main() {
     expect(l.deposit, 100);
   });
 
+  test('detects a semicolon delimiter on a header hidden behind a preamble', () {
+    const csv = 'Bank Export\n'
+        'Account: 123\n'
+        'Date;Description;Debit;Credit\n'
+        '07/01/2026;Invoice;;500,00\n';
+    final r = BankStatementCsvImporter.parse(csv);
+
+    expect(r.lines.length, 1); // would be 0 if the comma default leaked through
+    expect(r.lines.single.postingDate, '2026-01-07');
+    expect(r.lines.single.deposit, 500);
+  });
+
   test('rows without a parseable date or amount are skipped, not dropped silently', () {
     const csv = 'Date,Description,Amount\n'
         '2026-04-01,Good,10.00\n'
