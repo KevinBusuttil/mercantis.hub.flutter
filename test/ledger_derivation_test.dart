@@ -572,4 +572,53 @@ void main() {
       }
     });
   });
+
+  group('Multi-currency base balance (H4 follow-up)', () {
+    num baseDebit(List rows) => rows
+        .where((r) => r.docType == 'GL Entry')
+        .fold<num>(0, (s, r) => s + asNum(r.payload['base_debit']));
+    num baseCredit(List rows) => rows
+        .where((r) => r.docType == 'GL Entry')
+        .fold<num>(0, (s, r) => s + asNum(r.payload['base_credit']));
+
+    test('split GL legs at a fractional rate keep base_debit == base_credit', () {
+      // 0.06 debit vs three 0.02 credits at 3.333. Rounding each converted leg
+      // independently would split 0.20 vs 0.21; full-precision base keeps them
+      // equal even though one side is split.
+      final je = src('Journal Entry', id: 'JE-FX', payload: {
+        'posting_date': '2026-01-01',
+        'currency': 'USD',
+        'conversion_rate': 3.333,
+      }, children: {
+        'accounts': [
+          {'account': 'A', 'debit': 0.06, 'credit': 0},
+          {'account': 'B', 'debit': 0, 'credit': 0.02},
+          {'account': 'C', 'debit': 0, 'credit': 0.02},
+          {'account': 'D', 'debit': 0, 'credit': 0.02},
+        ],
+      });
+      final rows = LedgerDerivation.derive(je, reversal: false);
+      expect(baseDebit(rows), closeTo(baseCredit(rows), 1e-9));
+    });
+
+    test('foreign-currency journal entry stamps rate + currency + base', () {
+      final je = src('Journal Entry', id: 'JE-FX2', payload: {
+        'posting_date': '2026-01-01',
+        'currency': 'USD',
+        'conversion_rate': 2,
+      }, children: {
+        'accounts': [
+          {'account': 'Cash', 'debit': 100, 'credit': 0},
+          {'account': 'Sales', 'debit': 0, 'credit': 100},
+        ],
+      });
+      final rows = LedgerDerivation.derive(je, reversal: false);
+      for (final gl in rows.where((r) => r.docType == 'GL Entry')) {
+        expect(gl.payload['conversion_rate'], 2);
+        expect(gl.payload['currency'], 'USD');
+      }
+      expect(baseDebit(rows), 200);
+      expect(baseCredit(rows), 200);
+    });
+  });
 }

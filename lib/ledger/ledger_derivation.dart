@@ -575,18 +575,26 @@ abstract final class LedgerDerivation {
   /// transaction amount, so single-currency postings keep the same numbers.
   /// Tax / settlement / stock rows are deliberately left in transaction
   /// currency (matching the Swift coordinator).
+  ///
+  /// Base amounts are kept at full precision (NOT rounded per leg): the
+  /// transaction ledger balances, so `Σ debitᵢ·rate == Σ creditⱼ·rate`, but
+  /// rounding each leg independently can break that equality when a side is
+  /// split across several legs at a fractional rate (e.g. one 0.06 debit vs
+  /// three 0.02 credits at 3.333 → 0.20 vs 0.21). Leaving the products
+  /// unrounded keeps the base ledger balanced, mirroring the Swift coordinator
+  /// (which posts raw `Double` base amounts and relies on a balance tolerance).
   static void _stampBaseAmounts(List<DerivedDoc> rows, Document doc) {
     final rate = conversionRate(doc);
     final currency = asNonEmpty(doc.payload['currency']);
     for (final row in rows) {
       if (row.docType == glEntry) {
         row.payload['conversion_rate'] = rate;
-        row.payload['base_debit'] = round2(asNum(row.payload['debit']) * rate);
-        row.payload['base_credit'] = round2(asNum(row.payload['credit']) * rate);
+        row.payload['base_debit'] = asNum(row.payload['debit']) * rate;
+        row.payload['base_credit'] = asNum(row.payload['credit']) * rate;
         if (currency != null) row.payload['currency'] = currency;
       } else if (row.docType == customerTxn || row.docType == supplierTxn) {
         row.payload['conversion_rate'] = rate;
-        row.payload['base_amount'] = round2(asNum(row.payload['amount']) * rate);
+        row.payload['base_amount'] = asNum(row.payload['amount']) * rate;
         if (currency != null && asNonEmpty(row.payload['currency']) == null) {
           row.payload['currency'] = currency;
         }
