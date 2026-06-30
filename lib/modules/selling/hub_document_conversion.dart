@@ -162,6 +162,58 @@ class HubDocumentConversion {
     return _draft(docType: 'Purchase Invoice', company: receipt.company, fields: fields, items: items);
   }
 
+  // MARK: - Returns
+
+  /// Sales Invoice → credit-note draft (a return). Same DocType with `is_return`
+  /// set, `return_against` pointing at the original, and every line's qty
+  /// negated; the totals interceptor recomputes the (now negative) amounts and
+  /// the ledger spine posts the reversed GL / customer subledger on submit.
+  static Document salesInvoiceReturn(Document invoice) => _returnOf(
+        invoice,
+        headerKeys: const [
+          'customer', 'currency', 'conversion_rate', 'price_list',
+          'tax_code', 'debit_to', 'income_account', 'cost_center',
+        ],
+        lineKeys: const ['item', 'description', 'uom', 'rate', 'tax_code', 'warehouse'],
+      );
+
+  /// Purchase Invoice → debit-note draft (a return) — the buying mirror of
+  /// [salesInvoiceReturn].
+  static Document purchaseInvoiceReturn(Document invoice) => _returnOf(
+        invoice,
+        headerKeys: const [
+          'supplier', 'currency', 'conversion_rate', 'price_list',
+          'tax_code', 'credit_to', 'expense_account', 'cost_center',
+        ],
+        lineKeys: const ['item', 'description', 'uom', 'rate', 'tax_code', 'warehouse'],
+      );
+
+  /// Builds a return draft of [original]'s own DocType: carries [headerKeys],
+  /// flags `is_return`, links `return_against`, and negates each line's qty
+  /// (carrying [lineKeys]). Negative quantities make the totals — and therefore
+  /// the derived ledger rows — net against the original on submit.
+  static Document _returnOf(
+    Document original, {
+    required List<String> headerKeys,
+    required List<String> lineKeys,
+  }) {
+    final fields = <String, dynamic>{
+      'posting_date': _today(),
+      'is_return': 1,
+      'return_against': original.id,
+    };
+    _copy(headerKeys, original.payload, fields);
+    final items = <ChildRow>[];
+    for (final row in original.children['items'] ?? const <ChildRow>[]) {
+      final lineFields = <String, dynamic>{};
+      _copy(lineKeys, row.payload, lineFields);
+      lineFields['qty'] = -(_double(row.payload['qty']) ?? 0);
+      items.add(_row(original.docType, items.length, lineFields));
+    }
+    return _draft(
+        docType: original.docType, company: original.company, fields: fields, items: items);
+  }
+
   // MARK: - CRM
 
   /// Lead → Customer draft. A lead with a company becomes a Company customer

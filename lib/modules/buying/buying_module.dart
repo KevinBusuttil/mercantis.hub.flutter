@@ -103,6 +103,12 @@ abstract final class BuyingModule {
           // Document-level default tax code — third in the line → item →
           // document → party fallback chain resolved on save.
           FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
+          // Returns (H6): a debit note is a Purchase Invoice with is_return set
+          // and negative line quantities, linked to the original via
+          // return_against; the ledger spine reverses the GL/subledger from the
+          // negative amounts.
+          FieldDefinition(key: 'is_return', label: 'Is Return (Debit Note)', type: FieldType.check),
+          FieldDefinition(key: 'return_against', label: 'Return Against', type: FieldType.link, linkDocType: 'Purchase Invoice', options: 'Purchase Invoice'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Purchase Invoice Item', options: 'Purchase Invoice Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           // Computed VAT rows (input tax) — one per distinct tax code on submit.

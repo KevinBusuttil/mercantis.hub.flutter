@@ -75,6 +75,12 @@ abstract final class SellingModule {
           // Document-level default tax code — third in the line → item →
           // document → party fallback chain resolved on save.
           FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
+          // Returns (H6): a credit note is a Sales Invoice with is_return set
+          // and negative line quantities, linked to the original via
+          // return_against. The ledger spine posts the reversed GL/subledger
+          // automatically from the negative amounts.
+          FieldDefinition(key: 'is_return', label: 'Is Return (Credit Note)', type: FieldType.check),
+          FieldDefinition(key: 'return_against', label: 'Return Against', type: FieldType.link, linkDocType: 'Sales Invoice', options: 'Sales Invoice'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Sales Invoice Item', options: 'Sales Invoice Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           // Computed VAT rows (output tax) — one per distinct tax code on submit.

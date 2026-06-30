@@ -214,4 +214,54 @@ void main() {
       expect(q2.payload.containsKey('opportunity'), isFalse);
     });
   });
+
+  group('returns (H6)', () {
+    test('salesInvoiceReturn negates qty, flags is_return, links the original',
+        () {
+      final inv = doc('SINV-1', 'Sales Invoice', payload: {
+        'customer': 'CUST-1',
+        'currency': 'EUR',
+        'debit_to': 'Debtors',
+        'income_account': 'Sales',
+        'tax_code': 'VAT-STD',
+      }, items: [
+        line('Sales Invoice', 0, {'item': 'ITEM-A', 'qty': 3, 'rate': 10, 'uom': 'Nos'}),
+        line('Sales Invoice', 1, {'item': 'ITEM-B', 'qty': 2, 'rate': 5}),
+      ]);
+
+      final ret = HubDocumentConversion.salesInvoiceReturn(inv);
+
+      expect(ret.docType, 'Sales Invoice');
+      expect(ret.docStatus, 0);
+      expect(ret.payload['is_return'], 1);
+      expect(ret.payload['return_against'], 'SINV-1');
+      expect(ret.payload['customer'], 'CUST-1');
+      expect(ret.payload['debit_to'], 'Debtors');
+      final items = ret.children['items']!;
+      expect(items.length, 2);
+      expect(items[0].payload['qty'], -3); // negated
+      expect(items[0].payload['rate'], 10); // rate unchanged
+      expect(items[1].payload['qty'], -2);
+      expect(items[0].parentDocType, 'Sales Invoice');
+    });
+
+    test('purchaseInvoiceReturn mirrors it on the buying side', () {
+      final inv = doc('PINV-1', 'Purchase Invoice', payload: {
+        'supplier': 'SUP-1',
+        'credit_to': 'Creditors',
+        'expense_account': 'Cost of Goods',
+      }, items: [
+        line('Purchase Invoice', 0, {'item': 'ITEM-A', 'qty': 4, 'rate': 7}),
+      ]);
+
+      final ret = HubDocumentConversion.purchaseInvoiceReturn(inv);
+
+      expect(ret.docType, 'Purchase Invoice');
+      expect(ret.payload['is_return'], 1);
+      expect(ret.payload['return_against'], 'PINV-1');
+      expect(ret.payload['supplier'], 'SUP-1');
+      expect(ret.payload['credit_to'], 'Creditors');
+      expect(ret.children['items']!.single.payload['qty'], -4);
+    });
+  });
 }
