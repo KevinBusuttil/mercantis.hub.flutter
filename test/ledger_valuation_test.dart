@@ -133,6 +133,29 @@ void main() {
     expect(asNum(sle!.payload['valuation_rate']), 10); // oldest layer, not 99
   });
 
+  test('FIFO breaks same-day ties by creation order (oldest layer first)',
+      () async {
+    await engine.save(
+        Document(id: 'FIFO2', docType: 'Item', payload: {
+          'item_code': 'FIFO2',
+          'item_name': 'FIFO2',
+          'stock_uom': 'Nos',
+          'valuation_method': 'FIFO',
+        }),
+        roles);
+    // Two receipts on the SAME posting date; the 10-cost layer is saved first
+    // and gets the lexically-smaller id, so it must be consumed first.
+    await _seedReceiptId(engine, roles, 'FIFO2', 'SLE-seed-FIFO2-a',
+        qty: 10, rate: 10, date: '2026-06-05');
+    await _seedReceiptId(engine, roles, 'FIFO2', 'SLE-seed-FIFO2-b',
+        qty: 10, rate: 20, date: '2026-06-05');
+
+    final dn = await deliver('FIFO2', 5);
+    final sle = await issueSle(dn.id);
+    expect(sle, isNotNull);
+    expect(asNum(sle!.payload['valuation_rate']), 10); // oldest same-day layer
+  });
+
   test('a cancel reuses the original issue cost', () async {
     final dn = await deliver('MA', 5);
     final original = await issueSle(dn.id);
@@ -162,8 +185,20 @@ Future<void> _seedReceipt(
   required num rate,
   required String date,
 }) =>
+    _seedReceiptId(engine, roles, item, 'SLE-seed-$item-$date',
+        qty: qty, rate: rate, date: date);
+
+Future<void> _seedReceiptId(
+  DocumentEngine engine,
+  Set<String> roles,
+  String item,
+  String id, {
+  required num qty,
+  required num rate,
+  required String date,
+}) =>
     engine.save(
-      Document(id: 'SLE-seed-$item-$date', docType: 'Stock Ledger Entry',
+      Document(id: id, docType: 'Stock Ledger Entry',
           payload: {
             'trans_type': 'Receipt',
             'item': item,

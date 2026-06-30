@@ -150,14 +150,14 @@ class LedgerDerivationService {
       final key = (item, wh);
       final cached = ledgers[key];
       if (cached != null) return cached;
-      final rows = [
-        for (final d in await engine.list(LedgerDerivation.stockLedger,
-            filters: {'item': item, 'warehouse': wh}, userRoles: systemRoles))
-          d.payload,
-      ];
+      final docs = await engine.list(LedgerDerivation.stockLedger,
+          filters: {'item': item, 'warehouse': wh}, userRoles: systemRoles);
       // FIFO replay is order-sensitive and engine.list order isn't guaranteed,
-      // so order the prior ledger oldest-first by posting date.
-      rows.sort((a, b) => _postingMillis(a).compareTo(_postingMillis(b)));
+      // so order the prior ledger oldest-first. posting_date is only day-level,
+      // so break same-day ties by creation order (the true save sequence) and
+      // finally by id, giving a fully deterministic replay.
+      docs.sort(_byPostingThenCreation);
+      final rows = [for (final d in docs) d.payload];
       ledgers[key] = rows;
       return rows;
     }
@@ -360,8 +360,21 @@ class LedgerDerivationService {
   }
 }
 
+/// Orders stock-ledger rows oldest-first for the FIFO replay: by posting date,
+/// then — since posting_date is only day-level — by creation order (the true
+/// save sequence), then by id as a final deterministic tiebreaker so two
+/// same-day, same-instant rows never swap.
+int _byPostingThenCreation(Document a, Document b) {
+  final byDate = _postingMillis(a.payload).compareTo(_postingMillis(b.payload));
+  if (byDate != 0) return byDate;
+  final byCreated = (a.createdAt?.millisecondsSinceEpoch ?? 0)
+      .compareTo(b.createdAt?.millisecondsSinceEpoch ?? 0);
+  if (byCreated != 0) return byCreated;
+  return a.id.compareTo(b.id);
+}
+
 /// A stock-ledger row's posting date as epoch milliseconds (epoch int or ISO
-/// string, as stored), 0 when absent — used only to order the FIFO replay.
+/// string, as stored), 0 when absent.
 int _postingMillis(Map<String, dynamic> row) {
   final v = row['posting_date'];
   if (v is int) return v;
