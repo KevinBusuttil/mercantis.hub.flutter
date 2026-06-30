@@ -95,7 +95,10 @@ abstract final class StockModule {
         module: _module,
         isChild: true,
         fields: [
-          FieldDefinition(key: 'uom', label: 'UOM', type: FieldType.link, linkDocType: 'UOM', options: 'UOM', required: true),
+          // A select of the same UOM labels the transaction lines and
+          // `Item.stock_uom` use (not a link), so the stock-posting UOM
+          // conversion can match a line's UOM against this row by value.
+          FieldDefinition(key: 'uom', label: 'UOM', type: FieldType.select, options: 'Nos\nKg\nGrams\nLitre\nMetre\nBox\nPair\nSet', required: true),
           FieldDefinition(key: 'conversion_factor', label: 'Conversion Factor', type: FieldType.float, required: true, defaultValue: '1'),
         ],
       );

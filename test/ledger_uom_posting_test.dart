@@ -9,8 +9,8 @@ import 'package:mercantis_hub_app/onboarding/hub_seeder.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// H5 valuation: stock posting converts a line's transaction UOM to the item's
-/// stock UOM, value-preserving — qty × factor, rate ÷ factor — so the Bin
-/// always tracks stock units and total stock value is unchanged by the unit.
+/// stock UOM, value-preserving — qty × factor, receipt rate ÷ factor — so the
+/// stock ledger always records stock units and total value is unchanged.
 void main() {
   setUpAll(sqfliteFfiInit);
 
@@ -63,7 +63,14 @@ void main() {
         Document(id: 'WH', docType: 'Warehouse',
             payload: {'warehouse_name': 'Main'}),
         roles);
-    // 1 Box = 12 Nos (stock UOM).
+    await engine.save(
+        Document(id: 'CUST-1', docType: 'Customer', payload: {
+          'customer_name': 'Acme Buyer',
+          'customer_type': 'Company',
+        }),
+        roles);
+    // 1 Box = 12 Nos (the stock UOM). UOM is a select, so the conversion row's
+    // value matches the literal UOM the transaction lines carry.
     final item = Document(id: 'BOXED', docType: 'Item', payload: {
       'item_code': 'BOXED',
       'item_name': 'Boxed widget',
@@ -85,70 +92,73 @@ void main() {
     await db.close();
   });
 
-  Future<Document> stockEntry(String type, Map<String, dynamic> line) async {
-    final se = Document(id: '', docType: 'Stock Entry', payload: {
-      'stock_entry_type': type,
-      'posting_date': '2026-06-01',
-    });
-    se.children['items'] = [
-      ChildRow(
-        id: '', parentId: '', parentDocType: 'Stock Entry',
-        tableName: 'items', rowIndex: 0, payload: line,
-      ),
-    ];
-    return engine.submit(await engine.save(se, roles), roles);
-  }
-
-  Future<Document?> awaitBin() async {
+  // Poll the stock ledger for the voucher's row matching [wantPositive] sign.
+  Future<Document?> sleFor(String voucherNo, {required bool wantPositive}) async {
     for (var i = 0; i < 80; i++) {
-      final bin = await engine.fetch(LedgerDerivation.bin, 'BIN-BOXED-WH');
-      if (bin != null) return bin;
+      final rows = await engine.list(LedgerDerivation.stockLedger,
+          filters: {'voucher_no': voucherNo}, userRoles: roles);
+      final match = rows.where((r) =>
+          wantPositive == (asNum(r.payload['qty_change']) > 0) &&
+          asNum(r.payload['qty_change']) != 0);
+      if (match.isNotEmpty) return match.first;
       await Future<void>.delayed(const Duration(milliseconds: 25));
     }
     return null;
   }
 
-  test('a receipt in Box converts to stock Nos, preserving value', () async {
-    // Receive 2 Box @ 120/Box → 24 Nos @ 10/Nos, value 240.
-    await stockEntry('Material Receipt', {
-      'item': 'BOXED', 'uom': 'Box', 'qty': 2,
-      'target_warehouse': 'WH', 'valuation_rate': 120,
+  test('a receipt in Box records stock Nos at rate ÷ factor', () async {
+    // Receive 2 Box @ 120/Box → 24 Nos @ 10/Nos (value preserved at 240).
+    final se = Document(id: '', docType: 'Stock Entry', payload: {
+      'stock_entry_type': 'Material Receipt',
+      'posting_date': '2026-06-01',
     });
-    Document? bin;
-    for (var i = 0; i < 80; i++) {
-      bin = await awaitBin();
-      if (bin != null && asNum(bin.payload['actual_qty']) == 24) break;
-      await Future<void>.delayed(const Duration(milliseconds: 25));
-    }
-    expect(asNum(bin!.payload['actual_qty']), 24);
-    expect(asNum(bin.payload['valuation_rate']), 10);
-    expect(asNum(bin.payload['stock_value']), 240);
+    se.children['items'] = [
+      ChildRow(
+        id: '', parentId: '', parentDocType: 'Stock Entry',
+        tableName: 'items', rowIndex: 0,
+        payload: {
+          'item': 'BOXED', 'uom': 'Box', 'qty': 2,
+          'target_warehouse': 'WH', 'valuation_rate': 120,
+        },
+      ),
+    ];
+    final posted = await engine.submit(await engine.save(se, roles), roles);
+
+    final sle = await sleFor(posted.id, wantPositive: true);
+    expect(sle, isNotNull);
+    expect(asNum(sle!.payload['qty_change']), 24); // 2 Box × 12
+    expect(asNum(sle.payload['valuation_rate']), 10); // 120 ÷ 12
   });
 
   test('an issue in Box draws down stock Nos at cost', () async {
-    await stockEntry('Material Receipt', {
-      'item': 'BOXED', 'uom': 'Box', 'qty': 2,
-      'target_warehouse': 'WH', 'valuation_rate': 120,
-    });
-    // Wait for the receipt to settle the bin at 24 Nos before issuing.
-    for (var i = 0; i < 80; i++) {
-      final b = await engine.fetch(LedgerDerivation.bin, 'BIN-BOXED-WH');
-      if (b != null && asNum(b.payload['actual_qty']) == 24) break;
-      await Future<void>.delayed(const Duration(milliseconds: 25));
-    }
+    // Stock on hand: 100 Nos @ 10 (already in stock units).
+    await engine.save(
+        Document(id: 'SLE-seed', docType: 'Stock Ledger Entry', payload: {
+          'trans_type': 'Receipt', 'item': 'BOXED', 'warehouse': 'WH',
+          'posting_date': '2026-05-01', 'voucher_type': 'Stock Entry',
+          'voucher_no': 'SEED', 'qty_change': 100, 'valuation_rate': 10,
+          'is_reversal': false,
+        }),
+        roles);
 
-    // Issue 1 Box → 12 Nos out at cost 10, leaving 12 Nos worth 120.
-    await stockEntry('Material Issue', {
-      'item': 'BOXED', 'uom': 'Box', 'qty': 1, 'source_warehouse': 'WH',
+    // Deliver 1 Box → 12 Nos out, costed at the moving average (10).
+    final dn = Document(id: '', docType: 'Delivery Note', payload: {
+      'customer': 'CUST-1',
+      'posting_date': '2026-06-01',
+      'set_warehouse': 'WH',
     });
-    Document? bin;
-    for (var i = 0; i < 80; i++) {
-      bin = await engine.fetch(LedgerDerivation.bin, 'BIN-BOXED-WH');
-      if (bin != null && asNum(bin.payload['actual_qty']) == 12) break;
-      await Future<void>.delayed(const Duration(milliseconds: 25));
-    }
-    expect(asNum(bin!.payload['actual_qty']), 12);
-    expect(asNum(bin.payload['valuation_rate']), 10);
-    expect(asNum(bin.payload['stock_value']), 120);
+    dn.children['items'] = [
+      ChildRow(
+        id: '', parentId: '', parentDocType: 'Delivery Note',
+        tableName: 'items', rowIndex: 0,
+        payload: {'item': 'BOXED', 'uom': 'Box', 'qty': 1, 'rate': 99},
+      ),
+    ];
+    final posted = await engine.submit(await engine.save(dn, roles), roles);
+
+    final sle = await sleFor(posted.id, wantPositive: false);
+    expect(sle, isNotNull);
+    expect(asNum(sle!.payload['qty_change']), -12); // 1 Box × 12, leaving
+    expect(asNum(sle.payload['valuation_rate']), 10); // cost, not the 99 rate
   });
 }
