@@ -385,9 +385,9 @@ class NegativeStockGuardInterceptor extends DocumentInterceptor {
   Future<void> beforeSubmit(
       DocumentEngine engine, Document doc, DocType docType) async {
     if (!_issueDocTypes.contains(doc.docType)) return;
-    if (_isTrue(doc.payload['is_return'])) return; // a return adds stock back
+    if (isTrue(doc.payload['is_return'])) return; // a return adds stock back
     final company = await _companyFor(engine, doc.company);
-    if (_isTrue(company?.payload['allow_negative_stock'])) return;
+    if (isTrue(company?.payload['allow_negative_stock'])) return;
 
     final isStockEntry = doc.docType == 'Stock Entry';
     final setWarehouse = asNonEmpty(doc.payload['set_warehouse']);
@@ -404,7 +404,7 @@ class NegativeStockGuardInterceptor extends DocumentInterceptor {
       // Service / non-stock items don't consume inventory — skip them so a
       // delivery/POS line for a service isn't rejected for having no Bin.
       final itemDoc = await engine.fetch('Item', item);
-      if (itemDoc != null && !_isStockItem(itemDoc)) continue;
+      if (itemDoc != null && !isStockItem(itemDoc.payload)) continue;
       final qty = asNum(rp['qty']) * _uomFactor(itemDoc, asNonEmpty(rp['uom']));
       if (qty <= 0) continue;
       final key = '$item $warehouse';
@@ -445,15 +445,6 @@ Future<Document?> _companyFor(DocumentEngine engine, String? id) async {
   return all.isEmpty ? null : all.first;
 }
 
-/// Whether [item] participates in inventory. Defaults to true (a stock item)
-/// when unset — matching the Item DocType default — and a service item never
-/// does, so stock guards/movements skip it.
-bool _isStockItem(Document item) {
-  if (_isTrue(item.payload['is_service_item'])) return false;
-  final v = item.payload['is_stock_item'];
-  return v == null ? true : _isTrue(v);
-}
-
 /// The transaction→stock UOM conversion factor for an already-fetched Item —
 /// 1.0 when the line UOM is the stock UOM (or unknown/missing). Reads
 /// `Item.uoms` (UOM Conversion Detail) for a positive `conversion_factor`.
@@ -470,8 +461,6 @@ num _uomFactor(Document? item, String? lineUom) {
   return 1;
 }
 
-/// Truthy across the engine's check representations (bool true, int 1, "1").
-bool _isTrue(dynamic v) => v == true || v == 1 || v == '1';
 
 String _isoDate(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
