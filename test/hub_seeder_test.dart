@@ -97,4 +97,52 @@ void main() {
     expect((await engine.list('Tax Code', userRoles: roles)).length, 5);
     expect(await seeder.companyExists(), isTrue);
   });
+
+  group('jurisdiction templates (H9)', () {
+    test('byId resolves known regions and falls back to Malta', () {
+      expect(JurisdictionPreset.byId('GB'), JurisdictionPreset.unitedKingdom);
+      expect(JurisdictionPreset.byId('IE'), JurisdictionPreset.ireland);
+      expect(JurisdictionPreset.byId(null), JurisdictionPreset.malta);
+      expect(JurisdictionPreset.byId('ZZ'), JurisdictionPreset.malta);
+    });
+
+    test('the default seed is still Malta (18% standard)', () async {
+      await HubSeeder(engine, roles: roles)
+          .seed(businessName: 'Acme', currencyCode: 'EUR', year: 2026);
+      final codes = await engine.list('Tax Code', userRoles: roles);
+      expect(codes.length, 5);
+      expect((await engine.fetch('Tax Code', 'VAT 18%'))!.payload['is_default'],
+          '1');
+    });
+
+    test('a UK seed lays down the UK VAT bands, not Malta', () async {
+      await HubSeeder(engine, roles: roles).seed(
+        businessName: 'Acme',
+        currencyCode: 'GBP',
+        year: 2026,
+        jurisdiction: JurisdictionPreset.unitedKingdom,
+      );
+      final codes = await engine.list('Tax Code', userRoles: roles);
+      expect(codes.map((c) => c.id), containsAll(['VAT 20%', 'VAT 5%']));
+      expect(await engine.fetch('Tax Code', 'VAT 18%'), isNull); // not Malta
+      final std = (await engine.fetch('Tax Code', 'VAT 20%'))!;
+      expect(std.payload['rate'], 20);
+      expect(std.payload['is_default'], '1');
+    });
+
+    test('a second jurisdiction re-seed is additive (adaptive re-run)', () async {
+      final seeder = HubSeeder(engine, roles: roles);
+      await seeder.seed(
+          businessName: 'Acme', currencyCode: 'EUR', year: 2026);
+      await seeder.seed(
+        businessName: 'Acme',
+        currencyCode: 'EUR',
+        year: 2026,
+        jurisdiction: JurisdictionPreset.ireland,
+      );
+      final codes = await engine.list('Tax Code', userRoles: roles);
+      // Malta's 5 + Ireland's new bands (23/13.5/9; Zero-Rated & Exempt shared).
+      expect(codes.map((c) => c.id), containsAll(['VAT 18%', 'VAT 23%', 'VAT 9%']));
+    });
+  });
 }
