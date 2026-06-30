@@ -46,8 +46,37 @@ List<DocumentAction> hubConversionActionsFor(Document doc, DocType docType) {
 
   // Everything else converts only from a Submitted source.
   if (doc.id.isEmpty || doc.docStatus != 1) return const [];
+  // A return is itself terminal — don't offer to convert or re-return it.
+  if (_isReturn(doc)) return const [];
 
   switch (docType.id) {
+    case 'Sales Invoice':
+      return [
+        const DocumentAction(
+          id: 'sales-invoice-return',
+          label: 'Create Return',
+          icon: Icons.undo_outlined,
+          invoke: _salesInvoiceReturn,
+        ),
+      ];
+    case 'Purchase Invoice':
+      return [
+        const DocumentAction(
+          id: 'purchase-invoice-return',
+          label: 'Create Return',
+          icon: Icons.undo_outlined,
+          invoke: _purchaseInvoiceReturn,
+        ),
+      ];
+    case 'POS Invoice':
+      return [
+        const DocumentAction(
+          id: 'pos-invoice-return',
+          label: 'Create Return',
+          icon: Icons.undo_outlined,
+          invoke: _posInvoiceReturn,
+        ),
+      ];
     case 'Quotation':
       return [
         const DocumentAction(
@@ -81,6 +110,12 @@ List<DocumentAction> hubConversionActionsFor(Document doc, DocType docType) {
           icon: Icons.receipt_long_outlined,
           invoke: _deliveryToInvoice,
         ),
+        const DocumentAction(
+          id: 'delivery-return',
+          label: 'Create Return',
+          icon: Icons.undo_outlined,
+          invoke: _deliveryReturn,
+        ),
       ];
     case 'Purchase Order':
       return [
@@ -104,6 +139,12 @@ List<DocumentAction> hubConversionActionsFor(Document doc, DocType docType) {
           label: 'Create Purchase Invoice',
           icon: Icons.receipt_long_outlined,
           invoke: _receiptToInvoice,
+        ),
+        const DocumentAction(
+          id: 'receipt-return',
+          label: 'Create Return',
+          icon: Icons.undo_outlined,
+          invoke: _purchaseReceiptReturn,
         ),
       ];
     default:
@@ -199,6 +240,48 @@ Future<void> _receiptToInvoice(
       nav, ref, engine, HubDocumentConversion.receiptToInvoice(doc));
 }
 
+// MARK: - Returns
+
+Future<void> _salesInvoiceReturn(
+    BuildContext context, WidgetRef ref, Document doc) async {
+  final nav = _Nav.of(context);
+  final engine = await ref.read(documentEngineProvider.future);
+  await _saveAndOpen(
+      nav, ref, engine, HubDocumentConversion.salesInvoiceReturn(doc));
+}
+
+Future<void> _purchaseInvoiceReturn(
+    BuildContext context, WidgetRef ref, Document doc) async {
+  final nav = _Nav.of(context);
+  final engine = await ref.read(documentEngineProvider.future);
+  await _saveAndOpen(
+      nav, ref, engine, HubDocumentConversion.purchaseInvoiceReturn(doc));
+}
+
+Future<void> _posInvoiceReturn(
+    BuildContext context, WidgetRef ref, Document doc) async {
+  final nav = _Nav.of(context);
+  final engine = await ref.read(documentEngineProvider.future);
+  await _saveAndOpen(
+      nav, ref, engine, HubDocumentConversion.posInvoiceReturn(doc));
+}
+
+Future<void> _deliveryReturn(
+    BuildContext context, WidgetRef ref, Document doc) async {
+  final nav = _Nav.of(context);
+  final engine = await ref.read(documentEngineProvider.future);
+  await _saveAndOpen(
+      nav, ref, engine, HubDocumentConversion.deliveryReturn(doc));
+}
+
+Future<void> _purchaseReceiptReturn(
+    BuildContext context, WidgetRef ref, Document doc) async {
+  final nav = _Nav.of(context);
+  final engine = await ref.read(documentEngineProvider.future);
+  await _saveAndOpen(
+      nav, ref, engine, HubDocumentConversion.purchaseReceiptReturn(doc));
+}
+
 // MARK: - CRM
 
 Future<void> _leadToCustomer(
@@ -224,6 +307,13 @@ Future<void> _leadToQuotation(
 }
 
 // MARK: - Helpers
+
+/// Whether [doc] is itself a return (credit/debit note), in which case it
+/// offers no further conversion actions.
+bool _isReturn(Document doc) {
+  final v = doc.payload['is_return'];
+  return v == true || v == 1 || v == '1';
+}
 
 /// Router + messenger captured from the source document's [BuildContext] *before*
 /// any await, so the post-save navigation never touches a [BuildContext] across
