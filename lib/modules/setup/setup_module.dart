@@ -154,6 +154,11 @@ abstract final class SetupModule {
           FieldDefinition(key: 'default_expense_account', label: 'Default Expense Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'default_cash_account', label: 'Default Cash/Bank Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'default_vat_account', label: 'Default VAT Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
+          // Posting guards (H5): postings dated on/before books_lock_date are
+          // blocked; stock issues that would drive a bin negative are rejected
+          // unless allow_negative_stock is set.
+          FieldDefinition(key: 'books_lock_date', label: 'Books Locked Until', type: FieldType.date),
+          FieldDefinition(key: 'allow_negative_stock', label: 'Allow Negative Stock', type: FieldType.check),
           FieldDefinition(key: 'tax_id', label: 'Tax ID', type: FieldType.data),
           FieldDefinition(key: 'website', label: 'Website', type: FieldType.data),
           FieldDefinition(key: 'phone_no', label: 'Phone No', type: FieldType.data),
