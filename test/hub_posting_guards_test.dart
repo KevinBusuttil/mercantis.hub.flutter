@@ -163,5 +163,43 @@ void main() {
       final dn = await delivery(4);
       expect((await engine.submit(dn, roles)).docStatus, 1);
     });
+
+    test('skips non-stock (service) items — not blocked for having no Bin', () async {
+      await engine.save(
+          Document(id: 'WH', docType: 'Warehouse',
+              payload: {'warehouse_name': 'Main'}),
+          roles);
+      await engine.save(
+          Document(id: 'SVC', docType: 'Item', payload: {
+            'item_code': 'SVC',
+            'item_name': 'Installation',
+            'is_stock_item': 0,
+            'is_service_item': 1,
+          }),
+          roles);
+      await engine.save(
+          Document(id: 'CUST-1', docType: 'Customer', payload: {
+            'customer_name': 'Acme Buyer',
+            'customer_type': 'Company',
+          }),
+          roles);
+      final dn = Document(id: '', docType: 'Delivery Note', payload: {
+        'customer': 'CUST-1',
+        'posting_date': '2026-06-01',
+        'set_warehouse': 'WH',
+      });
+      dn.children['items'] = [
+        ChildRow(
+          id: '',
+          parentId: '',
+          parentDocType: 'Delivery Note',
+          tableName: 'items',
+          rowIndex: 0,
+          payload: {'item': 'SVC', 'qty': 5, 'rate': 10},
+        ),
+      ];
+      final saved = await engine.save(dn, roles);
+      expect((await engine.submit(saved, roles)).docStatus, 1);
+    });
   });
 }
