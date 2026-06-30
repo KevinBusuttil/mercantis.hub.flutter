@@ -23,7 +23,9 @@ abstract final class ComplianceModule {
         namingRule: 'TAXF-.YYYY.-.####',
         fields: [
           FieldDefinition(key: 'title', label: 'Title', type: FieldType.data),
-          FieldDefinition(key: 'tax_type', label: 'Tax Type', type: FieldType.select, options: 'VAT\nSalesTax\nWHT\nExciseDuty', defaultValue: 'VAT', required: true),
+          // Must match the values the tax engine posts onto Tax Transaction
+          // (Tax Code.tax_type), so a filing can key its return to those rows.
+          FieldDefinition(key: 'tax_type', label: 'Tax Type', type: FieldType.select, options: 'VAT\nSalesTax\nExcise\nWithholding', defaultValue: 'VAT', required: true),
           FieldDefinition(key: 'from_date', label: 'From Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'to_date', label: 'To Date', type: FieldType.date, required: true),
           FieldDefinition(

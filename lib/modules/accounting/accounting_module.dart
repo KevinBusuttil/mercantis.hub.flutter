@@ -260,7 +260,9 @@ abstract final class AccountingModule {
         module: _module,
         syncPolicy: _ledgerPolicy,
         fields: [
-          FieldDefinition(key: 'tax_type', label: 'Tax Type', type: FieldType.select, options: 'VAT\nSalesTax\nWHT\nExciseDuty', required: true),
+          // Canonical tax-type values, matching Tax Code.tax_type / HubTaxEngine
+          // so withholding/excise rows post and the return builder can join.
+          FieldDefinition(key: 'tax_type', label: 'Tax Type', type: FieldType.select, options: 'VAT\nSalesTax\nExcise\nWithholding', required: true),
           FieldDefinition(key: 'tax', label: 'Tax', type: FieldType.data),
           FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'base_amount', label: 'Taxable Base', type: FieldType.currency, required: true, defaultValue: '0'),

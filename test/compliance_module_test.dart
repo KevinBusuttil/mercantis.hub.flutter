@@ -32,4 +32,14 @@ void main() {
     expect(boxes.type, FieldType.table);
     expect(boxes.tableDocType, 'Tax Filing Box');
   });
+
+  test('Tax Filing tax types match the values posted onto Tax Transaction', () {
+    // A filing must be able to key a return to the tax_type the engine posts,
+    // so the two option lists have to agree (and use the canonical names).
+    final filing = field('Tax Filing', 'tax_type').options;
+    final posted = field('Tax Transaction', 'tax_type').options;
+    expect(filing, posted);
+    expect(filing, contains('Withholding'));
+    expect(filing, contains('Excise'));
+  });
 }
