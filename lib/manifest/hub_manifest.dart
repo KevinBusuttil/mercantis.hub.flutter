@@ -5,6 +5,7 @@ import '../modules/buying/buying_module.dart';
 import '../modules/capture/capture_module.dart';
 import '../modules/stock/stock_module.dart';
 import '../modules/accounting/accounting_module.dart';
+import '../modules/banking/banking_module.dart';
 import '../modules/deliveries/deliveries_module.dart';
 import '../modules/fulfilment/fulfilment_module.dart';
 import '../modules/manufacturing/manufacturing_module.dart';
@@ -25,6 +26,7 @@ abstract final class HubManifest {
       ...BuyingModule.docTypes(),
       ...StockModule.docTypes(),
       ...AccountingModule.docTypes(),
+      ...BankingModule.docTypes(),
       ...FulfilmentModule.docTypes(),
       ...PosModule.docTypes(),
       ...ManufacturingModule.docTypes(),
