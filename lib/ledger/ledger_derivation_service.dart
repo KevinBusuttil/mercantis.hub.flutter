@@ -367,8 +367,8 @@ class LedgerDerivationService {
 int _byPostingThenCreation(Document a, Document b) {
   final byDate = _postingMillis(a.payload).compareTo(_postingMillis(b.payload));
   if (byDate != 0) return byDate;
-  final byCreated = (a.createdAt?.millisecondsSinceEpoch ?? 0)
-      .compareTo(b.createdAt?.millisecondsSinceEpoch ?? 0);
+  final byCreated = a.createdAt.millisecondsSinceEpoch
+      .compareTo(b.createdAt.millisecondsSinceEpoch);
   if (byCreated != 0) return byCreated;
   return a.id.compareTo(b.id);
 }
