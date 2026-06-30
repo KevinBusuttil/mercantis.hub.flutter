@@ -124,6 +124,9 @@ abstract final class AccountingModule {
           FieldDefinition(key: 'paid_to', label: 'Paid To', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'paid_amount', label: 'Paid Amount', type: FieldType.currency, required: true),
           FieldDefinition(key: 'received_amount', label: 'Received Amount', type: FieldType.currency),
+          // Multi-currency (H4): the payment's transaction currency + rate to base.
+          FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          FieldDefinition(key: 'conversion_rate', label: 'Exchange Rate', type: FieldType.float, defaultValue: '1'),
           // Invoice allocations — promoted to Settlement rows on submit (Phase 3).
           FieldDefinition(key: 'references', label: 'Payment References', type: FieldType.table, tableDocType: 'Payment Entry Reference', options: 'Payment Entry Reference'),
           FieldDefinition(
@@ -165,6 +168,12 @@ abstract final class AccountingModule {
           FieldDefinition(key: 'account', label: 'Account', type: FieldType.link, linkDocType: 'Account', options: 'Account', required: true),
           FieldDefinition(key: 'debit', label: 'Debit', type: FieldType.currency, defaultValue: '0'),
           FieldDefinition(key: 'credit', label: 'Credit', type: FieldType.currency, defaultValue: '0'),
+          // Multi-currency (H4): GL legs are posted in the voucher's transaction
+          // currency; the base-currency equivalents are stamped on at submit.
+          FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency', readOnly: true),
+          FieldDefinition(key: 'conversion_rate', label: 'Exchange Rate', type: FieldType.float, readOnly: true),
+          FieldDefinition(key: 'base_debit', label: 'Debit (Base)', type: FieldType.currency, readOnly: true),
+          FieldDefinition(key: 'base_credit', label: 'Credit (Base)', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'party_type', label: 'Party Type', type: FieldType.select, options: _partyTypeOptions),
           FieldDefinition(key: 'party', label: 'Party', type: FieldType.data),
           FieldDefinition(key: 'cost_center', label: 'Cost Center', type: FieldType.link, linkDocType: 'Cost Center', options: 'Cost Center'),
@@ -189,6 +198,8 @@ abstract final class AccountingModule {
           FieldDefinition(key: 'due_date', label: 'Due Date', type: FieldType.date),
           FieldDefinition(key: 'amount', label: 'Amount', type: FieldType.currency, required: true, defaultValue: '0'),
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          FieldDefinition(key: 'conversion_rate', label: 'Exchange Rate', type: FieldType.float, readOnly: true),
+          FieldDefinition(key: 'base_amount', label: 'Amount (Base)', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'voucher_type', label: 'Voucher Type', type: FieldType.data, required: true),
           FieldDefinition(key: 'voucher_no', label: 'Voucher No', type: FieldType.data, required: true),
           FieldDefinition(key: 'is_reversal', label: 'Reversal', type: FieldType.check),
@@ -209,6 +220,8 @@ abstract final class AccountingModule {
           FieldDefinition(key: 'due_date', label: 'Due Date', type: FieldType.date),
           FieldDefinition(key: 'amount', label: 'Amount', type: FieldType.currency, required: true, defaultValue: '0'),
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          FieldDefinition(key: 'conversion_rate', label: 'Exchange Rate', type: FieldType.float, readOnly: true),
+          FieldDefinition(key: 'base_amount', label: 'Amount (Base)', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'voucher_type', label: 'Voucher Type', type: FieldType.data, required: true),
           FieldDefinition(key: 'voucher_no', label: 'Voucher No', type: FieldType.data, required: true),
           FieldDefinition(key: 'is_reversal', label: 'Reversal', type: FieldType.check),

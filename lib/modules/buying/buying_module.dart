@@ -95,6 +95,7 @@ abstract final class BuyingModule {
           FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'due_date', label: 'Due Date', type: FieldType.date),
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          FieldDefinition(key: 'conversion_rate', label: 'Exchange Rate', type: FieldType.float, defaultValue: '1'),
           // Posting account defaults for the ledger spine (Phase 3).
           FieldDefinition(key: 'credit_to', label: 'Credit To (Payable)', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'expense_account', label: 'Expense Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),

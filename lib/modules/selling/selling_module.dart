@@ -66,6 +66,7 @@ abstract final class SellingModule {
           FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'due_date', label: 'Due Date', type: FieldType.date),
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          FieldDefinition(key: 'conversion_rate', label: 'Exchange Rate', type: FieldType.float, defaultValue: '1'),
           // Posting account defaults (resolved by Hub's business-profile policy
           // in Phase 3); explicit here so the ledger spine has somewhere to read.
           FieldDefinition(key: 'debit_to', label: 'Debit To (Receivable)', type: FieldType.link, linkDocType: 'Account', options: 'Account'),

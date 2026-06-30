@@ -37,6 +37,19 @@ abstract final class LedgerDerivation {
   /// Source DocTypes that move stock and therefore require a Bin recompute.
   static const stockSources = {'Stock Entry', 'Purchase Receipt', 'Delivery Note', 'POS Invoice'};
 
+  /// Vouchers whose monetary ledger rows are denominated in the document's
+  /// transaction `currency`, so base-currency amounts get stamped onto them
+  /// (GL `base_debit`/`base_credit`, customer/supplier `base_amount`). Stock
+  /// vouchers (POS / Delivery / Receipt / Stock Entry) post COGS / inventory at
+  /// moving-average cost — already in base currency — so they're excluded.
+  /// Mirrors the Swift `baseStampDocTypes`.
+  static const _baseStampDocTypes = {
+    'Sales Invoice',
+    'Purchase Invoice',
+    'Payment Entry',
+    'Journal Entry',
+  };
+
   /// Maps each posting-account field that a voucher may leave blank to the
   /// `Company` default field that should fill it. The runner uses this to
   /// resolve missing accounts from the company before derivation, so a minimal
@@ -81,6 +94,14 @@ abstract final class LedgerDerivation {
   /// Returns the ledger rows for [doc]. `reversal` is false on submit, true on
   /// cancel. Unknown DocTypes yield an empty list (no-op, prevents re-entrancy).
   static List<DerivedDoc> derive(Document doc, {required bool reversal}) {
+    final rows = _deriveRows(doc, reversal: reversal);
+    if (_baseStampDocTypes.contains(doc.docType)) {
+      _stampBaseAmounts(rows, doc);
+    }
+    return rows;
+  }
+
+  static List<DerivedDoc> _deriveRows(Document doc, {required bool reversal}) {
     switch (doc.docType) {
       case 'Sales Invoice':
         return _salesInvoice(doc, reversal);
@@ -534,6 +555,42 @@ abstract final class LedgerDerivation {
       case 'Material Issue':
       default:
         return 'Issue';
+    }
+  }
+
+  // ---- multi-currency (base-amount stamping) -----------------------------
+
+  /// The document's exchange rate to the company/base currency
+  /// (`conversion_rate`), defaulting to 1.0 when absent or non-positive — so a
+  /// same-currency voucher posts base == transaction. Port of Swift's guard.
+  static num conversionRate(Document doc) {
+    final rate = asNum(doc.payload['conversion_rate']);
+    return rate > 0 ? rate : 1;
+  }
+
+  /// Stamps base-currency amounts onto a base-stamped voucher's
+  /// transaction-currency rows: GL entries get `conversion_rate` +
+  /// `base_debit`/`base_credit` + `currency`; customer / supplier subledger
+  /// rows get `conversion_rate` + `base_amount`. At rate 1.0 the base equals the
+  /// transaction amount, so single-currency postings keep the same numbers.
+  /// Tax / settlement / stock rows are deliberately left in transaction
+  /// currency (matching the Swift coordinator).
+  static void _stampBaseAmounts(List<DerivedDoc> rows, Document doc) {
+    final rate = conversionRate(doc);
+    final currency = asNonEmpty(doc.payload['currency']);
+    for (final row in rows) {
+      if (row.docType == glEntry) {
+        row.payload['conversion_rate'] = rate;
+        row.payload['base_debit'] = round2(asNum(row.payload['debit']) * rate);
+        row.payload['base_credit'] = round2(asNum(row.payload['credit']) * rate);
+        if (currency != null) row.payload['currency'] = currency;
+      } else if (row.docType == customerTxn || row.docType == supplierTxn) {
+        row.payload['conversion_rate'] = rate;
+        row.payload['base_amount'] = round2(asNum(row.payload['amount']) * rate);
+        if (currency != null && asNonEmpty(row.payload['currency']) == null) {
+          row.payload['currency'] = currency;
+        }
+      }
     }
   }
 
