@@ -76,9 +76,9 @@ void main() {
 
     Future<void> tt(String id,
         {required String type, String? party, required num base,
-        required num tax, required String date}) async {
+        required num tax, required String date, String? company}) async {
       await engine.save(
-          Document(id: id, docType: 'Tax Transaction', payload: {
+          Document(id: id, docType: 'Tax Transaction', company: company, payload: {
             'tax_type': type,
             if (party != null) 'party_type': party,
             'base_amount': base,
@@ -116,6 +116,23 @@ void main() {
       final net = filled.children['boxes']!
           .firstWhere((b) => b.payload['box_number'] == '3');
       expect(asNum(net.payload['amount']), 54);
+    });
+
+    test('only the filing company\'s rows count (multi-company books)', () async {
+      final filing = await engine.save(
+          Document(id: '', docType: 'Tax Filing', company: 'ACME', payload: {
+            'tax_type': 'VAT',
+            'from_date': '2026-04-01',
+            'to_date': '2026-06-30',
+          }),
+          roles);
+
+      await tt('A1', type: 'VAT', party: 'Customer', base: 1000, tax: 180, date: '2026-04-15', company: 'ACME');
+      await tt('B1', type: 'VAT', party: 'Customer', base: 5000, tax: 900, date: '2026-04-15', company: 'OTHER');
+
+      final filled = await service.prepare(filing.id);
+      expect(asNum(filled.payload['output_tax']), 180); // ACME only, not 1080
+      expect(asNum(filled.payload['taxable_sales']), 1000);
     });
   });
 }

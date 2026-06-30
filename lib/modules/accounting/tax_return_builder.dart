@@ -105,7 +105,9 @@ class TaxReturnService {
         filters: {'tax_type': taxType}, userRoles: roles);
     final rows = [
       for (final t in txns)
-        if (_inRange('${t.payload['posting_date']}', from, to))
+        // Multi-company books: only this filing's company's rows count.
+        if (t.company == filing.company &&
+            _inRange('${t.payload['posting_date']}', from, to))
           TaxReturnRow(
             partyType: asNonEmpty(t.payload['party_type']),
             baseAmount: asNum(t.payload['base_amount']),
