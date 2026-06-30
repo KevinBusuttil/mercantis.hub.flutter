@@ -74,6 +74,11 @@ abstract final class PosModule {
           // Posting accounts (resolved from POS Profile / Company defaults).
           FieldDefinition(key: 'cash_account', label: 'Cash / Bank Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'income_account', label: 'Income Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
+          // Returns (H6): a POS refund is a POS Invoice with is_return set and
+          // negative line quantities — cash and income reverse, and the stock
+          // returns at the original sale's cost (return_against).
+          FieldDefinition(key: 'is_return', label: 'Is Return', type: FieldType.check),
+          FieldDefinition(key: 'return_against', label: 'Return Against', type: FieldType.link, linkDocType: 'POS Invoice', options: 'POS Invoice'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'POS Invoice Item', options: 'POS Invoice Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'taxes', label: 'Taxes', type: FieldType.table, tableDocType: 'Tax Charge', options: 'Tax Charge'),

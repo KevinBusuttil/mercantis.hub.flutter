@@ -55,7 +55,7 @@ class LedgerDerivationService {
       var derived = LedgerDerivation.derive(source, reversal: reversal);
       derived = await _dropNonStockMovements(derived);
       if (derived.isEmpty) return;
-      await _costStockMovements(derived, reversal: reversal);
+      await _costStockMovements(derived, source: source, reversal: reversal);
 
       for (final row in derived) {
         await engine.save(
@@ -116,7 +116,7 @@ class LedgerDerivationService {
   /// reuses the original SLE's saved rate, so the reversal backs out exactly
   /// what was posted (re-costing against current on-hand would leak value).
   Future<void> _costStockMovements(List<DerivedDoc> derived,
-      {required bool reversal}) async {
+      {required Document source, required bool reversal}) async {
     final sleRows = [
       for (final d in derived)
         if (d.docType == LedgerDerivation.stockLedger) d,
@@ -156,6 +156,10 @@ class LedgerDerivationService {
     // cost is allocated once across all output — not stamped in full per row.
     final productionLegs = <Map<String, dynamic>>[];
     num producedQty = 0;
+    // On a return, stock coming back re-enters at the cost it left at, not at
+    // the line's selling rate.
+    final isReturn = isTrue(source.payload['is_return']);
+    final returnAgainst = asNonEmpty(source.payload['return_against']);
 
     Future<List<Map<String, dynamic>>> priorFor(String item, String wh) async {
       final key = (item, wh);
@@ -203,7 +207,12 @@ class LedgerDerivationService {
         consumedCost += -qtyChange * rate;
       } else if (qtyChange > 0) {
         final transType = row.payload['trans_type'];
-        if (transType == 'Transfer') {
+        if (isReturn) {
+          // Goods returning to stock re-enter at the cost they were sold at (the
+          // original voucher's rate), falling back to the current average.
+          row.payload['valuation_rate'] =
+              await _returnCost(item, returnAgainst, prior);
+        } else if (transType == 'Transfer') {
           final rate = outCostByItem[item];
           if (rate != null) row.payload['valuation_rate'] = rate;
         } else if (transType == 'Production') {
@@ -234,6 +243,23 @@ class LedgerDerivationService {
         leg['valuation_rate'] = rate;
       }
     }
+  }
+
+  /// The cost to re-enter returned stock for [item]: the rate the original
+  /// voucher ([returnAgainst]) moved it at, or — when that can't be found — the
+  /// current moving-average rate from [prior]. Never the line's selling rate.
+  Future<num> _returnCost(
+      String item, String? returnAgainst, List<Map<String, dynamic>> prior) async {
+    if (returnAgainst != null) {
+      final originals = await engine.list(LedgerDerivation.stockLedger,
+          filters: {'voucher_no': returnAgainst, 'item': item},
+          userRoles: systemRoles);
+      for (final o in originals) {
+        final rate = asNum(o.payload['valuation_rate']);
+        if (rate > 0) return rate;
+      }
+    }
+    return StockBalance.compute(prior).valuationRate;
   }
 
   /// Fills any blank posting account on the source from its Company defaults
