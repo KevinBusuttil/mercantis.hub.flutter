@@ -18,6 +18,8 @@ final hubInterceptorsOverride =
   TaxCalculationInterceptor(),
   BomRollupInterceptor(),
   FiscalYearGuardInterceptor(),
+  BooksLockGuardInterceptor(),
+  NegativeStockGuardInterceptor(),
 ]);
 
 const _systemRoles = {'System Manager'};
@@ -339,3 +341,128 @@ DateTime? _asDate(dynamic v) {
   }
   return d == null ? null : DateTime(d.year, d.month, d.day);
 }
+
+/// Blocks submitting a posting document dated on or before the company's
+/// `books_lock_date` (period close). Dormant when no lock date is set. Mirrors
+/// the Swift `BooksLockPolicy` (start-of-day comparison, posting ≤ lock → blocked).
+class BooksLockGuardInterceptor extends DocumentInterceptor {
+  const BooksLockGuardInterceptor();
+
+  @override
+  Future<void> beforeSubmit(
+      DocumentEngine engine, Document doc, DocType docType) async {
+    final posting =
+        _asDate(doc.payload['posting_date'] ?? doc.payload['transaction_date']);
+    if (posting == null) return; // not a dated posting document
+    final company = await _companyFor(engine, doc.company);
+    final lock = _asDate(company?.payload['books_lock_date']);
+    if (lock == null) return; // no period close configured
+    if (!posting.isAfter(lock)) {
+      throw DocumentEngineError.validationFailed([
+        ValidationError(
+          stage: 'books_lock',
+          fieldKey: 'posting_date',
+          message:
+              'The books are locked through ${_isoDate(lock)}. That period has '
+              'been finalised — change the lock date in the Business Profile '
+              'before posting into it.',
+        ),
+      ]);
+    }
+  }
+}
+
+/// Rejects a stock issue (Delivery Note / POS Invoice / Stock Entry source leg)
+/// that would drive a bin's on-hand quantity negative, unless the company has
+/// `allow_negative_stock` set. Line quantities are converted to the item's
+/// stock UOM first. Mirrors the Swift negative-stock guard.
+class NegativeStockGuardInterceptor extends DocumentInterceptor {
+  const NegativeStockGuardInterceptor();
+
+  static const _issueDocTypes = {'Delivery Note', 'POS Invoice', 'Stock Entry'};
+
+  @override
+  Future<void> beforeSubmit(
+      DocumentEngine engine, Document doc, DocType docType) async {
+    if (!_issueDocTypes.contains(doc.docType)) return;
+    if (_isTrue(doc.payload['is_return'])) return; // a return adds stock back
+    final company = await _companyFor(engine, doc.company);
+    if (_isTrue(company?.payload['allow_negative_stock'])) return;
+
+    final isStockEntry = doc.docType == 'Stock Entry';
+    final setWarehouse = asNonEmpty(doc.payload['set_warehouse']);
+    // Aggregate the requested (stock-UOM) qty per (item, warehouse).
+    final requested = <String, ({String item, String warehouse, num qty})>{};
+    for (final row in doc.children['items'] ?? const <ChildRow>[]) {
+      final rp = row.payload;
+      final item = asNonEmpty(rp['item']);
+      if (item == null) continue;
+      final warehouse = isStockEntry
+          ? asNonEmpty(rp['source_warehouse']) // only the outgoing leg issues
+          : (asNonEmpty(rp['warehouse']) ?? setWarehouse);
+      if (warehouse == null) continue;
+      final factor = await _stockUomFactor(engine, item, asNonEmpty(rp['uom']));
+      final qty = asNum(rp['qty']) * factor;
+      if (qty <= 0) continue;
+      final key = '$item $warehouse';
+      final prior = requested[key];
+      requested[key] = (
+        item: item,
+        warehouse: warehouse,
+        qty: (prior?.qty ?? 0) + qty,
+      );
+    }
+
+    for (final req in requested.values) {
+      final bin = await engine.fetch('Bin', 'BIN-${req.item}-${req.warehouse}');
+      final onHand = bin == null ? 0 : asNum(bin.payload['actual_qty']);
+      if (req.qty > onHand + 0.0000001) {
+        throw DocumentEngineError.validationFailed([
+          ValidationError(
+            stage: 'negative_stock',
+            fieldKey: 'items',
+            message:
+                'Not enough stock of ${req.item} in ${req.warehouse}: '
+                '${req.qty} requested but $onHand on hand. Receive stock first, '
+                'or enable Allow Negative Stock in the Business Profile.',
+          ),
+        ]);
+      }
+    }
+  }
+}
+
+// ---- shared guard helpers ------------------------------------------------
+
+/// The active Company for [id] (or the first one when no id is given) — the
+/// "business profile" the guards read their policy flags from.
+Future<Document?> _companyFor(DocumentEngine engine, String? id) async {
+  if (id != null && id.isNotEmpty) return engine.fetch('Company', id);
+  final all = await engine.list('Company', userRoles: _systemRoles);
+  return all.isEmpty ? null : all.first;
+}
+
+/// The item's transaction→stock UOM conversion factor — 1.0 when the line UOM
+/// is the stock UOM (or unknown/missing). Reads `Item.uoms` (UOM Conversion
+/// Detail) for a matching row with a positive `conversion_factor`.
+Future<num> _stockUomFactor(
+    DocumentEngine engine, String item, String? lineUom) async {
+  if (lineUom == null) return 1;
+  final itemDoc = await engine.fetch('Item', item);
+  if (itemDoc == null) return 1;
+  final stockUom = asNonEmpty(itemDoc.payload['stock_uom']);
+  if (stockUom == null || stockUom == lineUom) return 1;
+  for (final row in itemDoc.children['uoms'] ?? const <ChildRow>[]) {
+    if (asNonEmpty(row.payload['uom']) == lineUom) {
+      final f = asNum(row.payload['conversion_factor']);
+      if (f > 0) return f;
+    }
+  }
+  return 1;
+}
+
+/// Truthy across the engine's check representations (bool true, int 1, "1").
+bool _isTrue(dynamic v) => v == true || v == 1 || v == '1';
+
+String _isoDate(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
