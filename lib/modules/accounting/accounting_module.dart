@@ -69,6 +69,10 @@ abstract final class AccountingModule {
           ),
           FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'company', label: 'Company', type: FieldType.link, linkDocType: 'Company', options: 'Company'),
+          // Multi-currency (H4): a foreign-currency JE supplies its rate to base
+          // so the base-amount stamping is meaningful (defaults to 1.0).
+          FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          FieldDefinition(key: 'conversion_rate', label: 'Exchange Rate', type: FieldType.float, defaultValue: '1'),
           FieldDefinition(key: 'accounts', label: 'Accounting Entries', type: FieldType.table, tableDocType: 'Journal Entry Account', options: 'Journal Entry Account'),
           FieldDefinition(key: 'total_debit', label: 'Total Debit', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'total_credit', label: 'Total Credit', type: FieldType.currency, readOnly: true),
