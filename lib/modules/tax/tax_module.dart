@@ -41,7 +41,10 @@ abstract final class TaxModule {
         module: _module,
         fields: [
           FieldDefinition(key: 'tax_code_name', label: 'Tax Code Name', type: FieldType.data, required: true),
-          FieldDefinition(key: 'tax_type', label: 'Tax Type', type: FieldType.select, options: 'VAT\nSalesTax', defaultValue: 'VAT', required: true),
+          // VAT / SalesTax / Excise are added to the total; Withholding is
+          // deducted (and posts to its own liability/asset account). See
+          // HubTaxEngine.
+          FieldDefinition(key: 'tax_type', label: 'Tax Type', type: FieldType.select, options: 'VAT\nSalesTax\nExcise\nWithholding', defaultValue: 'VAT', required: true),
           FieldDefinition(key: 'rate', label: 'Rate (%)', type: FieldType.float, required: true, defaultValue: '0'),
           FieldDefinition(key: 'tax_category', label: 'Tax Category', type: FieldType.link, linkDocType: 'Tax Category', options: 'Tax Category'),
           FieldDefinition(key: 'tax_account', label: 'Tax Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),

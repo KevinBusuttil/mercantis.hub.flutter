@@ -9,6 +9,10 @@ import 'ledger_values.dart';
 /// each caller resolves its own line/item/document/party tax defaults, then
 /// hands flat numbers here.
 abstract final class HubTaxEngine {
+  /// `tax_type` of a withholding tax — deducted from the document total and
+  /// posted to its own liability/asset account, rather than added like VAT.
+  static const withholdingType = 'Withholding';
+
   /// One taxable line as seen by the engine: its net (pre-tax) amount and the
   /// tax code that applies (already resolved through the
   /// line → item → document → party fallback chain by the caller).
@@ -35,7 +39,13 @@ abstract final class HubTaxEngine {
       final info = rates[codeId];
       if (info == null) continue;
       final taxable = round2(taxableByCode[codeId] ?? 0);
-      final taxAmount = round2(taxable * info.rate / 100.0);
+      // Withholding is deducted (it reduces what's owed), so its amount is
+      // carried negative — that nets the grand total down and, downstream,
+      // posts the ledger leg to the opposite side of VAT (a receivable on
+      // sales, a payable on purchases) without any special-casing there.
+      final magnitude = round2(taxable * info.rate / 100.0);
+      final taxAmount =
+          info.taxType == withholdingType ? -magnitude : magnitude;
       totalTax += taxAmount;
       rows.add(ComputedTaxRow(
         taxCode: info.codeId,

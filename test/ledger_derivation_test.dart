@@ -114,6 +114,45 @@ void main() {
     });
   });
 
+  group('Sales Invoice with withholding (H7)', () {
+    // VAT +180 (added) and withholding −50 (deducted), so grand = 1000+180−50.
+    Document invoice() => src('Sales Invoice', id: 'SINV-W1', payload: {
+          'grand_total': 1130,
+          'customer': 'C1',
+          'debit_to': 'Debtors',
+          'income_account': 'Sales',
+          'posting_date': '2026-01-01',
+        }, children: {
+          'taxes': [
+            {'tax_code': 'V18', 'tax_type': 'VAT', 'tax_account': 'Output VAT',
+              'taxable_amount': 1000, 'tax_amount': 180, 'rate': 18},
+            {'tax_code': 'WHT', 'tax_type': 'Withholding',
+              'tax_account': 'WHT Receivable', 'taxable_amount': 1000,
+              'tax_amount': -50, 'rate': 5},
+          ],
+        });
+
+    test('balances; income net is recovered and WHT posts to its account', () {
+      final rows = LedgerDerivation.derive(invoice(), reversal: false);
+
+      // net = grand − Σtax = 1130 − (180 − 50) = 1000.
+      final income = rows.firstWhere((r) => r.id == 'GL-SINV-W1-credit');
+      expect(asNum(income.payload['credit']), 1000);
+
+      // The whole posting still balances with the deducted WHT.
+      expect(glDebit(rows), glCredit(rows));
+      final net = rows.where((r) => r.docType == 'GL Entry').fold<num>(
+          0, (s, r) => s + asNum(r.payload['debit']) - asNum(r.payload['credit']));
+      expect(net, 0);
+
+      // Output-side credit of the negative WHT amount = a 50 debit to the WHT
+      // account (a receivable / prepaid tax asset).
+      final wht = rows.firstWhere((r) => r.id == 'GL-SINV-W1-tax-1');
+      expect(wht.payload['account'], 'WHT Receivable');
+      expect(asNum(wht.payload['credit']), -50);
+    });
+  });
+
   group('Sales Invoice with VAT', () {
     Document invoice() => src('Sales Invoice', id: 'SINV-2', payload: {
           'grand_total': 1180,
