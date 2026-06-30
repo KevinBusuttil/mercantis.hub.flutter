@@ -19,6 +19,21 @@ String? asNonEmpty(dynamic value) {
   return t.isEmpty ? null : t;
 }
 
+/// Truthiness for a payload flag stored as a bool, int, or string ("1").
+bool isTrue(dynamic v) => v == true || v == 1 || v == '1';
+
+/// Whether an item participates in inventory, read from its payload. Defaults
+/// to true (a stock item) when `is_stock_item` is unset — matching the Item
+/// DocType default — and a service item never does. The negative-stock guard
+/// and the stock-ledger derivation both consult this so they agree on which
+/// lines move inventory (a non-stock line must be skipped end-to-end, or it
+/// would submit fine yet still spawn a phantom Stock Ledger Entry / Bin).
+bool isStockItem(Map<String, dynamic> payload) {
+  if (isTrue(payload['is_service_item'])) return false;
+  final v = payload['is_stock_item'];
+  return v == null ? true : isTrue(v);
+}
+
 /// Negates [value] when [when] is true; otherwise returns it unchanged.
 /// This is the single primitive behind every sign flip in the ledger
 /// (reversal-on-cancel, outbound vs inbound stock legs, payment reductions).
