@@ -223,4 +223,37 @@ void main() {
     final back = await sle(posted.id, positive: true);
     expect(asNum(back!.payload['valuation_rate']), 0); // honoured even though 0
   });
+
+  test('a return into a different warehouse keeps the original cost', () async {
+    await engine.save(
+        Document(id: 'QUAR', docType: 'Warehouse',
+            payload: {'warehouse_name': 'Quarantine'}),
+        roles);
+
+    // Sale ships 4 from WH at cost 10.
+    final dn = Document(id: '', docType: 'Delivery Note', payload: {
+      'customer': 'CUST-1', 'posting_date': '2026-06-01', 'set_warehouse': 'WH',
+    });
+    dn.children['items'] = [
+      ChildRow(id: '', parentId: '', parentDocType: 'Delivery Note',
+          tableName: 'items', rowIndex: 0,
+          payload: {'item': 'ITM', 'qty': 4, 'rate': 99}),
+    ];
+    final orig = await engine.submit(await engine.save(dn, roles), roles);
+    await sle(orig.id, positive: false);
+
+    // Return received into QUAR (empty bin → MA 0) — must still use cost 10.
+    final ret = Document(id: '', docType: 'Delivery Note', payload: {
+      'customer': 'CUST-1', 'posting_date': '2026-06-05', 'set_warehouse': 'QUAR',
+      'is_return': 1, 'return_against': orig.id,
+    });
+    ret.children['items'] = [
+      ChildRow(id: '', parentId: '', parentDocType: 'Delivery Note',
+          tableName: 'items', rowIndex: 0,
+          payload: {'item': 'ITM', 'qty': -4, 'rate': 99, 'warehouse': 'QUAR'}),
+    ];
+    final posted = await engine.submit(await engine.save(ret, roles), roles);
+    final back = await sle(posted.id, positive: true);
+    expect(asNum(back!.payload['valuation_rate']), 10); // original cost, not QUAR's 0
+  });
 }
