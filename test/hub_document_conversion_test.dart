@@ -263,5 +263,45 @@ void main() {
       expect(ret.payload['credit_to'], 'Creditors');
       expect(ret.children['items']!.single.payload['qty'], -4);
     });
+
+    test('deliveryReturn negates qty and links the original delivery', () {
+      final dn = doc('DN-1', 'Delivery Note', payload: {
+        'customer': 'CUST-1',
+        'set_warehouse': 'WH',
+      }, items: [
+        line('Delivery Note', 0, {'item': 'ITEM-A', 'qty': 5, 'rate': 10, 'warehouse': 'WH'}),
+      ]);
+
+      final ret = HubDocumentConversion.deliveryReturn(dn);
+
+      expect(ret.docType, 'Delivery Note');
+      expect(ret.payload['is_return'], 1);
+      expect(ret.payload['return_against'], 'DN-1');
+      expect(ret.payload['set_warehouse'], 'WH');
+      expect(ret.children['items']!.single.payload['qty'], -5);
+    });
+
+    test('purchaseReceiptReturn and posInvoiceReturn negate + link', () {
+      final pr = doc('PR-1', 'Purchase Receipt', payload: {
+        'supplier': 'SUP-1', 'set_warehouse': 'WH',
+      }, items: [
+        line('Purchase Receipt', 0, {'item': 'ITEM-A', 'qty': 6, 'rate': 4}),
+      ]);
+      final prRet = HubDocumentConversion.purchaseReceiptReturn(pr);
+      expect(prRet.payload['is_return'], 1);
+      expect(prRet.payload['return_against'], 'PR-1');
+      expect(prRet.children['items']!.single.payload['qty'], -6);
+
+      final pos = doc('POS-1', 'POS Invoice', payload: {
+        'customer': 'CUST-1', 'set_warehouse': 'WH', 'cash_account': 'Cash',
+      }, items: [
+        line('POS Invoice', 0, {'item': 'ITEM-A', 'qty': 2, 'rate': 15}),
+      ]);
+      final posRet = HubDocumentConversion.posInvoiceReturn(pos);
+      expect(posRet.payload['is_return'], 1);
+      expect(posRet.payload['return_against'], 'POS-1');
+      expect(posRet.payload['cash_account'], 'Cash');
+      expect(posRet.children['items']!.single.payload['qty'], -2);
+    });
   });
 }

@@ -188,6 +188,34 @@ class HubDocumentConversion {
         lineKeys: const ['item', 'description', 'uom', 'rate', 'tax_code', 'warehouse'],
       );
 
+  /// Delivery Note → sales-return draft. Same DocType, `is_return` set, lines
+  /// negated; on submit the stock derivation adds the goods back to the source
+  /// warehouse (valued at the original delivery's cost via `return_against`).
+  static Document deliveryReturn(Document delivery) => _returnOf(
+        delivery,
+        headerKeys: const ['customer', 'sales_order', 'set_warehouse'],
+        lineKeys: const ['item', 'description', 'uom', 'rate', 'warehouse'],
+      );
+
+  /// Purchase Receipt → purchase-return draft — the buying mirror: stock leaves
+  /// the receiving warehouse on submit.
+  static Document purchaseReceiptReturn(Document receipt) => _returnOf(
+        receipt,
+        headerKeys: const ['supplier', 'purchase_order', 'set_warehouse'],
+        lineKeys: const ['item', 'description', 'uom', 'rate', 'warehouse'],
+      );
+
+  /// POS Invoice → refund draft. Cash and income reverse and the stock returns
+  /// to the sale's warehouse on submit.
+  static Document posInvoiceReturn(Document invoice) => _returnOf(
+        invoice,
+        headerKeys: const [
+          'customer', 'currency', 'tax_code', 'cash_account',
+          'income_account', 'set_warehouse', 'pos_profile', 'pos_session',
+        ],
+        lineKeys: const ['item', 'description', 'uom', 'rate', 'tax_code', 'warehouse'],
+      );
+
   /// Builds a return draft of [original]'s own DocType: carries [headerKeys],
   /// flags `is_return`, links `return_against`, and negates each line's qty
   /// (carrying [lineKeys]). Negative quantities make the totals — and therefore

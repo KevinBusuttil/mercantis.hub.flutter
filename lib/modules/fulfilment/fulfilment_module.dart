@@ -37,6 +37,14 @@ abstract final class FulfilmentModule {
           FieldDefinition(key: 'set_warehouse', label: 'From Warehouse',
             type: FieldType.link, linkDocType: 'Warehouse',
             options: 'Warehouse'),
+          // Returns (H6): a sales return is a Delivery Note with is_return set
+          // and negative line quantities; the stock derivation adds the goods
+          // back, valued at the original delivery's cost (return_against).
+          FieldDefinition(key: 'is_return', label: 'Is Return',
+            type: FieldType.check),
+          FieldDefinition(key: 'return_against', label: 'Return Against',
+            type: FieldType.link, linkDocType: 'Delivery Note',
+            options: 'Delivery Note'),
           FieldDefinition(key: 'items', label: 'Items',
             type: FieldType.table, tableDocType: 'Delivery Note Item',
             options: 'Delivery Note Item'),
@@ -77,6 +85,14 @@ abstract final class FulfilmentModule {
           FieldDefinition(key: 'set_warehouse', label: 'To Warehouse',
             type: FieldType.link, linkDocType: 'Warehouse',
             options: 'Warehouse'),
+          // Returns (H6): a purchase return is a Purchase Receipt with is_return
+          // set and negative line quantities; the stock derivation removes the
+          // goods (costed at the current valuation).
+          FieldDefinition(key: 'is_return', label: 'Is Return',
+            type: FieldType.check),
+          FieldDefinition(key: 'return_against', label: 'Return Against',
+            type: FieldType.link, linkDocType: 'Purchase Receipt',
+            options: 'Purchase Receipt'),
           FieldDefinition(key: 'items', label: 'Items',
             type: FieldType.table, tableDocType: 'Purchase Receipt Item',
             options: 'Purchase Receipt Item'),
