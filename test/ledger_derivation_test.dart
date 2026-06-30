@@ -86,6 +86,34 @@ void main() {
     });
   });
 
+  group('Sales Invoice return (credit note, H6)', () {
+    // A return is a Sales Invoice with is_return and negative totals.
+    Document creditNote() => src('Sales Invoice', id: 'SINV-R1', payload: {
+          'is_return': 1,
+          'return_against': 'SINV-1',
+          'grand_total': -1000,
+          'customer': 'C1',
+          'debit_to': 'Debtors',
+          'income_account': 'Sales',
+          'posting_date': '2026-01-05',
+          'currency': 'EUR',
+        });
+
+    test('posts the reversed GL + a negative customer row', () {
+      final rows = LedgerDerivation.derive(creditNote(), reversal: false);
+
+      // Still balanced, but the receivable is reduced (negative debit) and the
+      // income backed out (negative credit) — the mirror of the original sale.
+      expect(glDebit(rows), -1000);
+      expect(glCredit(rows), -1000);
+      final debitLeg = rows.firstWhere((r) => r.id == 'GL-SINV-R1-debit');
+      expect(asNum(debitLeg.payload['debit']), -1000); // receivable reduced
+
+      final ct = rows.firstWhere((r) => r.docType == 'Customer Transaction');
+      expect(ct.payload['amount'], -1000); // customer owes us less
+    });
+  });
+
   group('Sales Invoice with VAT', () {
     Document invoice() => src('Sales Invoice', id: 'SINV-2', payload: {
           'grand_total': 1180,
