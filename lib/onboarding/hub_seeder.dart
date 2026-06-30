@@ -10,12 +10,89 @@ class SeedAccount {
   final String accountType; // Cash / Bank / Receivable / Payable / Tax / …
 }
 
-/// One VAT band seeded so the tax engine works out of the box.
+/// One tax band seeded so the tax engine works out of the box.
 class SeedTaxCode {
-  const SeedTaxCode(this.id, this.rate, {this.isDefault = false});
+  const SeedTaxCode(this.id, this.rate, {this.isDefault = false, this.type = 'VAT'});
   final String id;
   final num rate;
   final bool isDefault;
+  final String type; // VAT / SalesTax / Excise / Withholding
+}
+
+/// A tax jurisdiction (country) the onboarding wizard can pick: its starter tax
+/// bands and the currency it usually trades in. The chart of accounts is shared
+/// across jurisdictions ([HubChart.accounts]); only the tax codes differ. Adding
+/// a jurisdiction later and re-seeding is additive (ids are deterministic), so
+/// the setup adapts on re-run.
+class JurisdictionPreset {
+  const JurisdictionPreset({
+    required this.id,
+    required this.label,
+    required this.currencyCode,
+    required this.taxCodes,
+  });
+
+  final String id;
+  final String label;
+  final String currencyCode;
+  final List<SeedTaxCode> taxCodes;
+
+  static const malta = JurisdictionPreset(
+    id: 'MT',
+    label: 'Malta',
+    currencyCode: 'EUR',
+    taxCodes: [
+      SeedTaxCode('VAT 18%', 18, isDefault: true),
+      SeedTaxCode('VAT 7%', 7),
+      SeedTaxCode('VAT 5%', 5),
+      SeedTaxCode('Zero-Rated', 0),
+      SeedTaxCode('Exempt', 0),
+    ],
+  );
+
+  static const unitedKingdom = JurisdictionPreset(
+    id: 'GB',
+    label: 'United Kingdom',
+    currencyCode: 'GBP',
+    taxCodes: [
+      SeedTaxCode('VAT 20%', 20, isDefault: true),
+      SeedTaxCode('VAT 5%', 5),
+      SeedTaxCode('Zero-Rated', 0),
+      SeedTaxCode('Exempt', 0),
+    ],
+  );
+
+  static const ireland = JurisdictionPreset(
+    id: 'IE',
+    label: 'Ireland',
+    currencyCode: 'EUR',
+    taxCodes: [
+      SeedTaxCode('VAT 23%', 23, isDefault: true),
+      SeedTaxCode('VAT 13.5%', 13.5),
+      SeedTaxCode('VAT 9%', 9),
+      SeedTaxCode('Zero-Rated', 0),
+      SeedTaxCode('Exempt', 0),
+    ],
+  );
+
+  /// Fallback for anywhere without a built-in template: one editable standard
+  /// band plus Exempt. The operator tunes the rate/type afterwards.
+  static const generic = JurisdictionPreset(
+    id: 'GENERIC',
+    label: 'Other / No VAT',
+    currencyCode: 'USD',
+    taxCodes: [
+      SeedTaxCode('Standard Tax', 0, isDefault: true),
+      SeedTaxCode('Exempt', 0),
+    ],
+  );
+
+  static const all = [malta, unitedKingdom, ireland, generic];
+
+  /// The preset with [id], or [malta] when unknown/null — so an unrecognised
+  /// stored jurisdiction degrades to the original default rather than failing.
+  static JurisdictionPreset byId(String? id) =>
+      all.firstWhere((j) => j.id == id, orElse: () => malta);
 }
 
 /// The starter master data the onboarding seeder lays down (ported from the
@@ -33,15 +110,6 @@ abstract final class HubChart {
     SeedAccount('VAT', 'VAT', 'Liability', 'Tax'),
     SeedAccount('Sales', 'Sales', 'Income', 'Income Account'),
     SeedAccount('COGS', 'Cost of Goods Sold', 'Expense', 'Cost of Goods Sold'),
-  ];
-
-  /// Malta-style VAT bands; Standard (18%) is the default. All post to `VAT`.
-  static const taxCodes = <SeedTaxCode>[
-    SeedTaxCode('VAT 18%', 18, isDefault: true),
-    SeedTaxCode('VAT 7%', 7),
-    SeedTaxCode('VAT 5%', 5),
-    SeedTaxCode('Zero-Rated', 0),
-    SeedTaxCode('Exempt', 0),
   ];
 
   /// Company default-account wiring: field key → account id.
@@ -82,6 +150,7 @@ class HubSeeder {
     required String businessName,
     required String currencyCode,
     int? year,
+    JurisdictionPreset jurisdiction = JurisdictionPreset.malta,
   }) async {
     final code = currencyCode.trim().toUpperCase();
     final cy = year ?? DateTime.now().year;
@@ -125,19 +194,35 @@ class HubSeeder {
       });
     }
 
-    // 5. VAT bands, all posting to the VAT account.
-    for (final t in HubChart.taxCodes) {
+    // 5. Tax bands for the chosen jurisdiction, all posting to the VAT/Tax
+    //    account. Re-seeding with a different jurisdiction adds its bands.
+    String? defaultCode;
+    for (final t in jurisdiction.taxCodes) {
+      if (t.isDefault) defaultCode = t.id;
       await ensure('Tax Code', t.id, {
         'tax_code_name': t.id,
-        'tax_type': 'VAT',
+        'tax_type': t.type,
         'rate': t.rate,
         'tax_account': 'VAT',
         'is_default': t.isDefault ? '1' : '0',
         'enabled': '1',
       });
     }
+    // Make this region's default the *sole* default — a re-run that switched
+    // region would otherwise leave the previous region's default in place too.
+    if (defaultCode != null) {
+      for (final c in await engine.list('Tax Code', userRoles: roles)) {
+        final want = c.id == defaultCode ? '1' : '0';
+        if ('${c.payload['is_default'] ?? '0'}' != want) {
+          c.payload['is_default'] = want;
+          await engine.save(c, roles);
+        }
+      }
+    }
 
-    // 6. Company, wired to the accounts above — only if none exists yet.
+    // 6. Company, wired to the accounts above. Create one if none exists;
+    //    otherwise re-base its default currency to the chosen region (an
+    //    adaptive re-run), so new drafts default to the right currency.
     if (!await companyExists()) {
       await engine.save(
         Document(id: '', docType: 'Company', payload: {
@@ -150,6 +235,11 @@ class HubSeeder {
       );
       created++;
     } else {
+      final company = (await engine.list('Company', userRoles: roles)).first;
+      if (company.payload['default_currency'] != code) {
+        company.payload['default_currency'] = code;
+        await engine.save(company, roles);
+      }
       present++;
     }
 

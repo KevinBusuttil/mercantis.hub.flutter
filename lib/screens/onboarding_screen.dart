@@ -21,6 +21,7 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _name = TextEditingController(text: 'My Business');
   String _currency = 'EUR';
+  JurisdictionPreset _jurisdiction = JurisdictionPreset.malta;
   BusinessPreset _preset = BusinessPreset.services;
   bool _seeding = false;
   String? _error;
@@ -43,6 +44,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       await HubSeeder(engine).seed(
         businessName: _name.text,
         currencyCode: _currency,
+        jurisdiction: _jurisdiction,
       );
       ref.invalidate(companyExistsProvider);
       // The boot gate rebuilds on the invalidated provider and shows the shell.
@@ -98,6 +100,28 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
+                initialValue: _jurisdiction.id,
+                decoration: const InputDecoration(
+                  labelText: 'Country / Tax region',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  for (final j in JurisdictionPreset.all)
+                    DropdownMenuItem(value: j.id, child: Text(j.label)),
+                ],
+                // Picking a region loads its tax bands and its usual currency.
+                onChanged: _seeding
+                    ? null
+                    : (v) => setState(() {
+                          _jurisdiction = JurisdictionPreset.byId(v);
+                          _currency = _jurisdiction.currencyCode;
+                        }),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                // Re-key so the field re-initialises when a region selection
+                // changes the currency programmatically.
+                key: ValueKey(_currency),
                 initialValue: _currency,
                 decoration: const InputDecoration(
                   labelText: 'Currency',
