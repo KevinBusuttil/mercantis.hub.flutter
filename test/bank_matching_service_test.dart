@@ -99,6 +99,48 @@ void main() {
     expect(byLine, {'L1': 'PAY-1', 'L2': 'PAY-2'}); // PAY-3 ignored
   });
 
+  Future<Document> journal(String id,
+      {required String date, required num bankDebit, required num bankCredit}) async {
+    final j = Document(id: id, docType: 'Journal Entry', payload: {'posting_date': date});
+    j.children['accounts'] = [
+      ChildRow(id: '', parentId: '', parentDocType: 'Journal Entry',
+          tableName: 'accounts', rowIndex: 0,
+          payload: {'account': 'Bank', 'debit': bankDebit, 'credit': bankCredit}),
+      ChildRow(id: '', parentId: '', parentDocType: 'Journal Entry',
+          tableName: 'accounts', rowIndex: 1,
+          payload: {'account': 'Cash', 'debit': bankCredit, 'credit': bankDebit}),
+    ];
+    return engine.submit(await engine.save(j, roles), roles);
+  }
+
+  test('matches a Journal Entry that debits the bank account', () async {
+    await statementLine('L1', deposit: 300, withdrawal: 0, date: '2026-06-10');
+    await journal('JV-1', date: '2026-06-10', bankDebit: 300, bankCredit: 0);
+
+    final m = (await service.suggest('BA1')).single;
+    expect(m.voucherId, 'JV-1');
+    expect(m.voucherType, 'Journal Entry');
+  });
+
+  test('reconcile records ledger vs statement and the difference', () async {
+    await payment('PAY-1', type: 'Receive', amount: 500, date: '2026-06-10', to: 'Bank');
+    await journal('JV-1', date: '2026-06-12', bankDebit: 300, bankCredit: 0);
+    // Book balance = +500 + 300 = 800.
+    expect(await service.ledgerBalance('BA1'), 800);
+
+    final clean = await service.reconcile(
+        bankAccountId: 'BA1', statementClosingBalance: 800, toDate: '2026-06-30');
+    expect(clean.payload['ledger_balance'], 800);
+    expect(clean.payload['difference'], 0); // reconciled
+
+    final off = await service.reconcile(
+        bankAccountId: 'BA1', statementClosingBalance: 750, toDate: '2026-06-30');
+    expect(off.payload['difference'], 50); // ledger − statement
+
+    // A date cut-off excludes the later JE.
+    expect(await service.ledgerBalance('BA1', asOf: '2026-06-11'), 500);
+  });
+
   test('apply marks the line Reconciled against its voucher', () async {
     await statementLine('L1', deposit: 500, withdrawal: 0, date: '2026-06-10');
     await payment('PAY-1', type: 'Receive', amount: 500, date: '2026-06-10', to: 'Bank');
