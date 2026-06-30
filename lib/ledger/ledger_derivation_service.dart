@@ -211,7 +211,7 @@ class LedgerDerivationService {
           // Goods returning to stock re-enter at the cost they were sold at (the
           // original voucher's rate), falling back to the current average.
           row.payload['valuation_rate'] =
-              await _returnCost(item, returnAgainst, prior);
+              await _returnCost(item, wh, returnAgainst, prior);
         } else if (transType == 'Transfer') {
           final rate = outCostByItem[item];
           if (rate != null) row.payload['valuation_rate'] = rate;
@@ -245,19 +245,32 @@ class LedgerDerivationService {
     }
   }
 
-  /// The cost to re-enter returned stock for [item]: the rate the original
-  /// voucher ([returnAgainst]) moved it at, or — when that can't be found — the
-  /// current moving-average rate from [prior]. Never the line's selling rate.
-  Future<num> _returnCost(
-      String item, String? returnAgainst, List<Map<String, dynamic>> prior) async {
+  /// The cost to re-enter returned stock for [item] in [wh]: the rate the
+  /// original voucher ([returnAgainst]) moved this item at, or — only when no
+  /// original row carries a usable rate — the current moving-average rate from
+  /// [prior]. Never the line's selling rate.
+  ///
+  /// Prefers the original row in the *same* warehouse [wh] (so a multi-warehouse
+  /// shipment restocks each warehouse at its own cost), but still falls back to
+  /// any original row's rate when the goods are received into a different
+  /// warehouse (e.g. a returns/quarantine bin) — that's the original issue cost,
+  /// which beats the destination's average. Only an actually-numeric rate counts
+  /// (a real 0 from a negative-stock sale is honoured; a blank/garbage rate is
+  /// treated as missing).
+  Future<num> _returnCost(String item, String wh, String? returnAgainst,
+      List<Map<String, dynamic>> prior) async {
     if (returnAgainst != null) {
       final originals = await engine.list(LedgerDerivation.stockLedger,
           filters: {'voucher_no': returnAgainst, 'item': item},
           userRoles: systemRoles);
+      num? anyRate;
       for (final o in originals) {
-        final rate = asNum(o.payload['valuation_rate']);
-        if (rate > 0) return rate;
+        final rate = _numOrNull(o.payload['valuation_rate']);
+        if (rate == null) continue;
+        if (asNonEmpty(o.payload['warehouse']) == wh) return rate; // exact match
+        anyRate ??= rate; // else remember the original cost from any warehouse
       }
+      if (anyRate != null) return anyRate;
     }
     return StockBalance.compute(prior).valuationRate;
   }
@@ -438,6 +451,15 @@ int _byPostingThenCreation(Document a, Document b) {
       .compareTo(b.createdAt.millisecondsSinceEpoch);
   if (byCreated != 0) return byCreated;
   return a.id.compareTo(b.id);
+}
+
+/// A value as a number when it actually is one (num, or a numeric string),
+/// else null — so a present-but-blank/garbage field reads as missing rather
+/// than coercing to 0. A real numeric 0 is returned as 0.
+num? _numOrNull(dynamic v) {
+  if (v is num) return v;
+  if (v is String) return num.tryParse(v.trim());
+  return null;
 }
 
 /// A stock-ledger row's posting date as epoch milliseconds (epoch int or ISO
