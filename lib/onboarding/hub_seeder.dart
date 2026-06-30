@@ -196,7 +196,9 @@ class HubSeeder {
 
     // 5. Tax bands for the chosen jurisdiction, all posting to the VAT/Tax
     //    account. Re-seeding with a different jurisdiction adds its bands.
+    String? defaultCode;
     for (final t in jurisdiction.taxCodes) {
+      if (t.isDefault) defaultCode = t.id;
       await ensure('Tax Code', t.id, {
         'tax_code_name': t.id,
         'tax_type': t.type,
@@ -206,8 +208,21 @@ class HubSeeder {
         'enabled': '1',
       });
     }
+    // Make this region's default the *sole* default — a re-run that switched
+    // region would otherwise leave the previous region's default in place too.
+    if (defaultCode != null) {
+      for (final c in await engine.list('Tax Code', userRoles: roles)) {
+        final want = c.id == defaultCode ? '1' : '0';
+        if ('${c.payload['is_default'] ?? '0'}' != want) {
+          c.payload['is_default'] = want;
+          await engine.save(c, roles);
+        }
+      }
+    }
 
-    // 6. Company, wired to the accounts above — only if none exists yet.
+    // 6. Company, wired to the accounts above. Create one if none exists;
+    //    otherwise re-base its default currency to the chosen region (an
+    //    adaptive re-run), so new drafts default to the right currency.
     if (!await companyExists()) {
       await engine.save(
         Document(id: '', docType: 'Company', payload: {
@@ -220,6 +235,11 @@ class HubSeeder {
       );
       created++;
     } else {
+      final company = (await engine.list('Company', userRoles: roles)).first;
+      if (company.payload['default_currency'] != code) {
+        company.payload['default_currency'] = code;
+        await engine.save(company, roles);
+      }
       present++;
     }
 

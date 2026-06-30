@@ -144,5 +144,31 @@ void main() {
       // Malta's 5 + Ireland's new bands (23/13.5/9; Zero-Rated & Exempt shared).
       expect(codes.map((c) => c.id), containsAll(['VAT 18%', 'VAT 23%', 'VAT 9%']));
     });
+
+    test('a region switch re-bases the company currency + sole default code',
+        () async {
+      final seeder = HubSeeder(engine, roles: roles);
+      await seeder.seed(
+          businessName: 'Acme', currencyCode: 'EUR', year: 2026);
+      expect((await engine.list('Company', userRoles: roles)).first
+          .payload['default_currency'], 'EUR');
+
+      // Re-run picking the UK (GBP, VAT 20% default).
+      await seeder.seed(
+        businessName: 'Acme',
+        currencyCode: 'GBP',
+        year: 2026,
+        jurisdiction: JurisdictionPreset.unitedKingdom,
+      );
+
+      expect((await engine.list('Company', userRoles: roles)).first
+          .payload['default_currency'], 'GBP');
+      // Exactly one default tax code, and it's the UK standard band.
+      final defaults = (await engine.list('Tax Code', userRoles: roles))
+          .where((c) => '${c.payload['is_default']}' == '1')
+          .map((c) => c.id)
+          .toList();
+      expect(defaults, ['VAT 20%']);
+    });
   });
 }
