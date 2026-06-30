@@ -487,6 +487,7 @@ abstract final class LedgerDerivation {
           warehouse: source,
           qtyChange: negate(qty, !reversal), // leaves source on submit
           valuationRate: rp['valuation_rate'],
+          uom: asNonEmpty(rp['uom']),
           doc: doc,
           reversal: reversal,
         ));
@@ -499,6 +500,7 @@ abstract final class LedgerDerivation {
           warehouse: target,
           qtyChange: negate(qty, reversal), // enters target on submit
           valuationRate: rp['valuation_rate'],
+          uom: asNonEmpty(rp['uom']),
           doc: doc,
           reversal: reversal,
         ));
@@ -534,6 +536,7 @@ abstract final class LedgerDerivation {
         warehouse: warehouse,
         qtyChange: qtyChange,
         valuationRate: rp['valuation_rate'] ?? rp['rate'],
+        uom: asNonEmpty(rp['uom']),
         doc: doc,
         reversal: reversal,
       ));
@@ -640,6 +643,7 @@ abstract final class LedgerDerivation {
     required dynamic valuationRate,
     required Document doc,
     required bool reversal,
+    String? uom,
   }) {
     return DerivedDoc(stockLedger, id, {
       'trans_type': transType,
@@ -650,6 +654,9 @@ abstract final class LedgerDerivation {
       'voucher_no': doc.id,
       'qty_change': qtyChange,
       if (valuationRate != null) 'valuation_rate': asNum(valuationRate),
+      // Transaction UOM, so the runtime can convert qty/rate to the stock UOM
+      // (value-preserving) before the row hits the Bin. Absent ⇒ stock UOM.
+      if (uom != null) 'uom': uom,
       'is_reversal': reversal,
     });
   }

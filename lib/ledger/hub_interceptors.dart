@@ -405,7 +405,7 @@ class NegativeStockGuardInterceptor extends DocumentInterceptor {
       // delivery/POS line for a service isn't rejected for having no Bin.
       final itemDoc = await engine.fetch('Item', item);
       if (itemDoc != null && !isStockItem(itemDoc.payload)) continue;
-      final qty = asNum(rp['qty']) * _uomFactor(itemDoc, asNonEmpty(rp['uom']));
+      final qty = asNum(rp['qty']) * uomFactor(itemDoc, asNonEmpty(rp['uom']));
       if (qty <= 0) continue;
       final key = '$item $warehouse';
       final prior = requested[key];
@@ -443,22 +443,6 @@ Future<Document?> _companyFor(DocumentEngine engine, String? id) async {
   if (id != null && id.isNotEmpty) return engine.fetch('Company', id);
   final all = await engine.list('Company', userRoles: _systemRoles);
   return all.isEmpty ? null : all.first;
-}
-
-/// The transaction→stock UOM conversion factor for an already-fetched Item —
-/// 1.0 when the line UOM is the stock UOM (or unknown/missing). Reads
-/// `Item.uoms` (UOM Conversion Detail) for a positive `conversion_factor`.
-num _uomFactor(Document? item, String? lineUom) {
-  if (item == null || lineUom == null) return 1;
-  final stockUom = asNonEmpty(item.payload['stock_uom']);
-  if (stockUom == null || stockUom == lineUom) return 1;
-  for (final row in item.children['uoms'] ?? const <ChildRow>[]) {
-    if (asNonEmpty(row.payload['uom']) == lineUom) {
-      final f = asNum(row.payload['conversion_factor']);
-      if (f > 0) return f;
-    }
-  }
-  return 1;
 }
 
 

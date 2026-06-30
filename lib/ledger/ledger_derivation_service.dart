@@ -124,6 +124,9 @@ class LedgerDerivationService {
     if (sleRows.isEmpty) return;
 
     if (reversal) {
+      // Mirror the original row exactly — negated stock-unit qty and the same
+      // cost — so a cancel backs out precisely what was posted, regardless of
+      // any UOM conversion or costing applied on the original submit.
       const suffix = '-reversal';
       for (final row in sleRows) {
         final originalId = row.id.endsWith(suffix)
@@ -134,6 +137,7 @@ class LedgerDerivationService {
         if (original != null) {
           row.payload['valuation_rate'] =
               asNum(original.payload['valuation_rate']);
+          row.payload['qty_change'] = -asNum(original.payload['qty_change']);
         }
       }
       return;
@@ -142,7 +146,7 @@ class LedgerDerivationService {
     // Per-(item, warehouse) ledger: the saved prior rows plus the rows costed
     // earlier in this same voucher, so sequential issues consume in order.
     final ledgers = <(String, String), List<Map<String, dynamic>>>{};
-    final methods = <String, String?>{};
+    final items = <String, Document?>{};
     // A Transfer line's source-leg cost, so its target leg can match it.
     final outCostByItem = <String, num>{};
 
@@ -162,29 +166,41 @@ class LedgerDerivationService {
       return rows;
     }
 
-    Future<String?> methodFor(String item) async {
-      if (methods.containsKey(item)) return methods[item];
-      final m = asNonEmpty(
-          (await engine.fetch('Item', item))?.payload['valuation_method']);
-      methods[item] = m;
-      return m;
+    Future<Document?> itemFor(String item) async {
+      if (items.containsKey(item)) return items[item];
+      return items[item] = await engine.fetch('Item', item);
     }
 
     for (final row in sleRows) {
       final item = asNonEmpty(row.payload['item']);
       final wh = asNonEmpty(row.payload['warehouse']);
       if (item == null || wh == null) continue;
-      final qtyChange = asNum(row.payload['qty_change']);
-      final prior = await priorFor(item, wh);
+      final itemDoc = await itemFor(item);
 
+      // Convert the line qty (in its transaction UOM) to stock units so the
+      // Bin always tracks the stock UOM; receipts get their rate divided by the
+      // same factor so total stock value is preserved across the conversion.
+      final factor = uomFactor(itemDoc, asNonEmpty(row.payload['uom']));
+      var qtyChange = asNum(row.payload['qty_change']);
+      if (factor != 1) {
+        qtyChange = qtyChange * factor;
+        row.payload['qty_change'] = qtyChange;
+      }
+
+      final prior = await priorFor(item, wh);
       if (qtyChange < 0) {
-        final rate =
-            StockCosting.issueRate(prior, -qtyChange, await methodFor(item));
+        final method = asNonEmpty(itemDoc?.payload['valuation_method']);
+        final rate = StockCosting.issueRate(prior, -qtyChange, method);
         row.payload['valuation_rate'] = rate;
         outCostByItem[item] = rate;
-      } else if (qtyChange > 0 && row.payload['trans_type'] == 'Transfer') {
-        final rate = outCostByItem[item];
-        if (rate != null) row.payload['valuation_rate'] = rate;
+      } else if (qtyChange > 0) {
+        if (row.payload['trans_type'] == 'Transfer') {
+          final rate = outCostByItem[item];
+          if (rate != null) row.payload['valuation_rate'] = rate;
+        } else if (factor != 1) {
+          row.payload['valuation_rate'] =
+              asNum(row.payload['valuation_rate']) / factor;
+        }
       }
 
       // Reflect this row in the simulated ledger for later lines of the pair.
