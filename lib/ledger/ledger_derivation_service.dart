@@ -211,7 +211,7 @@ class LedgerDerivationService {
           // Goods returning to stock re-enter at the cost they were sold at (the
           // original voucher's rate), falling back to the current average.
           row.payload['valuation_rate'] =
-              await _returnCost(item, returnAgainst, prior);
+              await _returnCost(item, wh, returnAgainst, prior);
         } else if (transType == 'Transfer') {
           final rate = outCostByItem[item];
           if (rate != null) row.payload['valuation_rate'] = rate;
@@ -245,18 +245,25 @@ class LedgerDerivationService {
     }
   }
 
-  /// The cost to re-enter returned stock for [item]: the rate the original
-  /// voucher ([returnAgainst]) moved it at, or — when that can't be found — the
-  /// current moving-average rate from [prior]. Never the line's selling rate.
-  Future<num> _returnCost(
-      String item, String? returnAgainst, List<Map<String, dynamic>> prior) async {
+  /// The cost to re-enter returned stock for [item] in [wh]: the rate the
+  /// original voucher ([returnAgainst]) moved this item out of this warehouse
+  /// at, or — only when no such original row exists — the current moving-average
+  /// rate from [prior]. Never the line's selling rate.
+  ///
+  /// Matched by (voucher, item, warehouse) so a return doesn't pick up a
+  /// different warehouse's / FIFO layer's cost, and a present rate is honoured
+  /// even when it's 0 (a legitimate cost for a sale made into negative stock) —
+  /// the moving-average fallback is only for a genuinely missing original.
+  Future<num> _returnCost(String item, String wh, String? returnAgainst,
+      List<Map<String, dynamic>> prior) async {
     if (returnAgainst != null) {
       final originals = await engine.list(LedgerDerivation.stockLedger,
-          filters: {'voucher_no': returnAgainst, 'item': item},
+          filters: {'voucher_no': returnAgainst, 'item': item, 'warehouse': wh},
           userRoles: systemRoles);
       for (final o in originals) {
-        final rate = asNum(o.payload['valuation_rate']);
-        if (rate > 0) return rate;
+        if (o.payload.containsKey('valuation_rate')) {
+          return asNum(o.payload['valuation_rate']);
+        }
       }
     }
     return StockBalance.compute(prior).valuationRate;
