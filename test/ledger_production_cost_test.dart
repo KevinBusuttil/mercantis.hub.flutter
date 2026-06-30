@@ -118,9 +118,60 @@ void main() {
     expect(asNum(sle!.payload['qty_change']), 5);
     expect(asNum(sle.payload['valuation_rate']), 14); // (50 + 20) / 5
 
-    final bin = await engine.fetch(LedgerDerivation.bin, 'BIN-WIDGET-FG');
+    // The Bin is recomputed one async step after the SLE, so poll for it.
+    Document? bin;
+    for (var i = 0; i < 80; i++) {
+      bin = await engine.fetch(LedgerDerivation.bin, 'BIN-WIDGET-FG');
+      if (bin != null) break;
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
     expect(bin, isNotNull);
     expect(asNum(bin!.payload['stock_value']), 70);
+  });
+
+  test('multi-output entry allocates consumed cost across outputs (no value '
+      'creation)', () async {
+    await engine.save(
+        Document(id: 'GADGET', docType: 'Item', payload: {
+          'item_code': 'GADGET', 'item_name': 'GADGET', 'stock_uom': 'Nos',
+        }),
+        roles);
+    // Consume 70 of raw to make 5 WIDGET + 5 GADGET → 10 units total.
+    final se = Document(id: '', docType: 'Stock Entry', payload: {
+      'stock_entry_type': 'Manufacture',
+      'posting_date': '2026-06-02',
+    });
+    se.children['items'] = [
+      ChildRow(id: '', parentId: '', parentDocType: 'Stock Entry',
+          tableName: 'items', rowIndex: 0,
+          payload: {'item': 'STEEL', 'qty': 10, 'source_warehouse': 'RAW'}),
+      ChildRow(id: '', parentId: '', parentDocType: 'Stock Entry',
+          tableName: 'items', rowIndex: 1,
+          payload: {'item': 'BOLT', 'qty': 20, 'source_warehouse': 'RAW'}),
+      ChildRow(id: '', parentId: '', parentDocType: 'Stock Entry',
+          tableName: 'items', rowIndex: 2,
+          payload: {'item': 'WIDGET', 'qty': 5, 'target_warehouse': 'FG'}),
+      ChildRow(id: '', parentId: '', parentDocType: 'Stock Entry',
+          tableName: 'items', rowIndex: 3,
+          payload: {'item': 'GADGET', 'qty': 5, 'target_warehouse': 'FG'}),
+    ];
+    final posted = await engine.submit(await engine.save(se, roles), roles);
+
+    // Each output is valued at 70 / 10 = 7, so total output value is 70 — the
+    // consumed cost — not 70 per row.
+    Document? widget;
+    for (var i = 0; i < 80; i++) {
+      final rows = await engine.list(LedgerDerivation.stockLedger,
+          filters: {'voucher_no': posted.id, 'item': 'GADGET'},
+          userRoles: roles);
+      if (rows.isNotEmpty) {
+        widget = rows.first;
+        break;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+    expect(widget, isNotNull);
+    expect(asNum(widget!.payload['valuation_rate']), 7); // 70 / (5 + 5)
   });
 }
 

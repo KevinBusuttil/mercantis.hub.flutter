@@ -150,8 +150,12 @@ class LedgerDerivationService {
     // A Transfer line's source-leg cost, so its target leg can match it.
     final outCostByItem = <String, num>{};
     // Total cost consumed by this voucher's outgoing legs. For a Manufacture
-    // entry that is the raw-material cost, rolled into the produced good's rate.
+    // entry that is the raw-material cost, spread across the produced output.
     num consumedCost = 0;
+    // Production (manufactured) output legs and their total qty, so the consumed
+    // cost is allocated once across all output — not stamped in full per row.
+    final productionLegs = <Map<String, dynamic>>[];
+    num producedQty = 0;
 
     Future<List<Map<String, dynamic>>> priorFor(String item, String wh) async {
       final key = (item, wh);
@@ -203,11 +207,11 @@ class LedgerDerivationService {
           final rate = outCostByItem[item];
           if (rate != null) row.payload['valuation_rate'] = rate;
         } else if (transType == 'Production') {
-          // Manufactured goods enter at production cost: the raw material
-          // consumed by this entry's outgoing legs, spread over the qty made.
-          if (consumedCost > 0) {
-            row.payload['valuation_rate'] = consumedCost / qtyChange;
-          }
+          // Manufactured goods enter at production cost. Collect the output legs
+          // and assign after the loop, so the consumed cost is allocated once
+          // across the total qty made rather than in full to each output row.
+          productionLegs.add(row.payload);
+          producedQty += qtyChange;
         } else if (factor != 1) {
           row.payload['valuation_rate'] =
               asNum(row.payload['valuation_rate']) / factor;
@@ -219,6 +223,16 @@ class LedgerDerivationService {
         'qty_change': qtyChange,
         'valuation_rate': asNum(row.payload['valuation_rate']),
       });
+    }
+
+    // Allocate the consumed raw cost across all produced output at one per-unit
+    // rate, so total output value equals what was consumed (no value created
+    // when an entry makes more than one product).
+    if (productionLegs.isNotEmpty && producedQty > 0 && consumedCost > 0) {
+      final rate = consumedCost / producedQty;
+      for (final leg in productionLegs) {
+        leg['valuation_rate'] = rate;
+      }
     }
   }
 
