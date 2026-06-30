@@ -107,6 +107,17 @@ void main() {
         filters: {'item': item}, userRoles: roles);
   }
 
+  // The Bin is recomputed one async step after the SLE is saved, so poll for it
+  // rather than reading it the instant the SLE appears.
+  Future<Document?> awaitBin(String id) async {
+    for (var i = 0; i < 80; i++) {
+      final bin = await engine.fetch(LedgerDerivation.bin, id);
+      if (bin != null) return bin;
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+    return null;
+  }
+
   test('Delivery Note with a service line: no SLE or Bin for the service item',
       () async {
     final dn = Document(id: '', docType: 'Delivery Note', payload: {
@@ -131,7 +142,7 @@ void main() {
 
     // The stock line posts (proving the service ran)...
     expect(await awaitSle('ITM'), isNotEmpty);
-    expect(await engine.fetch(LedgerDerivation.bin, 'BIN-ITM-WH'), isNotNull);
+    expect(await awaitBin('BIN-ITM-WH'), isNotNull);
 
     // ...but the service line leaves no trace in the stock ledger.
     expect(

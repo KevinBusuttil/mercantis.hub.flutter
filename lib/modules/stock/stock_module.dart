@@ -95,7 +95,10 @@ abstract final class StockModule {
         module: _module,
         isChild: true,
         fields: [
-          FieldDefinition(key: 'uom', label: 'UOM', type: FieldType.link, linkDocType: 'UOM', options: 'UOM', required: true),
+          // A select of the same UOM labels the transaction lines and
+          // `Item.stock_uom` use (not a link), so the stock-posting UOM
+          // conversion can match a line's UOM against this row by value.
+          FieldDefinition(key: 'uom', label: 'UOM', type: FieldType.select, options: 'Nos\nKg\nGrams\nLitre\nMetre\nBox\nPair\nSet', required: true),
           FieldDefinition(key: 'conversion_factor', label: 'Conversion Factor', type: FieldType.float, required: true, defaultValue: '1'),
         ],
       );
@@ -185,7 +188,8 @@ abstract final class StockModule {
           FieldDefinition(key: 'posting_time', label: 'Posting Time', type: FieldType.dateTime),
           FieldDefinition(key: 'voucher_type', label: 'Voucher Type', type: FieldType.data, required: true),
           FieldDefinition(key: 'voucher_no', label: 'Voucher No', type: FieldType.data, required: true),
-          FieldDefinition(key: 'qty_change', label: 'Qty Change', type: FieldType.float, required: true, defaultValue: '0'),
+          FieldDefinition(key: 'qty_change', label: 'Qty Change (Stock UOM)', type: FieldType.float, required: true, defaultValue: '0'),
+          FieldDefinition(key: 'uom', label: 'Transaction UOM', type: FieldType.data),
           FieldDefinition(key: 'valuation_rate', label: 'Valuation Rate', type: FieldType.currency),
           FieldDefinition(key: 'amount', label: 'Amount', type: FieldType.currency, readOnly: true, formulaExpression: 'qty_change * valuation_rate'),
           FieldDefinition(key: 'is_reversal', label: 'Reversal', type: FieldType.check),

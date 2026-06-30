@@ -3,6 +3,8 @@
 /// so every numeric/string read goes through these.
 library;
 
+import 'package:mercantis_core/mercantis_core.dart';
+
 /// Coerces a payload value to a number; returns 0 for null/garbage so ledger
 /// math never throws on a missing field.
 num asNum(dynamic value) {
@@ -32,6 +34,25 @@ bool isStockItem(Map<String, dynamic> payload) {
   if (isTrue(payload['is_service_item'])) return false;
   final v = payload['is_stock_item'];
   return v == null ? true : isTrue(v);
+}
+
+/// The transaction→stock UOM conversion factor for [item] — 1.0 when the line
+/// [lineUom] is the item's stock UOM (or unknown/missing). Reads `Item.uoms`
+/// (UOM Conversion Detail) for a matching row with a positive
+/// `conversion_factor`. Both the negative-stock guard and the stock-ledger
+/// costing convert line quantities to stock units through this, so they agree
+/// on how much inventory a line really moves.
+num uomFactor(Document? item, String? lineUom) {
+  if (item == null || lineUom == null) return 1;
+  final stockUom = asNonEmpty(item.payload['stock_uom']);
+  if (stockUom == null || stockUom == lineUom) return 1;
+  for (final row in item.children['uoms'] ?? const <ChildRow>[]) {
+    if (asNonEmpty(row.payload['uom']) == lineUom) {
+      final f = asNum(row.payload['conversion_factor']);
+      if (f > 0) return f;
+    }
+  }
+  return 1;
 }
 
 /// Negates [value] when [when] is true; otherwise returns it unchanged.
