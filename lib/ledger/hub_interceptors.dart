@@ -14,6 +14,7 @@ import 'ledger_values.dart';
 final hubInterceptorsOverride =
     documentInterceptorsProvider.overrideWithValue(const [
   BusinessProfileDefaultsInterceptor(),
+  ItemNameDefaultInterceptor(),
   LineItemTotalsInterceptor(),
   TaxCalculationInterceptor(),
   BomRollupInterceptor(),
@@ -23,6 +24,24 @@ final hubInterceptorsOverride =
 ]);
 
 const _systemRoles = {'System Manager'};
+
+/// Keeps an [Item] named: when `item_name` is left blank it defaults to
+/// `item_code` on save. `item_name` is optional (parity with the Swift app,
+/// which falls back to the code for display), so a code-only entry saves — this
+/// runs before validation so the stored name is always populated.
+class ItemNameDefaultInterceptor extends DocumentInterceptor {
+  const ItemNameDefaultInterceptor();
+
+  @override
+  Future<void> beforeSave(
+      DocumentEngine engine, Document doc, DocType docType,
+      {required bool isNew}) async {
+    if (docType.id != 'Item') return;
+    if (asNonEmpty(doc.payload['item_name']) != null) return;
+    final code = asNonEmpty(doc.payload['item_code']);
+    if (code != null) doc.payload['item_name'] = code;
+  }
+}
 
 /// The line-item child table key shared by selling/buying transaction docs.
 const _itemsTable = 'items';
