@@ -67,6 +67,18 @@ void main() {
         FieldDefinition(key: 'income_account', label: 'Income', type: FieldType.data),
       ],
     ));
+    // A selling document that dates itself with `transaction_date` (+ a
+    // `valid_till`) rather than `posting_date`, to exercise the new defaults.
+    await registry.register(const DocType(
+      id: 'Quotation',
+      name: 'Quotation',
+      isSubmittable: true,
+      fields: [
+        FieldDefinition(key: 'customer', label: 'Customer', type: FieldType.data),
+        FieldDefinition(key: 'transaction_date', label: 'Date', type: FieldType.date),
+        FieldDefinition(key: 'valid_till', label: 'Valid Till', type: FieldType.date),
+      ],
+    ));
   });
 
   // sqflite opens ':memory:' with singleInstance, so the same DB is reused
@@ -117,6 +129,34 @@ void main() {
     final inv = await engine.fetch('Sales Invoice', saved.id);
     expect(inv!.payload['currency'], 'EUR');
     expect(inv.payload['posting_date'], '2026-03-03');
+  });
+
+  test('a new selling draft defaults its Date to today and Valid Till to +30d',
+      () async {
+    final saved = await engine.save(
+      Document(id: '', docType: 'Quotation', payload: {'customer': 'C1'}),
+      roles,
+    );
+    final quote = await engine.fetch('Quotation', saved.id);
+    final today = DateTime.now();
+    final todayIso = today.toIso8601String().split('T').first;
+    final plus30Iso =
+        today.add(const Duration(days: 30)).toIso8601String().split('T').first;
+    expect(quote!.payload['transaction_date'], todayIso);
+    expect(quote.payload['valid_till'], plus30Iso);
+  });
+
+  test('an entered Date / Valid Till are never overwritten', () async {
+    final saved = await engine.save(
+      Document(id: '', docType: 'Quotation', payload: {
+        'transaction_date': '2026-02-01',
+        'valid_till': '2026-02-15',
+      }),
+      roles,
+    );
+    final quote = await engine.fetch('Quotation', saved.id);
+    expect(quote!.payload['transaction_date'], '2026-02-01');
+    expect(quote.payload['valid_till'], '2026-02-15');
   });
 
   group('fiscal-year guard', () {
