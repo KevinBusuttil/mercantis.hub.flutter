@@ -6,6 +6,7 @@ import '../modules/accounting/hub_compliance_actions.dart';
 import '../modules/selling/hub_conversion_actions.dart';
 import '../modules/selling/hub_lineage_actions.dart';
 import '../printing/hub_print_actions.dart';
+import '../screens/accountant_export_screen.dart';
 import '../screens/dashboards_screen.dart';
 import '../screens/approvals_inbox_screen.dart';
 import '../screens/customer_account_screen.dart';
@@ -92,6 +93,8 @@ void wireHubNavigation(WidgetRef ref) {
     registry.registerRoute('sales-orders',
         (c, s) => const SalesOrdersScreen());
     registry.registerRoute('reports', (c, s) => const ReportsScreen());
+    registry.registerRoute(
+        'accountant-export', (c, s) => const AccountantExportScreen());
     registry.registerRoute(
         'report-builder', (c, s) => const ReportBuilderScreen());
     registry.registerRoute('dashboards', (c, s) => const DashboardsScreen());
