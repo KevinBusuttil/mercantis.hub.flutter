@@ -65,17 +65,20 @@ final _tillContextProvider = FutureProvider<_TillContext>((ref) async {
 
   final profile = profiles.isEmpty ? null : profiles.first;
 
-  // Resolve the open POS Session (or open one for the active profile) so sales
-  // are attributed to a shift and the X/Z reports have something to aggregate.
+  // Resolve the open POS Session for *this* profile (or open one) so sales are
+  // attributed to the right shift and the X/Z reports aggregate the right
+  // invoices. Sessions are scoped by `pos_profile`, so a session is only
+  // resolvable/creatable once a profile is configured.
   Document? session;
-  for (final s in await engine.list('POS Session', userRoles: _systemRoles)) {
-    if (s.payload['status'] == 'Open') {
-      session = s;
-      break;
+  if (profile != null) {
+    for (final s in await engine.list('POS Session',
+        filters: {'pos_profile': profile.id}, userRoles: _systemRoles)) {
+      if (s.payload['status'] == 'Open') {
+        session = s;
+        break;
+      }
     }
-  }
-  if (session == null && profile != null) {
-    session = await engine.save(
+    session ??= await engine.save(
       Document(id: '', docType: 'POS Session', payload: {
         'pos_profile': profile.id,
         'status': 'Open',
