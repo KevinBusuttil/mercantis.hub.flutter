@@ -49,6 +49,13 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
 
   bool get _needsValueField => _fn != SavedReportAggregateFunction.count;
 
+  /// Any change to a report-defining selection invalidates the last run, so the
+  /// table/chart never describe a definition the controls no longer show.
+  void _invalidateResult() {
+    _result = null;
+    _error = null;
+  }
+
   Future<void> _run() async {
     final docType = _docType, groupBy = _groupBy;
     if (docType == null || groupBy == null) return;
@@ -129,7 +136,7 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
                   _docType = v;
                   _groupBy = null;
                   _valueField = null;
-                  _result = null;
+                  _invalidateResult();
                 }),
               ),
               const SizedBox(height: 12),
@@ -144,7 +151,10 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
                 ],
                 onChanged: selected == null
                     ? null
-                    : (v) => setState(() => _groupBy = v),
+                    : (v) => setState(() {
+                          _groupBy = v;
+                          _invalidateResult();
+                        }),
               ),
               const SizedBox(height: 12),
               Row(
@@ -160,8 +170,10 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
                         for (final f in SavedReportAggregateFunction.values)
                           DropdownMenuItem(value: f, child: Text(f.name)),
                       ],
-                      onChanged: (v) => setState(() => _fn =
-                          v ?? SavedReportAggregateFunction.count),
+                      onChanged: (v) => setState(() {
+                        _fn = v ?? SavedReportAggregateFunction.count;
+                        _invalidateResult();
+                      }),
                     ),
                   ),
                   if (_needsValueField) ...[
@@ -178,7 +190,10 @@ class _ReportBuilderScreenState extends ConsumerState<ReportBuilderScreen> {
                             DropdownMenuItem(
                                 value: f.key, child: Text(f.label)),
                         ],
-                        onChanged: (v) => setState(() => _valueField = v),
+                        onChanged: (v) => setState(() {
+                          _valueField = v;
+                          _invalidateResult();
+                        }),
                       ),
                     ),
                   ],
