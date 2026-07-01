@@ -240,14 +240,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     () => _draft = _draft.copyWith(deliveriesEnabled: v)),
           ),
           const Divider(height: 32),
-          SwitchListTile(
-            title: const Text('Advanced mode'),
-            subtitle: const Text('Show advanced fields and tracking surfaces'),
-            value: _draft.advancedMode,
-            onChanged: _saving
-                ? null
-                : (v) =>
-                    setState(() => _draft = _draft.copyWith(advancedMode: v)),
+          Text('Mode', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SegmentedButton<HubUserMode>(
+                    segments: [
+                      for (final mode in HubUserMode.values)
+                        ButtonSegment<HubUserMode>(
+                            value: mode, label: Text(mode.title)),
+                    ],
+                    selected: {_draft.userMode},
+                    onSelectionChanged: _saving
+                        ? null
+                        : (selection) => setState(
+                            () => _draft = _draft.withUserMode(selection.first)),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(_draft.userMode.blurb,
+                      style: theme.textTheme.bodySmall),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
