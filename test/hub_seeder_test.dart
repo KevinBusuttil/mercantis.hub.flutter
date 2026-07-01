@@ -62,7 +62,8 @@ void main() {
     expect(fy.payload['year_end_date'], '2026-12-31');
 
     final accounts = await engine.list('Account', userRoles: roles);
-    expect(accounts.length, 8);
+    expect(accounts.length, 9); // 8 core + Opening Balance Equity
+    expect(await engine.fetch('Account', 'Opening Balance Equity'), isNotNull);
     final vat = (await engine.fetch('Account', 'VAT'))!;
     expect(vat.payload['root_type'], 'Liability');
     expect(vat.payload['account_type'], 'Tax');
@@ -93,7 +94,7 @@ void main() {
 
     expect(second.created, 0);
     expect((await engine.list('Company', userRoles: roles)).length, 1);
-    expect((await engine.list('Account', userRoles: roles)).length, 8);
+    expect((await engine.list('Account', userRoles: roles)).length, 9);
     expect((await engine.list('Tax Code', userRoles: roles)).length, 5);
     expect(await seeder.companyExists(), isTrue);
   });

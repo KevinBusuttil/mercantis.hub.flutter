@@ -110,6 +110,8 @@ abstract final class HubChart {
     SeedAccount('VAT', 'VAT', 'Liability', 'Tax'),
     SeedAccount('Sales', 'Sales', 'Income', 'Income Account'),
     SeedAccount('COGS', 'Cost of Goods Sold', 'Expense', 'Cost of Goods Sold'),
+    // The contra the OpeningBalanceBuilder balances an opening entry against.
+    SeedAccount('Opening Balance Equity', 'Opening Balance Equity', 'Equity', 'Equity'),
   ];
 
   /// Company default-account wiring: field key → account id.

@@ -45,6 +45,24 @@ void main() {
     expect(je.payload['difference'], 0);
   });
 
+  test('totals come from the rounded posted rows, so the entry truly balances', () {
+    // Each 0.33x rounds to 0.33; the equity contra must match the posted 0.66,
+    // not the raw-sum 0.665 → 0.67.
+    final je = OpeningBalanceBuilder.build(
+      const [
+        OpeningBalanceEntry('Bank', debit: 0.334),
+        OpeningBalanceEntry('Cash', debit: 0.331),
+      ],
+      postingDate: '2026-01-01',
+    );
+
+    final equity = je.children['accounts']!.last;
+    expect(rowCredit(equity), 0.66);
+    expect(je.payload['total_debit'], 0.66);
+    expect(je.payload['total_credit'], 0.66);
+    expect(je.payload['difference'], 0);
+  });
+
   test('net credits are balanced by a debit to equity, and company carries', () {
     final je = OpeningBalanceBuilder.build(
       const [OpeningBalanceEntry('Retained Earnings', credit: 800)],

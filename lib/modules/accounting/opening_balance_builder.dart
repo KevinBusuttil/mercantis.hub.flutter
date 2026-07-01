@@ -27,16 +27,19 @@ abstract final class OpeningBalanceBuilder {
     num totalDebit = 0;
     num totalCredit = 0;
     for (final e in entries) {
-      totalDebit += e.debit;
-      totalCredit += e.credit;
+      // Round each leg to the cent it will actually post at, and total those
+      // same rounded values — so the equity balance matches what LedgerDerivation
+      // will post (accumulating raw amounts could leave a sub-cent gap).
+      final debit = round2(e.debit);
+      final credit = round2(e.credit);
+      totalDebit = round2(totalDebit + debit);
+      totalCredit = round2(totalCredit + credit);
       rows.add(_row(rows.length, {
         'account': e.account,
-        'debit': round2(e.debit),
-        'credit': round2(e.credit),
+        'debit': debit,
+        'credit': credit,
       }));
     }
-    totalDebit = round2(totalDebit);
-    totalCredit = round2(totalCredit);
 
     // Carry any imbalance to equity: more debits ⇒ credit equity, and vice
     // versa, so the opening entry always balances.
