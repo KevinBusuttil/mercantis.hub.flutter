@@ -80,7 +80,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     child: const Icon(Icons.hub, color: Colors.white),
                   ),
                   const SizedBox(width: 12),
-                  Text('Set up Mercantis Hub', style: theme.textTheme.titleLarge),
+                  Text('Set up Neuradix Atlas', style: theme.textTheme.titleLarge),
                 ],
               ),
               const SizedBox(height: 8),

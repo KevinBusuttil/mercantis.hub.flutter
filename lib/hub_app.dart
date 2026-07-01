@@ -85,7 +85,7 @@ class _HubRouterApp extends ConsumerWidget {
     ref.read(companySyncProvider.notifier);
     final router = ref.watch(_hubRouterProvider);
     return MaterialApp.router(
-      title: 'Mercantis Hub',
+      title: 'Neuradix Atlas',
       theme: MercantisTheme.light(),
       darkTheme: MercantisTheme.dark(),
       themeMode: ref.watch(themeModeProvider),
@@ -147,7 +147,7 @@ class _HubSplashScreen extends StatelessWidget {
               child: const Icon(Icons.hub, color: Colors.white, size: 40),
             ),
             const SizedBox(height: 16),
-            Text('Mercantis Hub', style: theme.textTheme.titleLarge),
+            Text('Neuradix Atlas', style: theme.textTheme.titleLarge),
             const SizedBox(height: 24),
             const CircularProgressIndicator(),
           ],

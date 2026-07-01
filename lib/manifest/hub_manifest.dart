@@ -38,7 +38,7 @@ abstract final class HubManifest {
 
     return AppManifest(
       id: 'app.mercantis.hub',
-      name: 'Mercantis Hub',
+      name: 'Neuradix Atlas',
       version: '1.0.0',
       docTypes: allDocTypes,
       workflows: HubWorkflows.all(),

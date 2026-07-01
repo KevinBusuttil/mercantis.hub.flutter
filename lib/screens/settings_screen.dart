@@ -168,7 +168,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => const SettingsView(
-                      appName: 'Mercantis Hub',
+                      appName: 'Neuradix Atlas',
                       appVersion: '1.0.0',
                     ),
                   )),
