@@ -112,6 +112,8 @@ abstract final class HubChart {
     SeedAccount('COGS', 'Cost of Goods Sold', 'Expense', 'Cost of Goods Sold'),
     // The contra the OpeningBalanceBuilder balances an opening entry against.
     SeedAccount('Opening Balance Equity', 'Opening Balance Equity', 'Equity', 'Equity'),
+    // Where the YearEndCloseBuilder posts the period's profit or loss.
+    SeedAccount('Retained Earnings', 'Retained Earnings', 'Equity', 'Equity'),
   ];
 
   /// Company default-account wiring: field key → account id.

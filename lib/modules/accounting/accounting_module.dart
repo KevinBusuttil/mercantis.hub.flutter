@@ -64,7 +64,7 @@ abstract final class AccountingModule {
             key: 'voucher_type',
             label: 'Voucher Type',
             type: FieldType.select,
-            options: 'Journal Entry\nInter Company Journal Entry\nBank Entry\nCash Entry\nCredit Card Entry\nDebit Note\nCredit Note\nContra Entry\nExcise Entry\nWrite Off Entry\nOpening Entry\nDepreciation Entry',
+            options: 'Journal Entry\nInter Company Journal Entry\nBank Entry\nCash Entry\nCredit Card Entry\nDebit Note\nCredit Note\nContra Entry\nExcise Entry\nWrite Off Entry\nOpening Entry\nClosing Entry\nDepreciation Entry',
             defaultValue: 'Journal Entry',
           ),
           FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
