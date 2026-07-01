@@ -40,6 +40,13 @@ const financeWorkspace = WorkspaceDescriptor(
           label: 'Pay Supplier', icon: Icons.north_east),
       ],
     ),
+    WorkspaceSection(
+      label: 'Compliance',
+      items: [
+        DocTypeWorkspaceItem(docType: 'Tax Filing',
+          icon: Icons.fact_check_outlined),
+      ],
+    ),
   ],
   quickActions: [
     QuickAction(id: 'f_receive_pay', label: 'Receive Payment',

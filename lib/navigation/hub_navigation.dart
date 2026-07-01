@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import '../dashboards/hub_dashboard_cards.dart';
 import '../mock/mock_data.dart';
+import '../modules/accounting/hub_compliance_actions.dart';
 import '../modules/selling/hub_conversion_actions.dart';
 import '../screens/dashboards_screen.dart';
 import '../screens/approvals_inbox_screen.dart';
@@ -66,6 +67,8 @@ void wireHubNavigation(WidgetRef ref) {
     // PO→Receipt/Invoice, Lead→Customer/Quotation, surfaced on the document's
     // command bar.
     registerHubConversionActions(ref);
+    // Compliance (HU1): a "Prepare return" action on a Tax Filing.
+    registerHubComplianceActions(ref);
     registry.registerAll([
       for (final w in hubWorkspaces)
         if (_workspaceEnabled(w.id, settings)) w,
