@@ -15,21 +15,33 @@ class YearEndCloseService {
 
   /// Folds [glEntries] into one natural balance per Income/Expense account
   /// (income = credit − debit; expense = debit − credit), dropping other root
-  /// types and zero balances. Optionally scoped to [company]. Deterministic
-  /// (accounts sorted by id).
+  /// types and zero balances. Optionally scoped to [company]. When [asOf] is
+  /// given, entries dated after it are excluded (so a close never pulls in
+  /// next-period / future-dated postings). Foreign-currency rows are summed at
+  /// their books value (`base_debit`/`base_credit`), falling back to the raw
+  /// `debit`/`credit` for base-currency / legacy rows. Deterministic (accounts
+  /// sorted by id).
   static List<YearEndBalance> balancesFrom({
     required Iterable<Document> glEntries,
     required Map<String, String?> rootTypeByAccount,
     String? company,
+    String? asOf,
   }) {
     final debit = <String, num>{};
     final credit = <String, num>{};
     for (final e in glEntries) {
       if (company != null && e.company != company) continue;
+      if (asOf != null) {
+        final postingDate = asNonEmpty(e.payload['posting_date']);
+        // ISO yyyy-MM-dd compares lexically; drop rows dated after the close.
+        if (postingDate != null && postingDate.compareTo(asOf) > 0) continue;
+      }
       final account = asNonEmpty(e.payload['account']);
       if (account == null) continue;
-      debit[account] = (debit[account] ?? 0) + asNum(e.payload['debit']);
-      credit[account] = (credit[account] ?? 0) + asNum(e.payload['credit']);
+      debit[account] =
+          (debit[account] ?? 0) + _baseOrRaw(e.payload, 'base_debit', 'debit');
+      credit[account] = (credit[account] ?? 0) +
+          _baseOrRaw(e.payload, 'base_credit', 'credit');
     }
     final out = <YearEndBalance>[];
     for (final account in ({...debit.keys, ...credit.keys}.toList()..sort())) {
@@ -51,6 +63,14 @@ class YearEndCloseService {
     return out;
   }
 
+  /// The books (base-currency) amount for [baseKey], falling back to the raw
+  /// transaction amount [rawKey] when no base value is stamped (base-currency or
+  /// legacy rows). A present-but-zero base value is honoured.
+  static num _baseOrRaw(Map<String, dynamic> payload, String baseKey, String rawKey) {
+    final base = payload[baseKey];
+    return asNum(base ?? payload[rawKey]);
+  }
+
   /// Builds and saves the Draft `Journal Entry` (voucher type `Closing Entry`)
   /// that closes the P&L into Retained Earnings for review + submission.
   Future<Document> prepare({required String postingDate, String? company}) async {
@@ -63,6 +83,7 @@ class YearEndCloseService {
       glEntries: glEntries,
       rootTypeByAccount: rootTypeByAccount,
       company: company,
+      asOf: postingDate,
     );
     final draft = YearEndCloseBuilder.build(balances,
         postingDate: postingDate, company: company);
