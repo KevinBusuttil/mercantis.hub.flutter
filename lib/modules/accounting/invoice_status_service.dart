@@ -65,12 +65,25 @@ class InvoiceStatusService {
     return out;
   }
 
-  String _status(Document inv, String? asOf) => InvoiceStatus.compute(
-        docStatus: inv.docStatus,
-        grandTotal: asNum(inv.payload['grand_total']),
-        outstanding: asNum(inv.payload['outstanding_amount']),
-        dueDate: asNonEmpty(inv.payload['due_date']),
-        asOf: asOf,
-        isReturn: isTrue(inv.payload['is_return']),
-      );
+  String _status(Document inv, String? asOf) {
+    final grand = asNum(inv.payload['grand_total']);
+    // An invoice whose outstanding was never populated still owes its full
+    // total — treat a missing value as grand_total (as GuidedPayment does),
+    // not as 0, or it would wrongly read as Paid. A present 0 is honoured.
+    final outstanding = _numOrNull(inv.payload['outstanding_amount']) ?? grand;
+    return InvoiceStatus.compute(
+      docStatus: inv.docStatus,
+      grandTotal: grand,
+      outstanding: outstanding,
+      dueDate: asNonEmpty(inv.payload['due_date']),
+      asOf: asOf,
+      isReturn: isTrue(inv.payload['is_return']),
+    );
+  }
+
+  static num? _numOrNull(dynamic v) {
+    if (v is num) return v;
+    if (v is String) return num.tryParse(v.trim());
+    return null;
+  }
 }

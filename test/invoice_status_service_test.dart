@@ -111,6 +111,24 @@ void main() {
           'Unpaid');
     });
 
+    test('a submitted invoice with no outstanding still reads as open', () async {
+      // Only grand_total is set (outstanding never populated).
+      final inv = await engine.save(
+          Document(id: 'SI-9', docType: 'Sales Invoice', payload: {
+            'customer': 'CUST-1',
+            'posting_date': '2026-05-01',
+            'due_date': '2026-06-01',
+            'grand_total': 100,
+          }),
+          roles);
+      await engine.submit(inv, roles);
+
+      expect(await service.statusOf('Sales Invoice', 'SI-9', asOf: '2026-06-15'),
+          'Overdue'); // not Paid
+      expect((await service.overdue('Sales Invoice', asOf: '2026-06-15'))
+          .map((d) => d.id), contains('SI-9'));
+    });
+
     test('overdue lists only past-due invoices with a balance', () async {
       await invoice('SI-1', outstanding: 100, due: '2026-06-01'); // overdue
       await invoice('SI-2', outstanding: 0, due: '2026-05-01'); // paid
