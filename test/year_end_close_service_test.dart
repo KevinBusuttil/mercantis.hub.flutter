@@ -25,10 +25,10 @@ void main() {
         'Debtors': 'Asset',
       },
     );
-    // Sorted by account id (COGS < Sales); Debtors excluded.
-    expect(
-        balances.map((b) => '${b.account}:${b.isIncome}:${b.balance}').toList(),
-        ['COGS:false:400', 'Sales:true:900']);
+    // Sorted by account id (COGS < Sales); Debtors excluded. Compare numeric
+    // balances (round2 yields doubles, so 400 == 400.0).
+    expect(balances.map((b) => (b.account, b.isIncome, b.balance)).toList(),
+        [('COGS', false, 400), ('Sales', true, 900)]);
   });
 
   test('drops zero net balances and scopes to the company', () {
