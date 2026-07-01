@@ -5,6 +5,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../ledger/hub_tax_engine.dart';
 import '../ledger/ledger_values.dart';
+import '../modules/pos/pos_shift_report.dart' as shift;
 import '../payments/pos_checkout.dart';
 
 const _systemRoles = {'System Manager'};
@@ -21,6 +22,8 @@ class _TillContext {
     this.defaultWarehouse,
     this.profileTaxCode,
     this.company,
+    this.sessionId,
+    this.openingFloat = 0,
   });
 
   final List<Document> items;
@@ -31,6 +34,11 @@ class _TillContext {
   final String? defaultWarehouse;
   final String? profileTaxCode;
   final String? company;
+
+  /// The open POS Session this till posts sales into (null when no POS Profile
+  /// is configured, so a session can't be opened). Drives the shift reports.
+  final String? sessionId;
+  final num openingFloat;
 }
 
 final _tillContextProvider = FutureProvider<_TillContext>((ref) async {
@@ -56,6 +64,28 @@ final _tillContextProvider = FutureProvider<_TillContext>((ref) async {
   }
 
   final profile = profiles.isEmpty ? null : profiles.first;
+
+  // Resolve the open POS Session (or open one for the active profile) so sales
+  // are attributed to a shift and the X/Z reports have something to aggregate.
+  Document? session;
+  for (final s in await engine.list('POS Session', userRoles: _systemRoles)) {
+    if (s.payload['status'] == 'Open') {
+      session = s;
+      break;
+    }
+  }
+  if (session == null && profile != null) {
+    session = await engine.save(
+      Document(id: '', docType: 'POS Session', payload: {
+        'pos_profile': profile.id,
+        'status': 'Open',
+        'opening_date': DateTime.now().toIso8601String().split('T').first,
+        'opening_amount': 0,
+      }),
+      _systemRoles,
+    );
+  }
+
   return _TillContext(
     items: items,
     customers: customers,
@@ -66,6 +96,8 @@ final _tillContextProvider = FutureProvider<_TillContext>((ref) async {
         (warehouses.isEmpty ? null : warehouses.first.id),
     profileTaxCode: asNonEmpty(profile?.payload['tax_code']),
     company: company?.id,
+    sessionId: session?.id,
+    openingFloat: asNum(session?.payload['opening_amount']),
   );
 });
 
@@ -146,6 +178,7 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         warehouse: _warehouse ?? ctx.defaultWarehouse,
         taxCode: ctx.profileTaxCode,
         company: ctx.company,
+        posSession: ctx.sessionId,
         lines: [
           for (final l in _cart)
             PosCartLine(item: l.item, qty: l.qty, rate: l.lineRate, taxCode: l.taxCode),
@@ -174,11 +207,142 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
     }
   }
 
+  Future<void> _showXReport(_TillContext ctx) async {
+    final sessionId = ctx.sessionId;
+    if (sessionId == null) return;
+    final engine = await ref.read(documentEngineProvider.future);
+    final report = await shift.PosShiftReportService(
+            engine: engine, roles: _systemRoles)
+        .report(sessionId);
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('X-report (snapshot)'),
+        content: _reportFigures(report),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _closeShift(_TillContext ctx) async {
+    final sessionId = ctx.sessionId;
+    if (sessionId == null) return;
+    final counted = await _promptCountedCash();
+    if (counted == null || !mounted) return;
+    final engine = await ref.read(documentEngineProvider.future);
+    final service =
+        shift.PosShiftReportService(engine: engine, roles: _systemRoles);
+    final z = await service.report(sessionId, countedCash: counted);
+    await service.closeShift(sessionId,
+        countedCash: counted,
+        closingDate: DateTime.now().toIso8601String().split('T').first);
+    if (!mounted) return;
+    // Reopen a fresh session for the next shift on the next load.
+    ref.invalidate(_tillContextProvider);
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Shift closed (Z-report)'),
+        content: _reportFigures(z),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Done')),
+        ],
+      ),
+    );
+  }
+
+  Future<num?> _promptCountedCash() {
+    final controller = TextEditingController();
+    return showDialog<num?>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Close shift'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+              labelText: 'Counted cash in drawer',
+              border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(c).pop(null),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.of(c)
+                  .pop(num.tryParse(controller.text.trim()) ?? 0),
+              child: const Text('Close shift')),
+        ],
+      ),
+    );
+  }
+
+  Widget _reportFigures(shift.PosShiftReport r) {
+    Widget line(String k, String v) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [Text(k), Text(v)],
+          ),
+        );
+    return SizedBox(
+      width: 320,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          line('Transactions', '${r.transactions}'),
+          line('Gross sales', r.grossSales.toStringAsFixed(2)),
+          line('Refunds', r.refunds.toStringAsFixed(2)),
+          line('Net sales', r.netSales.toStringAsFixed(2)),
+          line('Items sold', '${r.itemsSold}'),
+          line('Tax collected', r.taxCollected.toStringAsFixed(2)),
+          const Divider(),
+          for (final e in r.tenderTotals.entries)
+            line(e.key, e.value.toStringAsFixed(2)),
+          const Divider(),
+          line('Opening float', r.openingFloat.toStringAsFixed(2)),
+          line('Expected cash', r.expectedCash.toStringAsFixed(2)),
+          if (r.isZReport) ...[
+            line('Counted cash', (r.countedCash ?? 0).toStringAsFixed(2)),
+            line('Over / short', (r.overShort ?? 0).toStringAsFixed(2)),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ctxAsync = ref.watch(_tillContextProvider);
+    final sessionId = ctxAsync.asData?.value.sessionId;
     return Scaffold(
-      appBar: AppBar(title: const Text('Point of Sale')),
+      appBar: AppBar(
+        title: const Text('Point of Sale'),
+        actions: [
+          if (sessionId != null)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.assessment_outlined),
+              tooltip: 'Shift reports',
+              onSelected: (v) {
+                final ctx = ctxAsync.asData!.value;
+                if (v == 'x') _showXReport(ctx);
+                if (v == 'z') _closeShift(ctx);
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'x', child: Text('X-report (snapshot)')),
+                PopupMenuItem(value: 'z', child: Text('Close shift (Z-report)')),
+              ],
+            ),
+        ],
+      ),
       body: ctxAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Failed to load: $e'))),
