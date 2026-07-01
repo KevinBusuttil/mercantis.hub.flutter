@@ -5,6 +5,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../auth/auth_store.dart';
 import '../auth/operator_setup_screen.dart';
+import '../modules/accounting/coa_repair.dart';
 import '../settings/hub_settings.dart';
 import 'company_sync_screen.dart';
 import 'numbering_series_screen.dart';
@@ -69,6 +70,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => const OperatorSetupScreen(firstRun: false),
     ));
+  }
+
+  Future<void> _repairCoa() async {
+    final engine = await ref.read(documentEngineProvider.future);
+    final roles = ref.read(currentUserProvider).roles;
+    final CoaRepairSummary summary =
+        await ChartOfAccountsRepair(engine: engine, roles: roles).repair();
+    if (!mounted) return;
+    final message = summary.repairedAnything
+        ? 'Repaired: ${summary.accountsCreated} account(s) re-created, '
+            '${summary.defaultsRewired} default(s) re-wired.'
+        : 'Chart of accounts is healthy — nothing to repair.';
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _changePasscode() async {
@@ -181,6 +196,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   )),
                 ),
               ],
+            ),
+          ),
+          const Divider(height: 32),
+          Text('Tools', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.healing_outlined),
+              title: const Text('Repair chart of accounts'),
+              subtitle: const Text(
+                  'Re-create missing starter accounts and re-wire broken '
+                  'company default-account links'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _repairCoa,
             ),
           ),
           const Divider(height: 32),
