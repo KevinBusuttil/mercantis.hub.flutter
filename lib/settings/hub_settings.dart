@@ -1,6 +1,24 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 
+/// Owner / Accountant persona (HU6 — the Swift `HubUserMode`). A user-facing
+/// name for the advanced-surface toggle rather than a new setting: Owner is the
+/// simple view (advanced off), Accountant unlocks the ledger/journal surfaces
+/// (advanced on). Persisted through [HubSettings.advancedMode], so there is no
+/// migration.
+enum HubUserMode {
+  owner,
+  accountant;
+
+  String get title => this == HubUserMode.owner ? 'Owner' : 'Accountant';
+
+  String get blurb => this == HubUserMode.owner
+      ? 'A simple, plain-language workspace — invoices, payments, and reports. '
+          'No debits, credits, or ledgers.'
+      : 'Everything in Owner view plus the ledgers, journals, and audit spine '
+          'an accountant works with.';
+}
+
 /// Persisted Hub preferences (the Flutter analogue of the Swift
 /// `HubVisibilitySettings`). Stored as a single `Hub Settings` document so it
 /// survives restarts and rides the same sync engine as everything else.
@@ -23,6 +41,15 @@ class HubSettings {
 
   static const docType = 'Hub Settings';
   static const docId = 'hub-settings';
+
+  /// The Owner/Accountant persona this settings state represents (HU6). A
+  /// façade over [advancedMode]: Accountant when advanced surfaces are on.
+  HubUserMode get userMode =>
+      advancedMode ? HubUserMode.accountant : HubUserMode.owner;
+
+  /// Returns a copy in the given persona (flips [advancedMode] accordingly).
+  HubSettings withUserMode(HubUserMode mode) =>
+      copyWith(advancedMode: mode == HubUserMode.accountant);
 
   HubSettings copyWith({
     bool? advancedMode,
