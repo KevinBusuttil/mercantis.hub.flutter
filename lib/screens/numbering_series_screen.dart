@@ -38,34 +38,44 @@ class NumberingSeriesScreen extends ConsumerWidget {
                 style: theme.textTheme.bodySmall,
               ),
               const SizedBox(height: MercantisSpacing.lg),
-              ErpDataTable(
-                columns: const [
-                  ErpDataColumn(label: 'Document', flex: 4),
-                  ErpDataColumn(label: 'Series', flex: 4),
-                  ErpDataColumn(label: 'Next #', flex: 2, numeric: true),
-                  ErpDataColumn(label: 'Next id', flex: 4),
-                  ErpDataColumn(label: '', flex: 2),
-                ],
-                rows: [
-                  for (final r in rows)
-                    ErpDataRow(
-                      onTap: () => _edit(context, ref, r),
-                      cells: [
-                        Text(r.docType),
-                        Text(r.seriesKey,
-                            style: const TextStyle(
-                                fontFeatures: [FontFeature.tabularFigures()])),
-                        Text('${r.nextNumber}'),
-                        Text(r.sample,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.w600)),
-                        TextButton(
-                          onPressed: () => _edit(context, ref, r),
-                          child: const Text('Set'),
+              // The raw "Next #" and the "Next id" sample were redundant (the
+              // sample is the series with the next number already substituted
+              // in), which cramped every column on a phone. Show just the id
+              // sample; the whole row taps through to set the number, so the
+              // "Set" button becomes a trailing chevron. Wider panes get the
+              // Series column back for reference.
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final wide = constraints.maxWidth >= 560;
+                  return ErpDataTable(
+                    columns: [
+                      const ErpDataColumn(label: 'Document', flex: 4),
+                      if (wide) const ErpDataColumn(label: 'Series', flex: 4),
+                      const ErpDataColumn(label: 'Next id', flex: 5),
+                      const ErpDataColumn(label: '', width: 40, numeric: true),
+                    ],
+                    rows: [
+                      for (final r in rows)
+                        ErpDataRow(
+                          onTap: () => _edit(context, ref, r),
+                          cells: [
+                            Text(r.docType),
+                            if (wide)
+                              Text(r.seriesKey,
+                                  style: const TextStyle(fontFeatures: [
+                                    FontFeature.tabularFigures()
+                                  ])),
+                            Text(r.sample,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600)),
+                            Icon(Icons.chevron_right,
+                                size: 18,
+                                color: theme.colorScheme.onSurfaceVariant),
+                          ],
                         ),
-                      ],
-                    ),
-                ],
+                    ],
+                  );
+                },
               ),
             ],
           );
