@@ -36,7 +36,10 @@ abstract final class StockModule {
         isSubmittable: false,
         fields: [
           FieldDefinition(key: 'item_code', label: 'Item Code', type: FieldType.data, required: true),
-          FieldDefinition(key: 'item_name', label: 'Item Name', type: FieldType.data, required: true),
+          // Optional: defaults to the Item Code on save when left blank (see
+          // ItemNameDefaultInterceptor), matching the Swift app which falls back
+          // to the code for display.
+          FieldDefinition(key: 'item_name', label: 'Item Name', type: FieldType.data),
           FieldDefinition(key: 'item_group', label: 'Item Group', type: FieldType.link, linkDocType: 'Item Group', options: 'Item Group'),
           FieldDefinition(key: 'brand', label: 'Brand', type: FieldType.link, linkDocType: 'Brand', options: 'Brand'),
           FieldDefinition(key: 'description', label: 'Description', type: FieldType.longText),
