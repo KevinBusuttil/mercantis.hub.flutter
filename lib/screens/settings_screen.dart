@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../auth/auth_store.dart';
 import '../auth/operator_setup_screen.dart';
 import '../modules/accounting/coa_repair.dart';
+import '../modules/accounting/year_end_close_service.dart';
 import '../settings/hub_settings.dart';
 import 'company_sync_screen.dart';
 import 'numbering_series_screen.dart';
@@ -84,6 +86,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         : 'Chart of accounts is healthy — nothing to repair.';
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _closeYear() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Close financial year?'),
+        content: const Text(
+            'This drafts a Closing Entry journal that zeroes every income and '
+            'expense account into Retained Earnings, dated today. It is a Draft '
+            'you can review and submit — nothing posts yet.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Draft closing entry')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final engine = await ref.read(documentEngineProvider.future);
+    final roles = ref.read(currentUserProvider).roles;
+    final postingDate = DateTime.now().toIso8601String().split('T').first;
+    try {
+      final je = await YearEndCloseService(engine: engine, roles: roles)
+          .prepare(postingDate: postingDate);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Draft closing entry ${je.id} created — review and '
+              'submit it from Journal Entries.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e is DocumentEngineError ? e.humanMessage : '$e')));
+    }
   }
 
   Future<void> _changePasscode() async {
@@ -202,14 +241,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Text('Tools', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           Card(
-            child: ListTile(
-              leading: const Icon(Icons.healing_outlined),
-              title: const Text('Repair chart of accounts'),
-              subtitle: const Text(
-                  'Re-create missing starter accounts and re-wire broken '
-                  'company default-account links'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _repairCoa,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.healing_outlined),
+                  title: const Text('Repair chart of accounts'),
+                  subtitle: const Text(
+                      'Re-create missing starter accounts and re-wire broken '
+                      'company default-account links'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _repairCoa,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.event_available_outlined),
+                  title: const Text('Close financial year'),
+                  subtitle: const Text(
+                      'Draft a closing entry that zeroes the P&L into '
+                      'Retained Earnings for review'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _closeYear,
+                ),
+              ],
             ),
           ),
           const Divider(height: 32),
