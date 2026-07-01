@@ -19,6 +19,7 @@ import '../screens/low_stock_screen.dart';
 import '../screens/scan_receipt_screen.dart';
 import '../screens/numbering_series_screen.dart';
 import '../screens/pos_till_screen.dart';
+import '../screens/report_builder_screen.dart';
 import '../screens/reports_screen.dart';
 import '../screens/sales_orders_screen.dart';
 import '../screens/settings_screen.dart';
@@ -88,6 +89,8 @@ void wireHubNavigation(WidgetRef ref) {
     registry.registerRoute('sales-orders',
         (c, s) => const SalesOrdersScreen());
     registry.registerRoute('reports', (c, s) => const ReportsScreen());
+    registry.registerRoute(
+        'report-builder', (c, s) => const ReportBuilderScreen());
     registry.registerRoute('dashboards', (c, s) => const DashboardsScreen());
     registry.registerRoute(
         'receive-payment', (c, s) => const GuidedPaymentScreen(receive: true));

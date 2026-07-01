@@ -11,6 +11,10 @@ const reportsWorkspace = WorkspaceDescriptor(
   accentColor: MercantisBrandColors.accentReports,
   order: 70,
   sections: [
+    WorkspaceSection(label: 'Build', items: [
+      CustomWorkspaceItem(routeName: 'report-builder',
+        label: 'Report builder', icon: Icons.tune),
+    ]),
     WorkspaceSection(label: 'Coming soon', items: [
       CustomWorkspaceItem(routeName: 'sales-dashboard',
         label: 'Sales dashboard', icon: Icons.bar_chart),
