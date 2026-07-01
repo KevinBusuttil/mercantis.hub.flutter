@@ -2,17 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core/mercantis_core.dart';
+import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../reports/accountant_export.dart';
+import '../reports/aggregating_reports.dart';
 import '../reports/report_providers.dart';
 
 /// The financial statements the accountant export pack can include (HU1).
-final _statements =
-    <({String title, FutureProvider<ReportResult> provider})>[
-  (title: 'Trial Balance', provider: trialBalanceProvider),
-  (title: 'AR Aging', provider: arAgingProvider),
-  (title: 'AP Aging', provider: apAgingProvider),
-];
+const _statementTitles = ['Trial Balance', 'AR Aging', 'AP Aging'];
+
+/// Recomputes each statement fresh (so the pack never copies a stale, cached
+/// report after mid-session document edits).
+Future<ReportResult> _statement(
+    HubAggregatingReports reports, int index, Set<String> roles) {
+  switch (index) {
+    case 0:
+      return reports.trialBalance(userRoles: roles);
+    case 1:
+      return reports.arAging(userRoles: roles);
+    default:
+      return reports.apAging(userRoles: roles);
+  }
+}
 
 /// HU1 — accountant export: tick the statements the accountant asked for and
 /// build a single CSV pack to hand over (copy to clipboard).
@@ -38,14 +49,16 @@ class _AccountantExportScreenState
       _error = null;
     });
     try {
-      final chosen = [
-        for (var i = 0; i < _statements.length; i++)
-          if (_selected.contains(i)) _statements[i],
-      ];
+      // Recompute each selected statement fresh from the store on every build.
+      final reports = await ref.read(aggregatingReportsProvider.future);
+      final roles = ref.read(currentUserProvider).roles;
       final parts = <ExportStatement>[];
-      for (final s in chosen) {
-        final result = await ref.read(s.provider.future);
-        parts.add((title: s.title, result: result));
+      for (var i = 0; i < _statementTitles.length; i++) {
+        if (!_selected.contains(i)) continue;
+        parts.add((
+          title: _statementTitles[i],
+          result: await _statement(reports, i, roles),
+        ));
       }
       if (!mounted) return;
       setState(() {
@@ -95,9 +108,9 @@ class _AccountantExportScreenState
           Card(
             child: Column(
               children: [
-                for (var i = 0; i < _statements.length; i++)
+                for (var i = 0; i < _statementTitles.length; i++)
                   CheckboxListTile(
-                    title: Text(_statements[i].title),
+                    title: Text(_statementTitles[i]),
                     value: _selected.contains(i),
                     onChanged: _building
                         ? null
