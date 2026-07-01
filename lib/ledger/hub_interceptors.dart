@@ -255,7 +255,8 @@ class BomRollupInterceptor extends DocumentInterceptor {
 
 /// Pre-fills a new draft from the active Company ("business profile"): stamps
 /// the company, default currency, default posting accounts (so they're visible
-/// in the form, not just resolved at posting time), and today's posting date.
+/// in the form, not just resolved at posting time), today's date (posting or
+/// transaction), and a default quotation validity.
 /// Only ever fills blanks — anything the user already entered wins.
 class BusinessProfileDefaultsInterceptor extends DocumentInterceptor {
   const BusinessProfileDefaultsInterceptor();
@@ -271,6 +272,19 @@ class BusinessProfileDefaultsInterceptor extends DocumentInterceptor {
     if (fieldKeys.contains('posting_date') &&
         asNonEmpty(doc.payload['posting_date']) == null) {
       doc.payload['posting_date'] = _todayIso();
+    }
+    // Transaction date → today. Selling/buying documents (Quotation, Sales
+    // Order, Purchase Order, …) date themselves with `transaction_date` rather
+    // than `posting_date`; without this a new draft opened with a blank Date.
+    if (fieldKeys.contains('transaction_date') &&
+        asNonEmpty(doc.payload['transaction_date']) == null) {
+      doc.payload['transaction_date'] = _todayIso();
+    }
+    // Quotation validity → 30 days out, so a fresh quote isn't born expired.
+    // Only fills a blank; the user can shorten or extend it.
+    if (fieldKeys.contains('valid_till') &&
+        asNonEmpty(doc.payload['valid_till']) == null) {
+      doc.payload['valid_till'] = _todayPlusIso(30);
     }
 
     final accounts = LedgerDerivation.accountFallbacks(
@@ -308,6 +322,12 @@ class BusinessProfileDefaultsInterceptor extends DocumentInterceptor {
   }
 
   String _todayIso() => DateTime.now().toIso8601String().split('T').first;
+
+  String _todayPlusIso(int days) => DateTime.now()
+      .add(Duration(days: days))
+      .toIso8601String()
+      .split('T')
+      .first;
 }
 
 /// Blocks submitting a posting document whose `posting_date` falls outside every
