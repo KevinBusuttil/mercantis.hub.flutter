@@ -95,7 +95,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                         const Icon(Icons.lock_outline, color: Colors.white, size: 30),
                   ),
                   const SizedBox(height: 12),
-                  Text('Mercantis Hub', style: theme.textTheme.titleLarge),
+                  Text('Neuradix Atlas', style: theme.textTheme.titleLarge),
                   Text('Choose an operator to sign in',
                       style: theme.textTheme.bodySmall),
                 ],

@@ -125,7 +125,7 @@ Effort (T-shirt, one engineer): **S** ≤2d · **M** 3–5d · **L** 1–2wk · 
 | HU5 | **Navigation upgrade** | ⌘K command palette, sidebar filter, multi-expand + persistence | Missing in Hub shell | Medium | M |
 | HU6 | **Owner / Accountant mode** | role-based UI mode (Autopilot Phase 4) | Missing | Medium | M |
 | HU7 | **Header action bar** | lifecycle actions consolidated at top | Missing | Low | S |
-| HU8 | **Rebrand → "Neuradix Atlas"** | product name + 3-colour logo + in-app glyph | Still "Mercantis Hub" everywhere | Medium† | M |
+| HU8 | **Rebrand → "Neuradix Atlas"** | product name + 3-colour logo + in-app glyph | ✅ **Product name done** — the user-facing app name is now **"Neuradix Atlas"** everywhere it shows: the `AppManifest.name`, the `MaterialApp` title, the lock screen, the home/app header, the onboarding title, the Settings ▸ Appearance about card, and the pubspec description (matching the Swift `HubManifest.appName`). Internal code identifiers (`MercantisTheme`, `MercantisBrandColors`, `MercantisHubApp`) are brand-neutral and left unchanged. _(Logo artwork/glyph is a design asset, tracked separately.)_ | Medium† | M |
 
 † **Requires product sign-off before applying** — it is a branding decision, not
 a defect. Listed for completeness.
