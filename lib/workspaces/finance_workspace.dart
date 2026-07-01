@@ -45,6 +45,8 @@ const financeWorkspace = WorkspaceDescriptor(
       items: [
         DocTypeWorkspaceItem(docType: 'Tax Filing',
           icon: Icons.fact_check_outlined),
+        CustomWorkspaceItem(routeName: 'accountant-export',
+          label: 'Accountant export', icon: Icons.download_outlined),
       ],
     ),
   ],
