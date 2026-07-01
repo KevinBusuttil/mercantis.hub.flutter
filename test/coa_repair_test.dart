@@ -62,10 +62,11 @@ void main() {
     expect(sales!.payload['root_type'], 'Income');
   });
 
-  test('a blank or dangling company default is re-wired', () async {
+  test('blank company defaults are re-wired', () async {
     final company = (await engine.list('Company', userRoles: roles)).first;
-    company.payload['default_receivable_account'] = ''; // blank
-    company.payload['default_income_account'] = 'Ghost'; // dangling
+    // Blank links save fine; the repair should re-point them.
+    company.payload['default_receivable_account'] = '';
+    company.payload['default_income_account'] = '';
     await engine.save(company, roles);
 
     final summary = await repair.repair();
@@ -75,16 +76,35 @@ void main() {
     expect(fixed.payload['default_income_account'], 'Sales');
   });
 
-  test('re-creates the account, then re-wires the company to it in one pass',
-      () async {
-    await engine.delete('Account', 'Creditors', roles);
+  test('a default pointing at a deleted (custom) account is re-wired', () async {
+    // A valid custom account referenced by the company, then removed — so the
+    // stored link dangles without the company ever saving an invalid ref.
+    await engine.save(
+        Document(id: 'CUSTOM-RECV', docType: 'Account', payload: {
+          'account_name': 'Custom Receivable', 'root_type': 'Asset',
+        }),
+        roles);
     final company = (await engine.list('Company', userRoles: roles)).first;
-    company.payload['default_payable_account'] = 'Creditors'; // now dangling
+    company.payload['default_receivable_account'] = 'CUSTOM-RECV';
     await engine.save(company, roles);
+    await engine.delete('Account', 'CUSTOM-RECV', roles); // now dangling
 
     final summary = await repair.repair();
-    expect(summary.accountsCreated, 1); // Creditors re-created
-    expect(summary.defaultsRewired, 1); // company re-pointed to it
-    expect(await engine.fetch('Account', 'Creditors'), isNotNull);
+    expect(summary.defaultsRewired, 1);
+    final fixed = await engine.fetch('Company', company.id);
+    expect(fixed!.payload['default_receivable_account'], 'Debtors');
+  });
+
+  test('re-creating a deleted starter account fixes the dangle without rewiring',
+      () async {
+    // Debtors is a starter account the company already points at; deleting it
+    // dangles the ref, but step 1 re-creates it so no re-wire is needed.
+    await engine.delete('Account', 'Debtors', roles);
+
+    final summary = await repair.repair();
+    expect(summary.accountsCreated, 1); // Debtors re-created
+    expect(summary.defaultsRewired, 0); // ref valid again, untouched
+    final company = (await engine.list('Company', userRoles: roles)).first;
+    expect(company.payload['default_receivable_account'], 'Debtors');
   });
 }
