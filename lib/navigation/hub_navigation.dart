@@ -5,6 +5,7 @@ import '../mock/mock_data.dart';
 import '../modules/accounting/hub_compliance_actions.dart';
 import '../modules/selling/hub_conversion_actions.dart';
 import '../modules/selling/hub_lineage_actions.dart';
+import '../printing/hub_print_actions.dart';
 import '../screens/dashboards_screen.dart';
 import '../screens/approvals_inbox_screen.dart';
 import '../screens/customer_account_screen.dart';
@@ -73,6 +74,8 @@ void wireHubNavigation(WidgetRef ref) {
     registerHubComplianceActions(ref);
     // Conversion lineage (HU4): a "Related" action listing up/downstream docs.
     registerHubLineageActions(ref);
+    // Printing (HU2): a "Print preview" action rendering the default format.
+    registerHubPrintActions(ref);
     registry.registerAll([
       for (final w in hubWorkspaces)
         if (_workspaceEnabled(w.id, settings)) w,
