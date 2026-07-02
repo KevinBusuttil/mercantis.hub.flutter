@@ -14,12 +14,12 @@ dependencies:
     git:
       url: https://github.com/kevinbusuttil/mercantis.core.flutter.git
       path: packages/mercantis_core
-      ref: 4a396449185a32af11d334fc5a60a1b70f09372c
+      ref: 71f55e70ae2cfc0df2c2d1e49febea3be4e10dcc
   mercantis_core_ui:
     git:
       url: https://github.com/kevinbusuttil/mercantis.core.flutter.git
       path: packages/mercantis_core_ui
-      ref: 4a396449185a32af11d334fc5a60a1b70f09372c
+      ref: 71f55e70ae2cfc0df2c2d1e49febea3be4e10dcc
   flutter_riverpod: ^2.5.1
   go_router: ^14.2.7
   sqflite: ^2.3.3+1
