@@ -24,13 +24,18 @@ String? asNonEmpty(dynamic value) {
 /// Truthiness for a payload flag stored as a bool, int, or string ("1").
 bool isTrue(dynamic v) => v == true || v == 1 || v == '1';
 
-/// Whether an item participates in inventory, read from its payload. Defaults
-/// to true (a stock item) when `is_stock_item` is unset — matching the Item
-/// DocType default — and a service item never does. The negative-stock guard
-/// and the stock-ledger derivation both consult this so they agree on which
-/// lines move inventory (a non-stock line must be skipped end-to-end, or it
-/// would submit fine yet still spawn a phantom Stock Ledger Entry / Bin).
+/// Whether an item participates in inventory, read from its payload. Reads the
+/// `item_type` select ("Stock" moves inventory, "Service" doesn't), defaulting
+/// to a stock item when unset — matching the Item DocType default. Records
+/// created before `item_type` existed fall back to the legacy
+/// `is_service_item` / `is_stock_item` flags. The negative-stock guard and the
+/// stock-ledger derivation both consult this so they agree on which lines move
+/// inventory (a non-stock line must be skipped end-to-end, or it would submit
+/// fine yet still spawn a phantom Stock Ledger Entry / Bin).
 bool isStockItem(Map<String, dynamic> payload) {
+  final type = asNonEmpty(payload['item_type']);
+  if (type != null) return type.toLowerCase() != 'service';
+  // Legacy fallback for items saved before the item_type field.
   if (isTrue(payload['is_service_item'])) return false;
   final v = payload['is_stock_item'];
   return v == null ? true : isTrue(v);
