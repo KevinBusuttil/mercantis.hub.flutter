@@ -63,8 +63,12 @@ abstract final class StockModule {
             defaultValue: 'Moving Average',
           ),
           FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
-          FieldDefinition(key: 'is_stock_item', label: 'Is Stock Item', type: FieldType.check, defaultValue: '1'),
-          FieldDefinition(key: 'is_service_item', label: 'Is Service Item', type: FieldType.check),
+          // A single mutually-exclusive type replaces the old is_stock_item /
+          // is_service_item checkbox pair (which allowed the contradictory
+          // "both ticked" state). "Stock" items move inventory; "Service" items
+          // don't. `isStockItem` reads this, falling back to the legacy flags
+          // for records created before this field existed.
+          FieldDefinition(key: 'item_type', label: 'Item Type', type: FieldType.select, options: 'Stock\nService', defaultValue: 'Stock'),
           FieldDefinition(key: 'reorder_level', label: 'Reorder Level', type: FieldType.float, defaultValue: '0'),
           FieldDefinition(key: 'disabled', label: 'Disabled', type: FieldType.check),
           FieldDefinition(key: 'image', label: 'Image', type: FieldType.attachImage),

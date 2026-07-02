@@ -246,8 +246,7 @@ class CaptureService {
         Document(id: unspecifiedItemId, docType: 'Item', payload: {
           'item_code': unspecifiedItemId,
           'item_name': unspecifiedItemId,
-          'is_stock_item': 0,
-          'is_service_item': 1,
+          'item_type': 'Service',
         }),
         roles,
       );
