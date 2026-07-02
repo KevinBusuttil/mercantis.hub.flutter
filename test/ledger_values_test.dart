@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mercantis_hub_app/ledger/ledger_values.dart';
+// Import only isStockItem: ledger_values also exports an `isTrue` helper that
+// would collide with flutter_test's `isTrue` matcher.
+import 'package:mercantis_hub_app/ledger/ledger_values.dart' show isStockItem;
 
 /// `isStockItem` now reads the single `item_type` select that replaced the
 /// is_stock_item / is_service_item checkbox pair, while still honouring the
