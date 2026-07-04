@@ -141,15 +141,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final auth = ref.watch(authProvider);
     final active = auth.active;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+    return ResponsiveScaffold(
+      title: 'Settings',
+      padBody: false,
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(MercantisSpacing.lg),
         children: [
-          Text('Signed in', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Card(
+          AtlasSectionCard(
+            name: 'Signed in',
             child: ListTile(
+              contentPadding: EdgeInsets.zero,
               leading: CircleAvatar(
                   child: Text(_initials(active?.name ?? '?'))),
               title: Text(active?.name ?? 'No operator'),
@@ -194,10 +195,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               child: Text('${auth.profiles.length} operators on this device',
                   style: theme.textTheme.bodySmall),
             ),
-          const Divider(height: 32),
-          Text('Setup', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Card(
+          const SizedBox(height: MercantisSpacing.lg),
+          AtlasSectionCard(
+            name: 'Setup',
             child: Column(
               children: [
                 ListTile(
@@ -237,10 +237,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             ),
           ),
-          const Divider(height: 32),
-          Text('Tools', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Card(
+          const SizedBox(height: MercantisSpacing.lg),
+          AtlasSectionCard(
+            name: 'Tools',
             child: Column(
               children: [
                 ListTile(
@@ -265,62 +264,86 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             ),
           ),
-          const Divider(height: 32),
-          Text('Optional modules', style: theme.textTheme.titleMedium),
-          Text('Hidden modules apply on next launch.',
-              style: theme.textTheme.bodySmall),
-          SwitchListTile(
-            title: const Text('Point of Sale'),
-            value: _draft.posEnabled,
-            onChanged: _saving
-                ? null
-                : (v) => setState(() => _draft = _draft.copyWith(posEnabled: v)),
-          ),
-          SwitchListTile(
-            title: const Text('Manufacturing'),
-            value: _draft.manufacturingEnabled,
-            onChanged: _saving
-                ? null
-                : (v) => setState(
-                    () => _draft = _draft.copyWith(manufacturingEnabled: v)),
-          ),
-          SwitchListTile(
-            title: const Text('Deliveries (routes & fleet)'),
-            value: _draft.deliveriesEnabled,
-            onChanged: _saving
-                ? null
-                : (v) => setState(
-                    () => _draft = _draft.copyWith(deliveriesEnabled: v)),
-          ),
-          const Divider(height: 32),
-          Text('Mode', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SegmentedButton<HubUserMode>(
-                    segments: [
-                      for (final mode in HubUserMode.values)
-                        ButtonSegment<HubUserMode>(
-                            value: mode, label: Text(mode.title)),
-                    ],
-                    selected: {_draft.userMode},
-                    onSelectionChanged: _saving
-                        ? null
-                        : (selection) => setState(
-                            () => _draft = _draft.withUserMode(selection.first)),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(_draft.userMode.blurb,
+          const SizedBox(height: MercantisSpacing.lg),
+          AtlasSectionCard(
+            name: 'Optional modules',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: MercantisSpacing.xs),
+                  child: Text('Hidden modules apply on next launch.',
                       style: theme.textTheme.bodySmall),
-                ],
-              ),
+                ),
+                AtlasFieldRow(
+                  label: 'Point of Sale',
+                  onTap: _saving
+                      ? null
+                      : () => setState(() =>
+                          _draft = _draft.copyWith(posEnabled: !_draft.posEnabled)),
+                  trailing: Switch(
+                    value: _draft.posEnabled,
+                    onChanged: _saving
+                        ? null
+                        : (v) => setState(
+                            () => _draft = _draft.copyWith(posEnabled: v)),
+                  ),
+                ),
+                AtlasFieldRow(
+                  label: 'Manufacturing',
+                  onTap: _saving
+                      ? null
+                      : () => setState(() => _draft = _draft.copyWith(
+                          manufacturingEnabled: !_draft.manufacturingEnabled)),
+                  trailing: Switch(
+                    value: _draft.manufacturingEnabled,
+                    onChanged: _saving
+                        ? null
+                        : (v) => setState(() =>
+                            _draft = _draft.copyWith(manufacturingEnabled: v)),
+                  ),
+                ),
+                AtlasFieldRow(
+                  label: 'Deliveries (routes & fleet)',
+                  onTap: _saving
+                      ? null
+                      : () => setState(() => _draft = _draft.copyWith(
+                          deliveriesEnabled: !_draft.deliveriesEnabled)),
+                  trailing: Switch(
+                    value: _draft.deliveriesEnabled,
+                    onChanged: _saving
+                        ? null
+                        : (v) => setState(() =>
+                            _draft = _draft.copyWith(deliveriesEnabled: v)),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: MercantisSpacing.lg),
+          AtlasSectionCard(
+            name: 'Mode',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SegmentedButton<HubUserMode>(
+                  segments: [
+                    for (final mode in HubUserMode.values)
+                      ButtonSegment<HubUserMode>(
+                          value: mode, label: Text(mode.title)),
+                  ],
+                  selected: {_draft.userMode},
+                  onSelectionChanged: _saving
+                      ? null
+                      : (selection) => setState(
+                          () => _draft = _draft.withUserMode(selection.first)),
+                ),
+                const SizedBox(height: MercantisSpacing.sm),
+                Text(_draft.userMode.blurb, style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+          const SizedBox(height: MercantisSpacing.lg),
           FilledButton.icon(
             onPressed: _saving ? null : _save,
             icon: _saving
