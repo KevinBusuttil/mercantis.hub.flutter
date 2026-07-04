@@ -16,8 +16,13 @@ class NumberingSeriesScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final async = ref.watch(numberingSeriesProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Numbering series')),
+    return ResponsiveScaffold(
+      title: 'Numbering series',
+      // Opened from Settings via Navigator.push — ResponsiveScaffold has no
+      // AppBar, so surface a back affordance when the route can pop.
+      leading: Navigator.of(context).canPop() ? const BackButton() : null,
+      // The list / states manage their own padding.
+      padBody: false,
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
@@ -86,23 +91,25 @@ class NumberingSeriesScreen extends ConsumerWidget {
 
   Future<void> _edit(
       BuildContext context, WidgetRef ref, NumberingSeriesRow row) {
-    return showDialog<void>(
-      context: context,
-      builder: (_) => _SetNextNumberDialog(row: row),
+    return showAtlasBottomSheet<void>(
+      context,
+      // Small fixed form — a plain modal / desktop dialog, not a draggable sheet.
+      draggable: false,
+      builder: (_, __) => _SetNextNumberSheet(row: row),
     );
   }
 }
 
-class _SetNextNumberDialog extends ConsumerStatefulWidget {
-  const _SetNextNumberDialog({required this.row});
+class _SetNextNumberSheet extends ConsumerStatefulWidget {
+  const _SetNextNumberSheet({required this.row});
   final NumberingSeriesRow row;
 
   @override
-  ConsumerState<_SetNextNumberDialog> createState() =>
-      _SetNextNumberDialogState();
+  ConsumerState<_SetNextNumberSheet> createState() =>
+      _SetNextNumberSheetState();
 }
 
-class _SetNextNumberDialogState extends ConsumerState<_SetNextNumberDialog> {
+class _SetNextNumberSheetState extends ConsumerState<_SetNextNumberSheet> {
   late final TextEditingController _value =
       TextEditingController(text: '${widget.row.nextNumber}');
   bool _busy = false;
@@ -145,47 +152,50 @@ class _SetNextNumberDialogState extends ConsumerState<_SetNextNumberDialog> {
   Widget build(BuildContext context) {
     final row = widget.row;
     final theme = Theme.of(context);
-    return AlertDialog(
-      title: Text('${row.docType} numbering'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Series ${row.seriesKey}', style: theme.textTheme.bodySmall),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _value,
-            enabled: !_busy,
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: const InputDecoration(
-              labelText: 'Next number',
-              border: OutlineInputBorder(),
+    return AtlasBottomSheet(
+      showHandle: false,
+      title: '${row.docType} numbering',
+      subtitle: 'Series ${row.seriesKey}',
+      body: Padding(
+        padding: const EdgeInsets.all(MercantisSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _value,
+              enabled: !_busy,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(
+                labelText: 'Next number',
+                border: OutlineInputBorder(),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'The next document will be numbered accordingly. Lowering this '
-            'below an already-issued number can create duplicates.',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-          ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Text(_error!,
-                  style: TextStyle(color: theme.colorScheme.error)),
+            const SizedBox(height: MercantisSpacing.sm),
+            Text(
+              'The next document will be numbered accordingly. Lowering this '
+              'below an already-issued number can create duplicates.',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
-        ],
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: MercantisSpacing.md),
+                child: Text(_error!,
+                    style: TextStyle(color: theme.colorScheme.error)),
+              ),
+          ],
+        ),
       ),
-      actions: [
-        TextButton(
-            onPressed: _busy ? null : () => Navigator.of(context).pop(),
-            child: const Text('Cancel')),
-        FilledButton(
-            onPressed: _busy ? null : _submit, child: const Text('Set number')),
-      ],
+      footer: AtlasBottomActionBar(
+        primaryLabel: 'Set number',
+        onPrimary: _submit,
+        secondaryLabel: 'Cancel',
+        onSecondary: () => Navigator.of(context).pop(),
+        busy: _busy,
+      ),
     );
   }
 }

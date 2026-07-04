@@ -86,26 +86,27 @@ class _AccountantExportScreenState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Accountant export'),
-        actions: [
-          if (_csv != null)
-            IconButton(
-              icon: const Icon(Icons.copy_all_outlined),
-              tooltip: 'Copy CSV',
-              onPressed: _copy,
-            ),
-        ],
-      ),
+    return ResponsiveScaffold(
+      title: 'Accountant export',
+      // Surface a back affordance when reached via a push (no AppBar here).
+      leading: Navigator.of(context).canPop() ? const BackButton() : null,
+      padBody: false,
+      actions: [
+        if (_csv != null)
+          IconButton(
+            icon: const Icon(Icons.copy_all_outlined),
+            tooltip: 'Copy CSV',
+            onPressed: _copy,
+          ),
+      ],
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(MercantisSpacing.lg),
         children: [
-          Text('Statements', style: theme.textTheme.titleMedium),
           Text('Tick what your accountant asked for, then build the CSV pack.',
               style: theme.textTheme.bodySmall),
-          const SizedBox(height: 8),
-          Card(
+          const SizedBox(height: MercantisSpacing.sm),
+          AtlasSectionCard(
+            name: 'Statements',
             child: Column(
               children: [
                 for (var i = 0; i < _statementTitles.length; i++)
@@ -126,7 +127,7 @@ class _AccountantExportScreenState
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: MercantisSpacing.lg),
           FilledButton.icon(
             onPressed: (_building || _selected.isEmpty) ? null : _build,
             icon: _building
@@ -139,34 +140,40 @@ class _AccountantExportScreenState
           ),
           if (_error != null)
             Padding(
-              padding: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.only(top: MercantisSpacing.md),
               child: Text(_error!,
                   style: TextStyle(color: theme.colorScheme.error)),
             ),
           if (_csv != null) ...[
-            const Divider(height: 32),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('CSV pack', style: theme.textTheme.titleMedium),
-                TextButton.icon(
-                  onPressed: _copy,
-                  icon: const Icon(Icons.copy_all_outlined),
-                  label: const Text('Copy'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: SelectableText(
-                _csv!,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            const SizedBox(height: MercantisSpacing.lg),
+            AtlasSectionCard(
+              name: 'CSV pack',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: _copy,
+                      icon: const Icon(Icons.copy_all_outlined),
+                      label: const Text('Copy'),
+                    ),
+                  ),
+                  const SizedBox(height: MercantisSpacing.sm),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(MercantisSpacing.md),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: MercantisRadius.rSm,
+                    ),
+                    child: SelectableText(
+                      _csv!,
+                      style:
+                          const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
