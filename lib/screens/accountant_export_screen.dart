@@ -88,6 +88,8 @@ class _AccountantExportScreenState
     final theme = Theme.of(context);
     return ResponsiveScaffold(
       title: 'Accountant export',
+      // Surface a back affordance when reached via a push (no AppBar here).
+      leading: Navigator.of(context).canPop() ? const BackButton() : null,
       padBody: false,
       actions: [
         if (_csv != null)

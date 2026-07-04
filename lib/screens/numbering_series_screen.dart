@@ -18,6 +18,9 @@ class NumberingSeriesScreen extends ConsumerWidget {
 
     return ResponsiveScaffold(
       title: 'Numbering series',
+      // Opened from Settings via Navigator.push — ResponsiveScaffold has no
+      // AppBar, so surface a back affordance when the route can pop.
+      leading: Navigator.of(context).canPop() ? const BackButton() : null,
       // The list / states manage their own padding.
       padBody: false,
       body: async.when(
