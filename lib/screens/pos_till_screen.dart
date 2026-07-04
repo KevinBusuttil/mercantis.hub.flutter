@@ -116,17 +116,21 @@ class PosTillScreen extends ConsumerStatefulWidget {
 
 class _CartLine {
   _CartLine({required this.item, required this.name, required this.taxCode, required this.rate})
-      : qtyCtrl = TextEditingController(text: '1'),
-        rateCtrl = TextEditingController(text: rate.toStringAsFixed(2));
+      : qty = 1,
+        lineRate = rate;
   final String item;
   final String name;
   final String? taxCode;
-  final num rate;
-  final TextEditingController qtyCtrl;
-  final TextEditingController rateCtrl;
 
-  num get qty => num.tryParse(qtyCtrl.text.trim()) ?? 0;
-  num get lineRate => num.tryParse(rateCtrl.text.trim()) ?? 0;
+  /// Catalogue default rate (used only to seed [lineRate]).
+  final num rate;
+
+  /// Editable per-line quantity and rate, held as plain values so the Atlas
+  /// stepper / input rows can drive them via value+onChanged (they own their
+  /// own text controllers).
+  num qty;
+  num lineRate;
+
   num get amount => qty * lineRate;
 }
 
@@ -137,15 +141,6 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
   bool _posting = false;
   String? _result;
   String? _error;
-
-  @override
-  void dispose() {
-    for (final l in _cart) {
-      l.qtyCtrl.dispose();
-      l.rateCtrl.dispose();
-    }
-    super.dispose();
-  }
 
   TaxComputation _totals(_TillContext ctx) => HubTaxEngine.compute(
         [
@@ -194,10 +189,6 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
       setState(() {
         _posting = false;
         _result = '${posted.id} — total ${asNum(posted.payload['grand_total']).toStringAsFixed(2)}';
-        for (final l in _cart) {
-          l.qtyCtrl.dispose();
-          l.rateCtrl.dispose();
-        }
         _cart.clear();
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sale ${posted.id} completed')));
@@ -434,51 +425,56 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
     );
   }
 
-  Widget _cartTile(_CartLine l) => Card(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Row(
-            children: [
-              Expanded(flex: 3, child: Text(l.name)),
-              SizedBox(
-                width: 56,
-                child: TextField(
-                  controller: l.qtyCtrl,
-                  enabled: !_posting,
-                  textAlign: TextAlign.center,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Qty', isDense: true),
-                  onChanged: (_) => setState(() {}),
+  Widget _cartTile(_CartLine l) {
+    final theme = Theme.of(context);
+    // Keyed by line identity so each Atlas stepper / input row keeps its own
+    // state when lines are added or removed (the widgets own their controllers).
+    return Card(
+      key: ObjectKey(l),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: MercantisSpacing.md, vertical: MercantisSpacing.xs),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(l.name,
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600)),
                 ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 80,
-                child: TextField(
-                  controller: l.rateCtrl,
-                  enabled: !_posting,
-                  textAlign: TextAlign.right,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Rate', isDense: true),
-                  onChanged: (_) => setState(() {}),
+                Text(l.amount.toStringAsFixed(2),
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600)),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  tooltip: 'Remove',
+                  onPressed:
+                      _posting ? null : () => setState(() => _cart.remove(l)),
                 ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(width: 72, child: Text(l.amount.toStringAsFixed(2), textAlign: TextAlign.right)),
-              IconButton(
-                icon: const Icon(Icons.close, size: 18),
-                onPressed: _posting
-                    ? null
-                    : () => setState(() {
-                          l.qtyCtrl.dispose();
-                          l.rateCtrl.dispose();
-                          _cart.remove(l);
-                        }),
-              ),
-            ],
-          ),
+              ],
+            ),
+            AtlasQuantityStepper(
+              label: 'Qty',
+              value: l.qty,
+              min: 0,
+              readOnly: _posting,
+              onChanged: (v) => setState(() => l.qty = v ?? 0),
+            ),
+            AtlasTextInputRow(
+              label: 'Rate',
+              value: l.lineRate.toStringAsFixed(2),
+              readOnly: _posting,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (v) =>
+                  setState(() => l.lineRate = num.tryParse(v.trim()) ?? 0),
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 }
 
 /// Bottom-sheet prompt for the drawer count when closing a shift. Pops the
