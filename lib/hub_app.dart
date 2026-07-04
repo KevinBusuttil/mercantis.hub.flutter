@@ -97,7 +97,8 @@ class _HubRouterApp extends ConsumerWidget {
 
 final _hubRouterProvider = Provider((ref) {
   final nav = ref.watch(appNavigationRegistryProvider);
-  return nav.buildRouter();
+  // Brand the Atlas shell (rail / sidebar) to match the rest of the app.
+  return nav.buildRouter(brandLabel: 'Neuradix Atlas', brandMark: 'N');
 });
 
 /// Boot: install the DocType manifest if not already installed (or re-sync its
