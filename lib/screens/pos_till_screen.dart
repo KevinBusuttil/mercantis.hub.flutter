@@ -218,18 +218,7 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
             engine: engine, roles: _systemRoles)
         .report(sessionId);
     if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('X-report (snapshot)'),
-        content: _reportFigures(report),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close')),
-        ],
-      ),
-    );
+    await _showReportSheet('X-report (snapshot)', report, doneLabel: 'Close');
   }
 
   Future<void> _closeShift(_TillContext ctx) async {
@@ -247,78 +236,61 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
     if (!mounted) return;
     // Reopen a fresh session for the next shift on the next load.
     ref.invalidate(_tillContextProvider);
-    await showDialog<void>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Shift closed (Z-report)'),
-        content: _reportFigures(z),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Done')),
-        ],
-      ),
-    );
+    await _showReportSheet('Shift closed (Z-report)', z, doneLabel: 'Done');
   }
 
   Future<num?> _promptCountedCash() {
-    final controller = TextEditingController();
-    return showDialog<num?>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Close shift'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-              labelText: 'Counted cash in drawer',
-              border: OutlineInputBorder()),
+    return showAtlasBottomSheet<num?>(
+      context,
+      // Small fixed form — a plain modal / desktop dialog, not a draggable sheet.
+      draggable: false,
+      builder: (_, __) => const _CountedCashSheet(),
+    );
+  }
+
+  Future<void> _showReportSheet(String title, shift.PosShiftReport r,
+      {required String doneLabel}) {
+    return showAtlasBottomSheet<void>(
+      context,
+      draggable: false,
+      builder: (sheetCtx, __) => AtlasBottomSheet(
+        showHandle: false,
+        title: title,
+        body: Padding(
+          padding: const EdgeInsets.all(MercantisSpacing.lg),
+          child: _reportFigures(r),
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(c).pop(null),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.of(c)
-                  .pop(num.tryParse(controller.text.trim()) ?? 0),
-              child: const Text('Close shift')),
-        ],
+        footer: AtlasBottomActionBar(
+          primaryLabel: doneLabel,
+          onPrimary: () => Navigator.of(sheetCtx).pop(),
+        ),
       ),
     );
   }
 
   Widget _reportFigures(shift.PosShiftReport r) {
-    Widget line(String k, String v) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [Text(k), Text(v)],
-          ),
-        );
-    return SizedBox(
-      width: 320,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          line('Transactions', '${r.transactions}'),
-          line('Gross sales', r.grossSales.toStringAsFixed(2)),
-          line('Refunds', r.refunds.toStringAsFixed(2)),
-          line('Net sales', r.netSales.toStringAsFixed(2)),
-          line('Items sold', '${r.itemsSold}'),
-          line('Tax collected', r.taxCollected.toStringAsFixed(2)),
-          const Divider(),
-          for (final e in r.tenderTotals.entries)
-            line(e.key, e.value.toStringAsFixed(2)),
-          const Divider(),
-          line('Opening float', r.openingFloat.toStringAsFixed(2)),
-          line('Expected cash', r.expectedCash.toStringAsFixed(2)),
-          if (r.isZReport) ...[
-            line('Counted cash', (r.countedCash ?? 0).toStringAsFixed(2)),
-            line('Over / short', (r.overShort ?? 0).toStringAsFixed(2)),
-          ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AtlasTotalRow(label: 'Transactions', value: '${r.transactions}'),
+        AtlasTotalRow(label: 'Gross sales', value: r.grossSales.toStringAsFixed(2)),
+        AtlasTotalRow(label: 'Refunds', value: r.refunds.toStringAsFixed(2)),
+        AtlasTotalRow(label: 'Net sales', value: r.netSales.toStringAsFixed(2)),
+        AtlasTotalRow(label: 'Items sold', value: '${r.itemsSold}'),
+        AtlasTotalRow(label: 'Tax collected', value: r.taxCollected.toStringAsFixed(2)),
+        const Divider(),
+        for (final e in r.tenderTotals.entries)
+          AtlasTotalRow(label: e.key, value: e.value.toStringAsFixed(2)),
+        const Divider(),
+        AtlasTotalRow(label: 'Opening float', value: r.openingFloat.toStringAsFixed(2)),
+        AtlasTotalRow(label: 'Expected cash', value: r.expectedCash.toStringAsFixed(2)),
+        if (r.isZReport) ...[
+          AtlasTotalRow(
+              label: 'Counted cash', value: (r.countedCash ?? 0).toStringAsFixed(2)),
+          AtlasTotalRow(
+              label: 'Over / short', value: (r.overShort ?? 0).toStringAsFixed(2)),
         ],
-      ),
+      ],
     );
   }
 
@@ -326,29 +298,31 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
   Widget build(BuildContext context) {
     final ctxAsync = ref.watch(_tillContextProvider);
     final sessionId = ctxAsync.asData?.value.sessionId;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Point of Sale'),
-        actions: [
-          if (sessionId != null)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.assessment_outlined),
-              tooltip: 'Shift reports',
-              onSelected: (v) {
-                final ctx = ctxAsync.asData!.value;
-                if (v == 'x') _showXReport(ctx);
-                if (v == 'z') _closeShift(ctx);
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'x', child: Text('X-report (snapshot)')),
-                PopupMenuItem(value: 'z', child: Text('Close shift (Z-report)')),
-              ],
-            ),
-        ],
-      ),
+    return ResponsiveScaffold(
+      title: 'Point of Sale',
+      padBody: false,
+      actions: [
+        if (sessionId != null)
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.assessment_outlined),
+            tooltip: 'Shift reports',
+            onSelected: (v) {
+              final ctx = ctxAsync.asData!.value;
+              if (v == 'x') _showXReport(ctx);
+              if (v == 'z') _closeShift(ctx);
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'x', child: Text('X-report (snapshot)')),
+              PopupMenuItem(value: 'z', child: Text('Close shift (Z-report)')),
+            ],
+          ),
+      ],
       body: ctxAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Failed to load: $e'))),
+        error: (e, _) => Center(
+            child: Padding(
+                padding: const EdgeInsets.all(MercantisSpacing.xl),
+                child: Text('Failed to load: $e'))),
         data: _till,
       ),
     );
@@ -421,14 +395,17 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         Material(
           elevation: 8,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(MercantisSpacing.lg),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _totalRow('Net', totals.netTotal),
-                _totalRow('VAT', totals.totalTax),
-                _totalRow('Total', totals.grandTotal, bold: true),
-                const SizedBox(height: 12),
+                AtlasTotalRow(label: 'Net', value: totals.netTotal.toStringAsFixed(2)),
+                AtlasTotalRow(label: 'VAT', value: totals.totalTax.toStringAsFixed(2)),
+                AtlasTotalRow(
+                    label: 'Total',
+                    value: totals.grandTotal.toStringAsFixed(2),
+                    emphasize: true),
+                const SizedBox(height: MercantisSpacing.md),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
@@ -441,12 +418,12 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
                 ),
                 if (_result != null)
                   Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.only(top: MercantisSpacing.sm),
                     child: Text('Completed $_result', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
                   ),
                 if (_error != null)
                   Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.only(top: MercantisSpacing.sm),
                     child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                   ),
               ],
@@ -502,14 +479,49 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
           ),
         ),
       );
+}
 
-  Widget _totalRow(String label, num value, {bool bold = false}) {
-    final style = bold ? Theme.of(context).textTheme.titleLarge : Theme.of(context).textTheme.bodyLarge;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [Text(label, style: style), Text(value.toStringAsFixed(2), style: style)],
+/// Bottom-sheet prompt for the drawer count when closing a shift. Pops the
+/// parsed amount (0 when unparseable) on confirm, or null on cancel — matching
+/// the previous dialog's return contract.
+class _CountedCashSheet extends StatefulWidget {
+  const _CountedCashSheet();
+
+  @override
+  State<_CountedCashSheet> createState() => _CountedCashSheetState();
+}
+
+class _CountedCashSheetState extends State<_CountedCashSheet> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AtlasBottomSheet(
+      showHandle: false,
+      title: 'Close shift',
+      body: Padding(
+        padding: const EdgeInsets.all(MercantisSpacing.lg),
+        child: TextField(
+          controller: _controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+              labelText: 'Counted cash in drawer',
+              border: OutlineInputBorder()),
+        ),
+      ),
+      footer: AtlasBottomActionBar(
+        primaryLabel: 'Close shift',
+        onPrimary: () => Navigator.of(context)
+            .pop(num.tryParse(_controller.text.trim()) ?? 0),
+        secondaryLabel: 'Cancel',
+        onSecondary: () => Navigator.of(context).pop(null),
       ),
     );
   }
