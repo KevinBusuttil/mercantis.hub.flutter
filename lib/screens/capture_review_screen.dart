@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mercantis_core/mercantis_core.dart';
+import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../capture/capture_providers.dart';
 import '../ledger/ledger_values.dart';
@@ -122,8 +123,9 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Review receipt')),
+    return ResponsiveScaffold(
+      title: 'Review receipt',
+      padBody: false,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null && _capture == null
@@ -139,97 +141,96 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
     return Stack(
       children: [
         ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(MercantisSpacing.lg),
           children: [
             image.maybeWhen(
               data: (bytes) => bytes == null
                   ? const SizedBox.shrink()
                   : ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: MercantisRadius.rLg,
                       child: Image.memory(bytes,
                           height: 220, width: double.infinity, fit: BoxFit.cover),
                     ),
               orElse: () => const SizedBox.shrink(),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _merchant,
-              decoration: const InputDecoration(
-                  labelText: 'Merchant', border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String?>(
-              initialValue: _suppliers.any((s) => s.id == _supplierId)
-                  ? _supplierId
-                  : null,
-              decoration: const InputDecoration(
-                  labelText: 'Supplier (optional)',
-                  border: OutlineInputBorder(),
-                  helperText: 'Leave blank to use a placeholder you can change later'),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('Unspecified')),
-                for (final s in _suppliers)
-                  DropdownMenuItem(value: s.id, child: Text(s.name)),
-              ],
-              onChanged: (v) => setState(() => _supplierId = v),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _date,
-                    readOnly: true,
+            const SizedBox(height: MercantisSpacing.lg),
+            AtlasSectionCard(
+              name: 'Receipt',
+              child: Column(
+                children: [
+                  // Controller-backed Atlas rows: the field controllers stay the
+                  // source of truth (read verbatim in _createDraft); the rows
+                  // just drive them via value/onChanged.
+                  AtlasTextInputRow(
+                    label: 'Merchant',
+                    value: _merchant.text,
+                    onChanged: (v) => _merchant.text = v,
+                  ),
+                  const SizedBox(height: MercantisSpacing.sm),
+                  DropdownButtonFormField<String?>(
+                    initialValue: _suppliers.any((s) => s.id == _supplierId)
+                        ? _supplierId
+                        : null,
                     decoration: const InputDecoration(
-                        labelText: 'Date',
+                        labelText: 'Supplier (optional)',
                         border: OutlineInputBorder(),
-                        suffixIcon: Icon(Icons.calendar_today, size: 18)),
-                    onTap: _pickDate,
+                        helperText:
+                            'Leave blank to use a placeholder you can change later'),
+                    items: [
+                      const DropdownMenuItem(
+                          value: null, child: Text('Unspecified')),
+                      for (final s in _suppliers)
+                        DropdownMenuItem(value: s.id, child: Text(s.name)),
+                    ],
+                    onChanged: (v) => setState(() => _supplierId = v),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _invoiceNo,
-                    decoration: const InputDecoration(
-                        labelText: 'Invoice / Receipt no',
-                        border: OutlineInputBorder()),
+                  const SizedBox(height: MercantisSpacing.sm),
+                  AtlasDateFieldRow(
+                    label: 'Date',
+                    value: _date.text,
+                    onChanged: (s) => setState(() => _date.text = s),
                   ),
-                ),
-              ],
+                  AtlasTextInputRow(
+                    label: 'Invoice / Receipt no',
+                    value: _invoiceNo.text,
+                    onChanged: (v) => _invoiceNo.text = v,
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: _amountField(_net, 'Net')),
-                const SizedBox(width: 12),
-                Expanded(child: _amountField(_vat, 'VAT')),
-                const SizedBox(width: 12),
-                Expanded(child: _amountField(_grand, 'Total')),
-              ],
+            const SizedBox(height: MercantisSpacing.lg),
+            AtlasSectionCard(
+              name: 'Amounts',
+              child: Column(
+                children: [
+                  _amountField(_net, 'Net'),
+                  _amountField(_vat, 'VAT'),
+                  _amountField(_grand, 'Total'),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _intendedRole,
-              decoration: const InputDecoration(
-                  labelText: 'Show in queue for', border: OutlineInputBorder()),
-              items: const [
-                DropdownMenuItem(
-                    value: CaptureModule.roleAnyone, child: Text('Anyone')),
-                DropdownMenuItem(value: 'Bookkeeping', child: Text('Bookkeeping')),
-                DropdownMenuItem(value: 'Management', child: Text('Management')),
-                DropdownMenuItem(value: 'Field', child: Text('Field')),
-              ],
-              onChanged: (v) =>
-                  setState(() => _intendedRole = v ?? CaptureModule.roleAnyone),
+            const SizedBox(height: MercantisSpacing.lg),
+            AtlasSectionCard(
+              name: 'Routing',
+              child: AtlasSelectorRow(
+                label: 'Show in queue for',
+                value: _intendedRole,
+                options: const [
+                  CaptureModule.roleAnyone,
+                  'Bookkeeping',
+                  'Management',
+                  'Field',
+                ],
+                onChanged: (v) => setState(() => _intendedRole = v),
+              ),
             ),
             if (_error != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: MercantisSpacing.md),
               Text(_error!,
                   style:
                       TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
-            const SizedBox(height: 24),
+            const SizedBox(height: MercantisSpacing.xl),
             if (alreadyDrafted)
               FilledButton.tonalIcon(
                 onPressed: () => context.go(
@@ -247,7 +248,7 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
                     minimumSize: const Size.fromHeight(52)),
                 label: const Text('Create draft purchase invoice'),
               ),
-            const SizedBox(height: 8),
+            const SizedBox(height: MercantisSpacing.sm),
             Text(
               'A draft is created for you to review and post later. Nothing is submitted automatically.',
               textAlign: TextAlign.center,
@@ -266,24 +267,10 @@ class _CaptureReviewScreenState extends ConsumerState<CaptureReviewScreen> {
     );
   }
 
-  Widget _amountField(TextEditingController c, String label) => TextField(
-        controller: c,
+  Widget _amountField(TextEditingController c, String label) => AtlasTextInputRow(
+        label: label,
+        value: c.text,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration:
-            InputDecoration(labelText: label, border: const OutlineInputBorder()),
+        onChanged: (v) => c.text = v,
       );
-
-  Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final initial = DateTime.tryParse(_date.text) ?? now;
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 1),
-    );
-    if (picked == null) return;
-    setState(() =>
-        _date.text = picked.toIso8601String().split('T').first);
-  }
 }
