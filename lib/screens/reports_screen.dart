@@ -29,58 +29,70 @@ class ReportsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncEngine = ref.watch(reportEngineProvider);
     final roles = ref.watch(currentUserProvider).roles;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Reports')),
+    return ResponsiveScaffold(
+      title: 'Reports',
+      padBody: false,
       body: ListView(
+        padding: const EdgeInsets.all(MercantisSpacing.lg),
         children: [
-          const _SectionHeader('Financial statements'),
-          for (final s in _statements)
-            ListTile(
-              leading: const Icon(Icons.account_balance_outlined),
-              title: Text(s.title),
-              subtitle: Text(s.subtitle),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => AggregatingReportViewerScreen(title: s.title, provider: s.provider),
-                ),
-              ),
-            ),
-          const _SectionHeader('Registers'),
-          asyncEngine.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (e, _) => Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text('Failed to load reports: $e'),
-            ),
-            data: (engine) {
-              final reports = engine.availableReports(roles);
-              if (reports.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text('No reports available'),
-                );
-              }
-              return Column(
-                children: [
-                  for (final r in reports)
-                    ListTile(
-                      leading: const Icon(Icons.bar_chart_outlined),
-                      title: Text(r.name),
-                      subtitle: Text(r.docType),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ReportViewerScreen(reportId: r.id),
-                        ),
+          AtlasSectionCard(
+            name: 'Financial statements',
+            child: Column(
+              children: [
+                for (final s in _statements)
+                  ListTile(
+                    leading: const Icon(Icons.account_balance_outlined),
+                    title: Text(s.title),
+                    subtitle: Text(s.subtitle),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => AggregatingReportViewerScreen(
+                            title: s.title, provider: s.provider),
                       ),
                     ),
-                ],
-              );
-            },
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: MercantisSpacing.lg),
+          AtlasSectionCard(
+            name: 'Registers',
+            child: asyncEngine.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.all(MercantisSpacing.xl),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (e, _) => Padding(
+                padding: const EdgeInsets.all(MercantisSpacing.xl),
+                child: Text('Failed to load reports: $e'),
+              ),
+              data: (engine) {
+                final reports = engine.availableReports(roles);
+                if (reports.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(MercantisSpacing.xl),
+                    child: Text('No reports available'),
+                  );
+                }
+                return Column(
+                  children: [
+                    for (final r in reports)
+                      ListTile(
+                        leading: const Icon(Icons.bar_chart_outlined),
+                        title: Text(r.name),
+                        subtitle: Text(r.docType),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ReportViewerScreen(reportId: r.id),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -123,13 +135,14 @@ class _ReportScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
+    return ResponsiveScaffold(
+      title: title,
+      padBody: false,
       body: result.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(MercantisSpacing.xl),
             child: Text('Failed to run report:\n$e', textAlign: TextAlign.center),
           ),
         ),
@@ -174,22 +187,3 @@ class _ReportTable extends StatelessWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.label);
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Text(
-        label.toUpperCase(),
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
-            ),
-      ),
-    );
-  }
-}

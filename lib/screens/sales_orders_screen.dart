@@ -154,7 +154,6 @@ class _SalesOrderDetail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final s = detail.header.docStatus;
     final statusLabel = switch (s) {
       0 => 'Draft',
@@ -177,7 +176,7 @@ class _SalesOrderDetail extends StatelessWidget {
       statusTone: statusTone,
       tabs: const ['Overview', 'Items'],
       tabViews: [
-        _Overview(detail: detail, theme: theme),
+        _Overview(detail: detail),
         _Items(items: detail.items),
       ],
       child: const SizedBox.shrink(),
@@ -186,44 +185,55 @@ class _SalesOrderDetail extends StatelessWidget {
 }
 
 class _Overview extends StatelessWidget {
-  const _Overview({required this.detail, required this.theme});
+  const _Overview({required this.detail});
   final SalesOrderDetail detail;
-  final ThemeData theme;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(MercantisSpacing.xl),
       children: [
-        _kv('Customer', detail.header.customer, theme),
-        _kv('Order date', detail.header.date, theme),
-        _kv('Delivery date', detail.header.deliveryDate, theme),
-        _kv('Currency', detail.currency, theme),
-        const SizedBox(height: MercantisSpacing.lg),
-        Text('Totals', style: theme.textTheme.titleSmall),
-        const SizedBox(height: MercantisSpacing.sm),
-        _kv('Subtotal', detail.subtotal, theme),
-        _kv('Grand total', detail.grandTotal, theme, bold: true),
-      ],
-    );
-  }
-
-  Widget _kv(String k, String v, ThemeData t, {bool bold = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          SizedBox(width: 160, child: Text(k, style: t.textTheme.bodySmall)),
-          Expanded(
-            child: Text(
-              v.isEmpty ? '—' : v,
-              style: t.textTheme.bodyMedium?.copyWith(
-                fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-              ),
-            ),
+        AtlasSectionCard(
+          name: 'Order',
+          child: Column(
+            children: [
+              AtlasFieldRow(
+                  label: 'Customer',
+                  value: detail.header.customer,
+                  placeholder: '—',
+                  readOnly: true),
+              AtlasFieldRow(
+                  label: 'Order date',
+                  value: detail.header.date,
+                  placeholder: '—',
+                  readOnly: true),
+              AtlasFieldRow(
+                  label: 'Delivery date',
+                  value: detail.header.deliveryDate,
+                  placeholder: '—',
+                  readOnly: true),
+              AtlasFieldRow(
+                  label: 'Currency',
+                  value: detail.currency,
+                  placeholder: '—',
+                  readOnly: true),
+            ],
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: MercantisSpacing.lg),
+        AtlasSectionCard(
+          name: 'Totals',
+          child: Column(
+            children: [
+              AtlasTotalRow(label: 'Subtotal', value: detail.subtotal),
+              AtlasTotalRow(
+                  label: 'Grand total',
+                  value: detail.grandTotal,
+                  emphasize: true),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
