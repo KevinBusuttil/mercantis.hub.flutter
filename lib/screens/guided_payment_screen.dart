@@ -200,13 +200,14 @@ class _GuidedPaymentScreenState extends ConsumerState<GuidedPaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final ctxAsync = ref.watch(_paymentContextProvider(_receive));
-    return Scaffold(
-      appBar: AppBar(title: Text(_title)),
+    return ResponsiveScaffold(
+      title: _title,
+      padBody: false,
       body: ctxAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(MercantisSpacing.xl),
             child: Text('Failed to load: $e', textAlign: TextAlign.center),
           ),
         ),
@@ -218,86 +219,101 @@ class _GuidedPaymentScreenState extends ConsumerState<GuidedPaymentScreen> {
   Widget _form(_PaymentContext ctx) {
     final bankValue = _bank ??
         (ctx.bankAccounts.any((a) => a.id == ctx.defaultBank) ? ctx.defaultBank : null);
+    final theme = Theme.of(context);
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(MercantisSpacing.lg),
       children: [
-        DropdownButtonFormField<String>(
-          initialValue: _party,
-          decoration: InputDecoration(labelText: '$_partyLabel *', border: const OutlineInputBorder()),
-          items: [
-            for (final p in ctx.parties)
-              DropdownMenuItem(value: p.id, child: Text(_partyName(p))),
-          ],
-          onChanged: _saving ? null : (v) => _onPartySelected(v),
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          initialValue: bankValue,
-          decoration: const InputDecoration(labelText: 'Cash / Bank account', border: OutlineInputBorder()),
-          items: [
-            for (final a in ctx.bankAccounts)
-              DropdownMenuItem(
-                value: a.id,
-                child: Text((a.payload['account_name'] as String?) ?? a.id),
+        AtlasSectionCard(
+          name: 'Payment',
+          child: Column(
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: _party,
+                decoration: InputDecoration(
+                    labelText: '$_partyLabel *',
+                    border: const OutlineInputBorder()),
+                items: [
+                  for (final p in ctx.parties)
+                    DropdownMenuItem(value: p.id, child: Text(_partyName(p))),
+                ],
+                onChanged: _saving ? null : (v) => _onPartySelected(v),
               ),
-          ],
-          onChanged: _saving ? null : (v) => setState(() => _bank = v),
+              const SizedBox(height: MercantisSpacing.md),
+              DropdownButtonFormField<String>(
+                initialValue: bankValue,
+                decoration: const InputDecoration(
+                    labelText: 'Cash / Bank account',
+                    border: OutlineInputBorder()),
+                items: [
+                  for (final a in ctx.bankAccounts)
+                    DropdownMenuItem(
+                      value: a.id,
+                      child:
+                          Text((a.payload['account_name'] as String?) ?? a.id),
+                    ),
+                ],
+                onChanged: _saving ? null : (v) => setState(() => _bank = v),
+              ),
+              const SizedBox(height: MercantisSpacing.sm),
+              AtlasDateFieldRow(
+                label: 'Posting date',
+                readOnly: _saving,
+                value: _isoDate(_postingDate),
+                onChanged: (s) =>
+                    setState(() => _postingDate = DateTime.parse(s)),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 12),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Posting date'),
-          subtitle: Text(_isoDate(_postingDate)),
-          trailing: const Icon(Icons.calendar_today_outlined),
-          onTap: _saving ? null : () async {
-            final picked = await showDatePicker(
-              context: context,
-              initialDate: _postingDate,
-              firstDate: DateTime(2000),
-              lastDate: DateTime(2100),
-            );
-            if (picked != null) setState(() => _postingDate = picked);
-          },
+        const SizedBox(height: MercantisSpacing.lg),
+        AtlasSectionCard(
+          name: 'Open ${_docLabel}s',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_loadingInvoices)
+                const Padding(
+                    padding: EdgeInsets.all(MercantisSpacing.lg),
+                    child: Center(child: CircularProgressIndicator()))
+              else if (_party == null)
+                Text('Select a $_partyLabel to see open ${_docLabel}s.',
+                    style: theme.textTheme.bodySmall)
+              else if (_rows.isEmpty)
+                Text('No open ${_docLabel}s for this $_partyLabel.',
+                    style: theme.textTheme.bodySmall)
+              else
+                for (final row in _rows) _invoiceRow(row),
+            ],
+          ),
         ),
-        const Divider(height: 24),
-        Text('Open ${_docLabel}s', style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 8),
-        if (_loadingInvoices)
-          const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator()))
-        else if (_party == null)
-          Text('Select a $_partyLabel to see open ${_docLabel}s.',
-              style: Theme.of(context).textTheme.bodySmall)
-        else if (_rows.isEmpty)
-          Text('No open ${_docLabel}s for this $_partyLabel.',
-              style: Theme.of(context).textTheme.bodySmall)
-        else
-          for (final row in _rows) _invoiceRow(row),
-        const Divider(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('Total', style: Theme.of(context).textTheme.titleMedium),
-            Text(_total.toStringAsFixed(2), style: Theme.of(context).textTheme.titleMedium),
-          ],
+        const SizedBox(height: MercantisSpacing.lg),
+        AtlasTotalRow(
+          label: 'Total',
+          value: _total.toStringAsFixed(2),
+          emphasize: true,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: MercantisSpacing.lg),
         FilledButton.icon(
           onPressed: (_saving || _total <= 0) ? null : () => _post(ctx),
           icon: _saving
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.check),
           label: Text(_receive ? 'Receive Payment' : 'Pay Supplier'),
         ),
         if (_successId != null)
           Padding(
-            padding: const EdgeInsets.only(top: 12),
+            padding: const EdgeInsets.only(top: MercantisSpacing.md),
             child: Text('Posted $_successId',
-                style: TextStyle(color: Theme.of(context).colorScheme.primary)),
+                style: TextStyle(color: theme.colorScheme.primary)),
           ),
         if (_error != null)
           Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            padding: const EdgeInsets.only(top: MercantisSpacing.md),
+            child: Text(_error!,
+                style: TextStyle(color: theme.colorScheme.error)),
           ),
       ],
     );
