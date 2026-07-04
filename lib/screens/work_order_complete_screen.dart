@@ -97,37 +97,46 @@ class _WorkOrderCompleteScreenState extends ConsumerState<WorkOrderCompleteScree
   @override
   Widget build(BuildContext context) {
     final woAsync = ref.watch(_workOrdersProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Complete Work Order')),
+    return ResponsiveScaffold(
+      title: 'Complete Work Order',
+      padBody: false,
       body: woAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Failed to load: $e'))),
+        error: (e, _) => Center(
+            child: Padding(
+                padding: const EdgeInsets.all(MercantisSpacing.xl),
+                child: Text('Failed to load: $e'))),
         data: (workOrders) => ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(MercantisSpacing.lg),
           children: [
-            DropdownButtonFormField<String>(
-              initialValue: _woId,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Work Order', border: OutlineInputBorder()),
-              items: [
-                for (final w in workOrders)
-                  DropdownMenuItem(
-                    value: w.id,
-                    child: Text('${w.id} · ${(w.payload['item'] as String?) ?? ''}'),
-                  ),
-              ],
-              onChanged: _busy ? null : _select,
+            AtlasSectionCard(
+              name: 'Work order',
+              child: DropdownButtonFormField<String>(
+                initialValue: _woId,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                    labelText: 'Work Order', border: OutlineInputBorder()),
+                items: [
+                  for (final w in workOrders)
+                    DropdownMenuItem(
+                      value: w.id,
+                      child: Text(
+                          '${w.id} · ${(w.payload['item'] as String?) ?? ''}'),
+                    ),
+                ],
+                onChanged: _busy ? null : _select,
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: MercantisSpacing.lg),
             if (_wo != null) ..._details(_wo!),
             if (_result != null)
               Padding(
-                padding: const EdgeInsets.only(top: 16),
+                padding: const EdgeInsets.only(top: MercantisSpacing.md),
                 child: Text(_result!, style: TextStyle(color: Theme.of(context).colorScheme.primary)),
               ),
             if (_error != null)
               Padding(
-                padding: const EdgeInsets.only(top: 16),
+                padding: const EdgeInsets.only(top: MercantisSpacing.md),
                 child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
               ),
           ],
@@ -139,31 +148,65 @@ class _WorkOrderCompleteScreenState extends ConsumerState<WorkOrderCompleteScree
   List<Widget> _details(Document wo) {
     final required = wo.children['required_items'] ?? const [];
     return [
-      Text('Producing: ${(wo.payload['item'] as String?) ?? ''}', style: Theme.of(context).textTheme.titleMedium),
-      Text('From ${(wo.payload['source_warehouse'] as String?) ?? '—'} → '
-          '${(wo.payload['target_warehouse'] as String?) ?? '—'}'),
-      const SizedBox(height: 12),
-      Text('Raw materials to consume', style: Theme.of(context).textTheme.titleSmall),
-      for (final r in required)
-        ListTile(
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          title: Text((r.payload['item'] as String?) ?? ''),
-          trailing: Text(asNum(r.payload['required_qty']).toString()),
+      AtlasSectionCard(
+        name: 'Production',
+        child: Column(
+          children: [
+            AtlasFieldRow(
+                label: 'Producing',
+                value: wo.payload['item'] as String?,
+                placeholder: '—',
+                readOnly: true),
+            AtlasFieldRow(
+                label: 'Source warehouse',
+                value: wo.payload['source_warehouse'] as String?,
+                placeholder: '—',
+                readOnly: true),
+            AtlasFieldRow(
+                label: 'Target warehouse',
+                value: wo.payload['target_warehouse'] as String?,
+                placeholder: '—',
+                readOnly: true),
+          ],
         ),
-      const SizedBox(height: 12),
-      TextField(
-        controller: _qtyCtrl,
-        enabled: !_busy,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(labelText: 'Produced quantity', border: OutlineInputBorder()),
       ),
-      const SizedBox(height: 16),
+      const SizedBox(height: MercantisSpacing.lg),
+      AtlasSectionCard(
+        name: 'Raw materials to consume',
+        child: required.isEmpty
+            ? Text('No raw materials on this work order.',
+                style: Theme.of(context).textTheme.bodySmall)
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final r in required)
+                    AtlasTotalRow(
+                      label: (r.payload['item'] as String?) ?? '',
+                      value: asNum(r.payload['required_qty']).toString(),
+                    ),
+                ],
+              ),
+      ),
+      const SizedBox(height: MercantisSpacing.lg),
+      AtlasSectionCard(
+        name: 'Complete',
+        // Controller-backed row: _qtyCtrl stays the source of truth read
+        // verbatim in _post; the Atlas row just drives it via value/onChanged.
+        child: AtlasTextInputRow(
+          label: 'Produced quantity',
+          value: _qtyCtrl.text,
+          readOnly: _busy,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onChanged: (v) => _qtyCtrl.text = v,
+        ),
+      ),
+      const SizedBox(height: MercantisSpacing.lg),
       FilledButton.icon(
         onPressed: _busy ? null : _post,
         icon: _busy
             ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
             : const Icon(Icons.precision_manufacturing),
+        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
         label: const Text('Post production'),
       ),
     ];
