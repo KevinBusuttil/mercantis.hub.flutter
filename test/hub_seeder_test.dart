@@ -62,12 +62,21 @@ void main() {
     expect(fy.payload['year_end_date'], '2026-12-31');
 
     final accounts = await engine.list('Account', userRoles: roles);
-    expect(accounts.length, 10); // 8 core + Opening Balance Equity + Retained Earnings
+    expect(accounts.length, 15); // 5 root groups + 10 posting accounts
     expect(await engine.fetch('Account', 'Opening Balance Equity'), isNotNull);
     expect(await engine.fetch('Account', 'Retained Earnings'), isNotNull);
     final vat = (await engine.fetch('Account', 'VAT'))!;
     expect(vat.payload['root_type'], 'Liability');
     expect(vat.payload['account_type'], 'Tax');
+
+    // The chart is a two-level tree: a group per root type, leaves parented.
+    final assets = (await engine.fetch('Account', 'Assets'))!;
+    expect(assets.payload['is_group'], '1');
+    expect(assets.payload['parent_account'], anyOf(isNull, ''));
+    final bank = (await engine.fetch('Account', 'Bank'))!;
+    expect(bank.payload['is_group'], '0');
+    expect(bank.payload['parent_account'], 'Assets');
+    expect(vat.payload['parent_account'], 'Liabilities');
 
     final codes = await engine.list('Tax Code', userRoles: roles);
     expect(codes.length, 5);
@@ -95,7 +104,7 @@ void main() {
 
     expect(second.created, 0);
     expect((await engine.list('Company', userRoles: roles)).length, 1);
-    expect((await engine.list('Account', userRoles: roles)).length, 10);
+    expect((await engine.list('Account', userRoles: roles)).length, 15);
     expect((await engine.list('Tax Code', userRoles: roles)).length, 5);
     expect(await seeder.companyExists(), isTrue);
   });
