@@ -22,11 +22,14 @@ class SeedAccount {
 }
 
 /// One node in a starter tree-master hierarchy (Item Group, Customer Group, …).
-/// [id] doubles as the deterministic record id and its display name, and the id
-/// children point at.
+/// [id] is the deterministic record id children point at; it is namespaced per
+/// master because `documents.id` is a single global key, so the same display
+/// [name] (e.g. "Services") can appear under two masters without colliding.
 class SeedTreeNode {
-  const SeedTreeNode(this.id, {this.isGroup = false, this.parent});
+  const SeedTreeNode(this.id, this.name, {this.isGroup = false, this.parent});
   final String id;
+  /// Display name (the tree label / link-picker title).
+  final String name;
   /// A group (branch) node holds children; leaves are the ones records tag.
   final bool isGroup;
   /// Parent node id; null for the root.
@@ -185,9 +188,9 @@ abstract final class HubChart {
       nameField: 'item_group_name',
       parentField: 'parent_item_group',
       nodes: [
-        SeedTreeNode('All Item Groups', isGroup: true),
-        SeedTreeNode('Products', parent: 'All Item Groups'),
-        SeedTreeNode('Services', parent: 'All Item Groups'),
+        SeedTreeNode('IG-All', 'All Item Groups', isGroup: true),
+        SeedTreeNode('IG-Products', 'Products', parent: 'IG-All'),
+        SeedTreeNode('IG-Services', 'Services', parent: 'IG-All'),
       ],
     ),
     SeedTreeMaster(
@@ -195,9 +198,9 @@ abstract final class HubChart {
       nameField: 'customer_group_name',
       parentField: 'parent_customer_group',
       nodes: [
-        SeedTreeNode('All Customer Groups', isGroup: true),
-        SeedTreeNode('Retail', parent: 'All Customer Groups'),
-        SeedTreeNode('Business', parent: 'All Customer Groups'),
+        SeedTreeNode('CG-All', 'All Customer Groups', isGroup: true),
+        SeedTreeNode('CG-Retail', 'Retail', parent: 'CG-All'),
+        SeedTreeNode('CG-Business', 'Business', parent: 'CG-All'),
       ],
     ),
     SeedTreeMaster(
@@ -205,9 +208,9 @@ abstract final class HubChart {
       nameField: 'supplier_group_name',
       parentField: 'parent_supplier_group',
       nodes: [
-        SeedTreeNode('All Supplier Groups', isGroup: true),
-        SeedTreeNode('Goods', parent: 'All Supplier Groups'),
-        SeedTreeNode('Services', parent: 'All Supplier Groups'),
+        SeedTreeNode('SG-All', 'All Supplier Groups', isGroup: true),
+        SeedTreeNode('SG-Goods', 'Goods', parent: 'SG-All'),
+        SeedTreeNode('SG-Services', 'Services', parent: 'SG-All'),
       ],
     ),
     SeedTreeMaster(
@@ -215,9 +218,9 @@ abstract final class HubChart {
       nameField: 'territory_name',
       parentField: 'parent_territory',
       nodes: [
-        SeedTreeNode('All Territories', isGroup: true),
-        SeedTreeNode('Local', parent: 'All Territories'),
-        SeedTreeNode('Online', parent: 'All Territories'),
+        SeedTreeNode('TR-All', 'All Territories', isGroup: true),
+        SeedTreeNode('TR-Local', 'Local', parent: 'TR-All'),
+        SeedTreeNode('TR-Online', 'Online', parent: 'TR-All'),
       ],
     ),
     SeedTreeMaster(
@@ -225,8 +228,8 @@ abstract final class HubChart {
       nameField: 'cost_center_name',
       parentField: 'parent_cost_center',
       nodes: [
-        SeedTreeNode('Main', isGroup: true),
-        SeedTreeNode('Operations', parent: 'Main'),
+        SeedTreeNode('CC-Main', 'Main', isGroup: true),
+        SeedTreeNode('CC-Operations', 'Operations', parent: 'CC-Main'),
       ],
     ),
   ];
@@ -311,7 +314,7 @@ class HubSeeder {
     for (final m in HubChart.treeMasters) {
       for (final n in m.nodes) {
         await ensure(m.docType, n.id, {
-          m.nameField: n.id,
+          m.nameField: n.name,
           'is_group': n.isGroup ? '1' : '0',
           if (n.parent != null) m.parentField: n.parent,
         });

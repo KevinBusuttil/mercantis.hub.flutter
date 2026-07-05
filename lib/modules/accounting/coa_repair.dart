@@ -118,7 +118,7 @@ class ChartOfAccountsRepair {
         if (await engine.fetch(m.docType, n.id) != null) continue;
         await engine.save(
           Document(id: n.id, docType: m.docType, payload: {
-            m.nameField: n.id,
+            m.nameField: n.name,
             'is_group': n.isGroup ? '1' : '0',
             if (n.parent != null) m.parentField: n.parent,
           }),
