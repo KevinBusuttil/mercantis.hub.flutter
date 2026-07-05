@@ -6,6 +6,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../auth/auth_store.dart';
 import '../auth/operator_setup_screen.dart';
+import '../build_info.dart';
 import '../modules/accounting/coa_repair.dart';
 import '../modules/accounting/year_end_close_service.dart';
 import '../settings/hub_settings.dart';
@@ -208,7 +209,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => const SettingsView(
                       appName: 'Neuradix Atlas',
-                      appVersion: '1.0.0',
+                      appVersion: BuildInfo.appVersion,
                     ),
                   )),
                 ),
@@ -353,6 +354,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.save_outlined),
             label: const Text('Save settings'),
+          ),
+          const SizedBox(height: MercantisSpacing.lg),
+          AtlasSectionCard(
+            name: 'About',
+            child: Column(
+              children: [
+                const AtlasFieldRow(
+                  label: 'Version',
+                  value: 'v${BuildInfo.appVersion}',
+                  readOnly: true,
+                ),
+                AtlasFieldRow(
+                  label: 'Commit',
+                  value: BuildInfo.commitLabel,
+                  placeholder: '—',
+                  readOnly: true,
+                ),
+                if (BuildInfo.ref.isNotEmpty)
+                  const AtlasFieldRow(
+                    label: 'Branch',
+                    value: BuildInfo.ref,
+                    readOnly: true,
+                  ),
+                if (BuildInfo.buildTime.isNotEmpty)
+                  const AtlasFieldRow(
+                    label: 'Built',
+                    value: BuildInfo.buildTime,
+                    readOnly: true,
+                  ),
+              ],
+            ),
           ),
         ],
       ),
