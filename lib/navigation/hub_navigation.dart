@@ -18,6 +18,7 @@ import '../screens/capture_ai_settings_screen.dart';
 import '../screens/capture_review_screen.dart';
 import '../screens/company_sync_screen.dart';
 import '../screens/low_stock_screen.dart';
+import '../screens/notifications_screen.dart';
 import '../screens/scan_receipt_screen.dart';
 import '../screens/numbering_series_screen.dart';
 import '../screens/pos_till_screen.dart';
@@ -106,6 +107,10 @@ void wireHubNavigation(WidgetRef ref) {
     registry.registerRoute(
         'work-order-complete', (c, s) => const WorkOrderCompleteScreen());
     registry.registerRoute('settings', (c, s) => const SettingsScreen());
+    // In-app notification inbox (ADR-048) and recently-opened records — shared
+    // core-ui views surfaced from the Home workspace's quick actions.
+    registry.registerRoute('notifications', (c, s) => const NotificationsScreen());
+    registry.registerRoute('recents', (c, s) => const RecentsView());
     registry.registerRoute(
         'numbering-series', (c, s) => const NumberingSeriesScreen());
     registry.registerRoute(
