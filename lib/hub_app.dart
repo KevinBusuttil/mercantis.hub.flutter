@@ -97,8 +97,14 @@ class _HubRouterApp extends ConsumerWidget {
 
 final _hubRouterProvider = Provider((ref) {
   final nav = ref.watch(appNavigationRegistryProvider);
-  // Brand the Atlas shell (rail / sidebar) to match the rest of the app.
-  return nav.buildRouter(brandLabel: 'Neuradix Atlas', brandMark: 'N');
+  // Brand the Atlas shell (rail / sidebar) to match the rest of the app, and
+  // light up the shell notifications bell (badged with the operator's unread
+  // count) pointing at the home workspace's notifications route.
+  return nav.buildRouter(
+    brandLabel: 'Neuradix Atlas',
+    brandMark: 'N',
+    notificationsLocation: '/w/home/notifications',
+  );
 });
 
 /// Boot: install the DocType manifest if not already installed (or re-sync its
