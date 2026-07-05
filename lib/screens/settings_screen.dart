@@ -360,7 +360,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             name: 'About',
             child: Column(
               children: [
-                AtlasFieldRow(
+                const AtlasFieldRow(
                   label: 'Version',
                   value: 'v${BuildInfo.appVersion}',
                   readOnly: true,
@@ -372,13 +372,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   readOnly: true,
                 ),
                 if (BuildInfo.ref.isNotEmpty)
-                  AtlasFieldRow(
+                  const AtlasFieldRow(
                     label: 'Branch',
                     value: BuildInfo.ref,
                     readOnly: true,
                   ),
                 if (BuildInfo.buildTime.isNotEmpty)
-                  AtlasFieldRow(
+                  const AtlasFieldRow(
                     label: 'Built',
                     value: BuildInfo.buildTime,
                     readOnly: true,
