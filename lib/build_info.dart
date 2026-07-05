@@ -32,13 +32,18 @@ class BuildInfo {
   static const buildTime =
       String.fromEnvironment('BUILD_TIME', defaultValue: '');
 
-  /// True when a real commit SHA was injected at build time (i.e. not a plain
-  /// local build).
-  static bool get hasCommit => commit != 'dev';
+  /// True when a real commit SHA was injected at build time. Treats a blank or
+  /// whitespace-only define (e.g. `--dart-define=GIT_COMMIT=$VAR` where `$VAR`
+  /// expanded to nothing) as unstamped, not as a valid commit.
+  static bool get hasCommit {
+    final c = commit.trim();
+    return c.isNotEmpty && c != 'dev';
+  }
 
   /// The commit shown in the UI — the SHA, or a clear "dev build" marker so an
   /// un-stamped build never masquerades as a real release.
-  static String get commitLabel => hasCommit ? commit : 'dev build (not stamped)';
+  static String get commitLabel =>
+      hasCommit ? commit.trim() : 'dev build (not stamped)';
 
   /// One-line summary, e.g. `v1.0.0 · a1b2c3d`.
   static String get summary => 'v$appVersion · $commitLabel';
