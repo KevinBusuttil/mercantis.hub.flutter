@@ -84,8 +84,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final message = summary.repairedAnything
         ? 'Repaired: ${summary.accountsCreated} account(s) re-created, '
             '${summary.accountsReparented} re-grouped, '
-            '${summary.defaultsRewired} default(s) re-wired.'
-        : 'Chart of accounts is healthy — nothing to repair.';
+            '${summary.defaultsRewired} default(s) re-wired; '
+            '${summary.mastersCreated} master(s) re-created, '
+            '${summary.mastersReparented} re-grouped.'
+        : 'Chart of accounts & masters are healthy — nothing to repair.';
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
   }

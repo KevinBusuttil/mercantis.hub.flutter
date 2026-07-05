@@ -48,7 +48,46 @@ void main() {
     expect(summary.accountsCreated, 0);
     expect(summary.defaultsRewired, 0);
     expect(summary.accountsReparented, 0);
+    expect(summary.mastersCreated, 0);
+    expect(summary.mastersReparented, 0);
     expect(summary.repairedAnything, isFalse);
+  });
+
+  test('a missing tree-master node is re-created', () async {
+    await engine.delete('Item Group', 'IG-Products', roles);
+    final summary = await repair.repair();
+    expect(summary.mastersCreated, greaterThanOrEqualTo(1));
+    final products = await engine.fetch('Item Group', 'IG-Products');
+    expect(products, isNotNull);
+    expect(products!.payload['parent_item_group'], 'IG-All');
+  });
+
+  test('a flat tree master is re-grouped — blank parents back-filled', () async {
+    final retail = (await engine.fetch('Customer Group', 'CG-Retail'))!;
+    retail.payload['parent_customer_group'] = '';
+    await engine.save(retail, roles);
+
+    final summary = await repair.repair();
+    expect(summary.mastersReparented, greaterThanOrEqualTo(1));
+    final fixed = await engine.fetch('Customer Group', 'CG-Retail');
+    expect(fixed!.payload['parent_customer_group'], 'CG-All');
+  });
+
+  test('a user-created top-level master with a plain name is left alone', () async {
+    // Operator data, not a seeded starter node — its id is the plain name, which
+    // never collides with the namespaced seed ids the repair touches.
+    await engine.save(
+        Document(id: 'Products', docType: 'Item Group', payload: {
+          'item_group_name': 'Products',
+          'is_group': '0',
+        }),
+        roles);
+
+    await repair.repair();
+    final custom = await engine.fetch('Item Group', 'Products');
+    expect(custom, isNotNull);
+    // Still top-level — the repair never touched it.
+    expect(custom!.payload['parent_item_group'], anyOf(isNull, ''));
   });
 
   test('a flat chart is re-grouped — blank parents are back-filled', () async {

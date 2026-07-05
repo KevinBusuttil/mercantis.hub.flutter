@@ -21,6 +21,37 @@ class SeedAccount {
   final String? parent;
 }
 
+/// One node in a starter tree-master hierarchy (Item Group, Customer Group, …).
+/// [id] is the deterministic record id children point at; it is namespaced per
+/// master because `documents.id` is a single global key, so the same display
+/// [name] (e.g. "Services") can appear under two masters without colliding.
+class SeedTreeNode {
+  const SeedTreeNode(this.id, this.name, {this.isGroup = false, this.parent});
+  final String id;
+  /// Display name (the tree label / link-picker title).
+  final String name;
+  /// A group (branch) node holds children; leaves are the ones records tag.
+  final bool isGroup;
+  /// Parent node id; null for the root.
+  final String? parent;
+}
+
+/// A starter hierarchy for a self-referential tree DocType — its DocType id plus
+/// the name/parent field keys and the nodes to lay down, so one loop seeds any
+/// of them (see [HubChart.treeMasters]).
+class SeedTreeMaster {
+  const SeedTreeMaster({
+    required this.docType,
+    required this.nameField,
+    required this.parentField,
+    required this.nodes,
+  });
+  final String docType;
+  final String nameField;
+  final String parentField;
+  final List<SeedTreeNode> nodes;
+}
+
 /// One tax band seeded so the tax engine works out of the box.
 class SeedTaxCode {
   const SeedTaxCode(this.id, this.rate, {this.isDefault = false, this.type = 'VAT'});
@@ -146,6 +177,62 @@ abstract final class HubChart {
     'default_cash_account': 'Bank',
     'default_vat_account': 'VAT',
   };
+
+  /// Starter hierarchies for the other tree masters, kept deliberately small and
+  /// micro-business oriented: a root group with a couple of practical leaves the
+  /// operator can tag records under, so each tree view reads as a real hierarchy
+  /// out of the box (mirrors the grouped chart of accounts above).
+  static const treeMasters = <SeedTreeMaster>[
+    SeedTreeMaster(
+      docType: 'Item Group',
+      nameField: 'item_group_name',
+      parentField: 'parent_item_group',
+      nodes: [
+        SeedTreeNode('IG-All', 'All Item Groups', isGroup: true),
+        SeedTreeNode('IG-Products', 'Products', parent: 'IG-All'),
+        SeedTreeNode('IG-Services', 'Services', parent: 'IG-All'),
+      ],
+    ),
+    SeedTreeMaster(
+      docType: 'Customer Group',
+      nameField: 'customer_group_name',
+      parentField: 'parent_customer_group',
+      nodes: [
+        SeedTreeNode('CG-All', 'All Customer Groups', isGroup: true),
+        SeedTreeNode('CG-Retail', 'Retail', parent: 'CG-All'),
+        SeedTreeNode('CG-Business', 'Business', parent: 'CG-All'),
+      ],
+    ),
+    SeedTreeMaster(
+      docType: 'Supplier Group',
+      nameField: 'supplier_group_name',
+      parentField: 'parent_supplier_group',
+      nodes: [
+        SeedTreeNode('SG-All', 'All Supplier Groups', isGroup: true),
+        SeedTreeNode('SG-Goods', 'Goods', parent: 'SG-All'),
+        SeedTreeNode('SG-Services', 'Services', parent: 'SG-All'),
+      ],
+    ),
+    SeedTreeMaster(
+      docType: 'Territory',
+      nameField: 'territory_name',
+      parentField: 'parent_territory',
+      nodes: [
+        SeedTreeNode('TR-All', 'All Territories', isGroup: true),
+        SeedTreeNode('TR-Local', 'Local', parent: 'TR-All'),
+        SeedTreeNode('TR-Online', 'Online', parent: 'TR-All'),
+      ],
+    ),
+    SeedTreeMaster(
+      docType: 'Cost Center',
+      nameField: 'cost_center_name',
+      parentField: 'parent_cost_center',
+      nodes: [
+        SeedTreeNode('CC-Main', 'Main', isGroup: true),
+        SeedTreeNode('CC-Operations', 'Operations', parent: 'CC-Main'),
+      ],
+    ),
+  ];
 }
 
 /// What a seed run created/found, for the onboarding summary.
@@ -219,6 +306,19 @@ class HubSeeder {
         if (a.parent != null) 'parent_account': a.parent,
         'currency': code,
       });
+    }
+
+    // 4b. Starter tree masters (item / customer / supplier groups, territories,
+    //     cost centres) — a small hierarchy each so their trees aren't empty.
+    //     Roots are listed first so a parent exists before its children.
+    for (final m in HubChart.treeMasters) {
+      for (final n in m.nodes) {
+        await ensure(m.docType, n.id, {
+          m.nameField: n.name,
+          'is_group': n.isGroup ? '1' : '0',
+          if (n.parent != null) m.parentField: n.parent,
+        });
+      }
     }
 
     // 5. Tax bands for the chosen jurisdiction, all posting to the VAT/Tax

@@ -78,6 +78,28 @@ void main() {
     expect(bank.payload['parent_account'], 'Assets');
     expect(vat.payload['parent_account'], 'Liabilities');
 
+    // Starter tree masters seed a small hierarchy each (root group + leaves).
+    // Ids are namespaced (documents.id is a single global key), so "Services"
+    // can appear under both Item Group and Supplier Group without colliding.
+    final itemRoot = (await engine.fetch('Item Group', 'IG-All'))!;
+    expect(itemRoot.payload['is_group'], '1');
+    expect(itemRoot.payload['item_group_name'], 'All Item Groups');
+    final products = (await engine.fetch('Item Group', 'IG-Products'))!;
+    expect(products.payload['is_group'], '0');
+    expect(products.payload['item_group_name'], 'Products');
+    expect(products.payload['parent_item_group'], 'IG-All');
+    expect(
+        (await engine.fetch('Customer Group', 'CG-Retail'))!
+            .payload['parent_customer_group'],
+        'CG-All');
+    expect((await engine.fetch('Cost Center', 'CC-Operations'))!
+        .payload['parent_cost_center'], 'CC-Main');
+    // "Services" exists under two masters, keyed by distinct ids.
+    expect((await engine.fetch('Item Group', 'IG-Services'))!
+        .payload['item_group_name'], 'Services');
+    expect((await engine.fetch('Supplier Group', 'SG-Services'))!
+        .payload['supplier_group_name'], 'Services');
+
     final codes = await engine.list('Tax Code', userRoles: roles);
     expect(codes.length, 5);
     final std = (await engine.fetch('Tax Code', 'VAT 18%'))!;

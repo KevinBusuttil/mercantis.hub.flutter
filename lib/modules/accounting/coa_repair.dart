@@ -9,6 +9,8 @@ class CoaRepairSummary {
     required this.accountsCreated,
     required this.defaultsRewired,
     this.accountsReparented = 0,
+    this.mastersCreated = 0,
+    this.mastersReparented = 0,
   });
 
   /// Starter accounts that were missing and got re-created.
@@ -22,16 +24,31 @@ class CoaRepairSummary {
   /// root group — the back-fill that turns a flat chart into the grouped tree.
   final int accountsReparented;
 
+  /// Starter tree-master nodes (item / customer / supplier groups, territories,
+  /// cost centres) that were missing and got created.
+  final int mastersCreated;
+
+  /// Existing starter tree-master nodes that had no parent and were slotted
+  /// under their root — the same flat→grouped back-fill as the accounts.
+  final int mastersReparented;
+
   bool get repairedAnything =>
-      accountsCreated > 0 || defaultsRewired > 0 || accountsReparented > 0;
+      accountsCreated > 0 ||
+      defaultsRewired > 0 ||
+      accountsReparented > 0 ||
+      mastersCreated > 0 ||
+      mastersReparented > 0;
 }
 
 /// Repair Chart of Accounts (H10 — the Swift Tools ▸ Repair COA command).
 ///
-/// Restores a chart that has drifted: it re-creates any missing starter account
-/// (so postings always have somewhere to land) and re-wires each `Company`
-/// default-account field that is blank or points at an account that no longer
-/// exists. Idempotent — a healthy chart is left untouched.
+/// Restores starter master data that has drifted: it re-creates any missing
+/// starter account (so postings always have somewhere to land), re-wires each
+/// `Company` default-account field that is blank or dangling, and restores the
+/// starter tree masters (item / customer / supplier groups, territories, cost
+/// centres) — creating missing nodes and slotting parentless ones back under
+/// their root. Idempotent — healthy data is left untouched, and anything the
+/// user has already parented themselves is respected.
 class ChartOfAccountsRepair {
   ChartOfAccountsRepair({required this.engine, this.roles = const {'System Manager'}});
 
@@ -92,10 +109,40 @@ class ChartOfAccountsRepair {
       if (changed) await engine.save(company, roles);
     }
 
+    // 3. Restore the starter tree masters the same way: create missing nodes
+    //    (roots first, per node ordering) then back-fill blank parents.
+    var mastersCreated = 0;
+    var mastersReparented = 0;
+    for (final m in HubChart.treeMasters) {
+      for (final n in m.nodes) {
+        if (await engine.fetch(m.docType, n.id) != null) continue;
+        await engine.save(
+          Document(id: n.id, docType: m.docType, payload: {
+            m.nameField: n.name,
+            'is_group': n.isGroup ? '1' : '0',
+            if (n.parent != null) m.parentField: n.parent,
+          }),
+          roles,
+        );
+        mastersCreated++;
+      }
+      for (final n in m.nodes) {
+        if (n.parent == null) continue;
+        final doc = await engine.fetch(m.docType, n.id);
+        if (doc == null) continue;
+        if (asNonEmpty(doc.payload[m.parentField]) != null) continue;
+        doc.payload[m.parentField] = n.parent;
+        await engine.save(doc, roles);
+        mastersReparented++;
+      }
+    }
+
     return CoaRepairSummary(
       accountsCreated: created,
       defaultsRewired: rewired,
       accountsReparented: reparented,
+      mastersCreated: mastersCreated,
+      mastersReparented: mastersReparented,
     );
   }
 }
