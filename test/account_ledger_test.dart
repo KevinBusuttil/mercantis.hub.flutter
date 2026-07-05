@@ -48,6 +48,23 @@ void main() {
       expect(view.balance, 150); // credit 200 - debit 50
     });
 
+    test('FX postings use base (book) amounts, not the transaction amount', () {
+      final view = buildAccountLedger(account('Bank', 'Asset'), [
+        Document(id: 'GL-fx', docType: 'GL Entry', payload: {
+          'account': 'Bank',
+          'debit': 1180, // transaction currency (e.g. USD)
+          'credit': 0,
+          'base_debit': 1298, // book value (EUR) stamped at submit
+          'base_credit': 0,
+          'posting_date': '2026-03-01',
+          'voucher_type': 'Journal Entry',
+          'voucher_no': 'JV-9',
+        }),
+      ]);
+      expect(view.balance, 1298);
+      expect(view.rows.single.debit, 1298);
+    });
+
     test('an account with no postings has a zero balance and no rows', () {
       final view = buildAccountLedger(account('Cash', 'Asset'), [
         gl('Bank', debit: 100, date: '2026-01-01'),

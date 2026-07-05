@@ -82,8 +82,15 @@ AccountLedgerView buildAccountLedger(
   var running = 0.0;
   final rows = <AccountLedgerRow>[];
   for (final e in mine) {
-    final debit = _toDouble(e.payload['debit']);
-    final credit = _toDouble(e.payload['credit']);
+    // Ledger balances are in the company's base (book) currency. A GL leg from
+    // a multi-currency voucher carries the book value in base_debit/base_credit
+    // (stamped at submit) while debit/credit stay in the transaction currency;
+    // use the base amounts when present, falling back to the raw fields for
+    // legacy/single-currency entries that were never base-stamped.
+    final p = e.payload;
+    final hasBase = p['base_debit'] != null || p['base_credit'] != null;
+    final debit = _toDouble(hasBase ? p['base_debit'] : p['debit']);
+    final credit = _toDouble(hasBase ? p['base_credit'] : p['credit']);
     running += debitNature ? (debit - credit) : (credit - debit);
     rows.add(AccountLedgerRow(
       date: (e.payload['posting_date'] as String?) ?? '',
@@ -114,8 +121,11 @@ final accountLedgerProvider =
 
   final acct = await engine.fetch('Account', accountId);
   if (acct == null) return null;
-  final all = await engine.list('GL Entry', userRoles: roles);
-  return buildAccountLedger(acct, all);
+  // Filter in the query so a per-account ledger doesn't scale with the whole
+  // GL table; buildAccountLedger re-checks the account defensively.
+  final entries = await engine.list('GL Entry',
+      filters: {'account': accountId}, userRoles: roles);
+  return buildAccountLedger(acct, entries);
 });
 
 /// Per-account ledger: the account's balance and its transactions, from the
