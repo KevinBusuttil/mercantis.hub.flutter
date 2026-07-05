@@ -16,6 +16,10 @@ const financeWorkspace = WorkspaceDescriptor(
       items: [
         DocTypeWorkspaceItem(docType: 'Account',
           icon: Icons.account_tree_outlined),
+        // Cost Center is a hierarchical (tree) master like Account, used to tag
+        // GL postings; surface it so its tree is reachable.
+        DocTypeWorkspaceItem(docType: 'Cost Center',
+          icon: Icons.donut_small_outlined),
         DocTypeWorkspaceItem(docType: 'Journal Entry',
           icon: Icons.menu_book_outlined),
       ],
