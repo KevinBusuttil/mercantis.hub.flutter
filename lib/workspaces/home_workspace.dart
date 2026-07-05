@@ -26,6 +26,14 @@ const homeWorkspace = WorkspaceDescriptor(
     QuickAction(id: 'collect_payment', label: 'Collect payment',
       icon: Icons.payments_outlined, docType: 'Payment Entry',
       color: MercantisBrandColors.accentFinance),
+    QuickAction(id: 'notifications', label: 'Notifications',
+      icon: Icons.notifications_outlined,
+      routeName: '/w/home/notifications',
+      color: MercantisBrandColors.accentHome),
+    QuickAction(id: 'recents', label: 'Recents',
+      icon: Icons.history,
+      routeName: '/w/home/recents',
+      color: MercantisBrandColors.accentHome),
   ],
   // Cards fed by the real `home` dashboard (Core DashboardEngine), not mock.
   dashboardCards: [
