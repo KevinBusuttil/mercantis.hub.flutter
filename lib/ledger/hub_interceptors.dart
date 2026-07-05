@@ -21,6 +21,7 @@ final hubInterceptorsOverride =
   FiscalYearGuardInterceptor(),
   BooksLockGuardInterceptor(),
   NegativeStockGuardInterceptor(),
+  GroupAccountPostingGuardInterceptor(),
 ]);
 
 const _systemRoles = {'System Manager'};
@@ -471,6 +472,46 @@ class NegativeStockGuardInterceptor extends DocumentInterceptor {
         ]);
       }
     }
+  }
+}
+
+/// Rejects submitting a voucher that would post a GL leg to a group (non-leaf)
+/// account. Group accounts are the branches of the chart — they summarise their
+/// children and must never carry transactions. Reuses the same
+/// [LedgerDerivation] the engine posts with, so it catches every posting path
+/// (journal entries, invoices with an overridden account, …) in one place.
+class GroupAccountPostingGuardInterceptor extends DocumentInterceptor {
+  const GroupAccountPostingGuardInterceptor();
+
+  @override
+  Future<void> beforeSubmit(
+      DocumentEngine engine, Document doc, DocType docType) async {
+    final legs = LedgerDerivation.derive(doc, reversal: false);
+    final accountIds = <String>{};
+    for (final leg in legs) {
+      if (leg.docType != 'GL Entry') continue;
+      final id = asNonEmpty(leg.payload['account']);
+      if (id != null) accountIds.add(id);
+    }
+    if (accountIds.isEmpty) return;
+
+    final groups = <String>[];
+    for (final id in accountIds) {
+      final acct = await engine.fetch('Account', id);
+      if (acct != null && isTrue(acct.payload['is_group'])) groups.add(id);
+    }
+    if (groups.isEmpty) return;
+
+    throw DocumentEngineError.validationFailed([
+      ValidationError(
+        stage: 'group_account_posting',
+        fieldKey: 'account',
+        message: 'Cannot post to group account'
+            '${groups.length > 1 ? 's' : ''} ${groups.join(', ')}. Group '
+            'accounts summarise their children — choose a leaf (posting) '
+            'account instead.',
+      ),
+    ]);
   }
 }
 

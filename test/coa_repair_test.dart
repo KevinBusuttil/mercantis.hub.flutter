@@ -47,7 +47,31 @@ void main() {
     final summary = await repair.repair();
     expect(summary.accountsCreated, 0);
     expect(summary.defaultsRewired, 0);
+    expect(summary.accountsReparented, 0);
     expect(summary.repairedAnything, isFalse);
+  });
+
+  test('a flat chart is re-grouped — blank parents are back-filled', () async {
+    // Simulate a chart seeded before grouping: strip a leaf's parent link.
+    final cash = (await engine.fetch('Account', 'Cash'))!;
+    cash.payload['parent_account'] = '';
+    await engine.save(cash, roles);
+
+    final summary = await repair.repair();
+    expect(summary.accountsReparented, greaterThanOrEqualTo(1));
+    expect(summary.repairedAnything, isTrue);
+    final fixed = await engine.fetch('Account', 'Cash');
+    expect(fixed!.payload['parent_account'], 'Assets');
+  });
+
+  test('an account the user has already parented is left alone', () async {
+    final cash = (await engine.fetch('Account', 'Cash'))!;
+    cash.payload['parent_account'] = 'Bank'; // a deliberate custom placement
+    await engine.save(cash, roles);
+
+    await repair.repair();
+    final after = await engine.fetch('Account', 'Cash');
+    expect(after!.payload['parent_account'], 'Bank'); // untouched
   });
 
   test('a missing starter account is re-created', () async {

@@ -83,6 +83,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (!mounted) return;
     final message = summary.repairedAnything
         ? 'Repaired: ${summary.accountsCreated} account(s) re-created, '
+            '${summary.accountsReparented} re-grouped, '
             '${summary.defaultsRewired} default(s) re-wired.'
         : 'Chart of accounts is healthy — nothing to repair.';
     ScaffoldMessenger.of(context)

@@ -3,11 +3,22 @@ import 'package:mercantis_core/mercantis_core.dart';
 /// One ledger account in the starter chart of accounts. [id] doubles as the
 /// deterministic record id the Company defaults point at.
 class SeedAccount {
-  const SeedAccount(this.id, this.name, this.rootType, this.accountType);
+  const SeedAccount(
+    this.id,
+    this.name,
+    this.rootType,
+    this.accountType, {
+    this.isGroup = false,
+    this.parent,
+  });
   final String id;
   final String name;
   final String rootType; // Asset / Liability / Income / Expense / Equity
   final String accountType; // Cash / Bank / Receivable / Payable / Tax / …
+  /// A group account holds children and takes no postings (the tree's branches).
+  final bool isGroup;
+  /// Parent account id in the chart hierarchy; null for a root group.
+  final String? parent;
 }
 
 /// One tax band seeded so the tax engine works out of the box.
@@ -99,21 +110,31 @@ class JurisdictionPreset {
 /// Swift `HubOnboardingSeeder`, extended with VAT bands). Kept as pure data so
 /// it can be asserted without a database.
 abstract final class HubChart {
-  /// Flat starter chart of accounts. The Company default-account fields wire to
-  /// these ids (see [companyDefaults]).
+  /// Starter chart of accounts, as a two-level tree: one group account per root
+  /// type holds the posting (leaf) accounts under it, so the Account tree view
+  /// reads as a real chart. The Company default-account fields wire to the leaf
+  /// ids (see [companyDefaults]). Groups come first so a parent always exists
+  /// before the child that points at it.
   static const accounts = <SeedAccount>[
-    SeedAccount('Cash', 'Cash', 'Asset', 'Cash'),
-    SeedAccount('Bank', 'Bank', 'Asset', 'Bank'),
-    SeedAccount('Debtors', 'Debtors', 'Asset', 'Receivable'),
-    SeedAccount('Stock', 'Stock In Hand', 'Asset', 'Stock'),
-    SeedAccount('Creditors', 'Creditors', 'Liability', 'Payable'),
-    SeedAccount('VAT', 'VAT', 'Liability', 'Tax'),
-    SeedAccount('Sales', 'Sales', 'Income', 'Income Account'),
-    SeedAccount('COGS', 'Cost of Goods Sold', 'Expense', 'Cost of Goods Sold'),
+    // Root groups — branches of the tree; hold children, take no postings.
+    SeedAccount('Assets', 'Assets', 'Asset', '', isGroup: true),
+    SeedAccount('Liabilities', 'Liabilities', 'Liability', '', isGroup: true),
+    SeedAccount('Income', 'Income', 'Income', '', isGroup: true),
+    SeedAccount('Expenses', 'Expenses', 'Expense', '', isGroup: true),
+    SeedAccount('Equity', 'Equity', 'Equity', '', isGroup: true),
+    // Posting (leaf) accounts, each parented under its root group.
+    SeedAccount('Cash', 'Cash', 'Asset', 'Cash', parent: 'Assets'),
+    SeedAccount('Bank', 'Bank', 'Asset', 'Bank', parent: 'Assets'),
+    SeedAccount('Debtors', 'Debtors', 'Asset', 'Receivable', parent: 'Assets'),
+    SeedAccount('Stock', 'Stock In Hand', 'Asset', 'Stock', parent: 'Assets'),
+    SeedAccount('Creditors', 'Creditors', 'Liability', 'Payable', parent: 'Liabilities'),
+    SeedAccount('VAT', 'VAT', 'Liability', 'Tax', parent: 'Liabilities'),
+    SeedAccount('Sales', 'Sales', 'Income', 'Income Account', parent: 'Income'),
+    SeedAccount('COGS', 'Cost of Goods Sold', 'Expense', 'Cost of Goods Sold', parent: 'Expenses'),
     // The contra the OpeningBalanceBuilder balances an opening entry against.
-    SeedAccount('Opening Balance Equity', 'Opening Balance Equity', 'Equity', 'Equity'),
+    SeedAccount('Opening Balance Equity', 'Opening Balance Equity', 'Equity', 'Equity', parent: 'Equity'),
     // Where the YearEndCloseBuilder posts the period's profit or loss.
-    SeedAccount('Retained Earnings', 'Retained Earnings', 'Equity', 'Equity'),
+    SeedAccount('Retained Earnings', 'Retained Earnings', 'Equity', 'Equity', parent: 'Equity'),
   ];
 
   /// Company default-account wiring: field key → account id.
@@ -187,13 +208,15 @@ class HubSeeder {
       'year_end_date': end,
     });
 
-    // 4. Chart of accounts (before the company, which links them).
+    // 4. Chart of accounts (before the company, which links them). Groups are
+    //    listed first so a parent always exists before its children.
     for (final a in HubChart.accounts) {
       await ensure('Account', a.id, {
         'account_name': a.name,
         'root_type': a.rootType,
-        'account_type': a.accountType,
-        'is_group': '0',
+        if (a.accountType.isNotEmpty) 'account_type': a.accountType,
+        'is_group': a.isGroup ? '1' : '0',
+        if (a.parent != null) 'parent_account': a.parent,
         'currency': code,
       });
     }

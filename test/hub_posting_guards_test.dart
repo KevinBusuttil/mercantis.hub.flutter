@@ -42,6 +42,7 @@ void main() {
         FiscalYearGuardInterceptor(),
         BooksLockGuardInterceptor(),
         NegativeStockGuardInterceptor(),
+        GroupAccountPostingGuardInterceptor(),
       ],
     );
     await HubSeeder(engine, roles: roles).seed(
@@ -200,6 +201,40 @@ void main() {
       ];
       final saved = await engine.save(dn, roles);
       expect((await engine.submit(saved, roles)).docStatus, 1);
+    });
+  });
+
+  group('Group-account posting guard', () {
+    const guard = GroupAccountPostingGuardInterceptor();
+    // The guard ignores its docType arg (it derives legs from the doc), so a
+    // minimal stand-in is enough.
+    const jeType = DocType(
+        id: 'Journal Entry', name: 'Journal Entry', module: 'Accounting', fields: []);
+
+    Document journal(String debitAccount, String creditAccount) {
+      final je = Document(id: 'JV-X', docType: 'Journal Entry',
+          payload: {'voucher_type': 'Journal Entry', 'posting_date': '2026-06-01'});
+      je.children['accounts'] = [
+        ChildRow(id: '', parentId: 'JV-X', parentDocType: 'Journal Entry',
+            tableName: 'accounts', rowIndex: 0,
+            payload: {'account': debitAccount, 'debit': 100, 'credit': 0}),
+        ChildRow(id: '', parentId: 'JV-X', parentDocType: 'Journal Entry',
+            tableName: 'accounts', rowIndex: 1,
+            payload: {'account': creditAccount, 'debit': 0, 'credit': 100}),
+      ];
+      return je;
+    }
+
+    test('rejects a leg posting to a seeded group account', () async {
+      // 'Assets' is a group (branch) account from the grouped starter chart.
+      await expectLater(
+          guard.beforeSubmit(engine, journal('Assets', 'Cash'), jeType),
+          throwsA(isA<DocumentEngineError>()));
+    });
+
+    test('allows legs between leaf (posting) accounts', () async {
+      // Bank and Cash are leaves — the guard must not block them.
+      await guard.beforeSubmit(engine, journal('Bank', 'Cash'), jeType);
     });
   });
 }
