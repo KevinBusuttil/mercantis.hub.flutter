@@ -48,7 +48,29 @@ void main() {
     expect(summary.accountsCreated, 0);
     expect(summary.defaultsRewired, 0);
     expect(summary.accountsReparented, 0);
+    expect(summary.mastersCreated, 0);
+    expect(summary.mastersReparented, 0);
     expect(summary.repairedAnything, isFalse);
+  });
+
+  test('a missing tree-master node is re-created', () async {
+    await engine.delete('Item Group', 'Products', roles);
+    final summary = await repair.repair();
+    expect(summary.mastersCreated, greaterThanOrEqualTo(1));
+    final products = await engine.fetch('Item Group', 'Products');
+    expect(products, isNotNull);
+    expect(products!.payload['parent_item_group'], 'All Item Groups');
+  });
+
+  test('a flat tree master is re-grouped — blank parents back-filled', () async {
+    final retail = (await engine.fetch('Customer Group', 'Retail'))!;
+    retail.payload['parent_customer_group'] = '';
+    await engine.save(retail, roles);
+
+    final summary = await repair.repair();
+    expect(summary.mastersReparented, greaterThanOrEqualTo(1));
+    final fixed = await engine.fetch('Customer Group', 'Retail');
+    expect(fixed!.payload['parent_customer_group'], 'All Customer Groups');
   });
 
   test('a flat chart is re-grouped — blank parents are back-filled', () async {

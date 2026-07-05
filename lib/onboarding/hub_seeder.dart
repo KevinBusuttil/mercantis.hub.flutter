@@ -21,6 +21,34 @@ class SeedAccount {
   final String? parent;
 }
 
+/// One node in a starter tree-master hierarchy (Item Group, Customer Group, …).
+/// [id] doubles as the deterministic record id and its display name, and the id
+/// children point at.
+class SeedTreeNode {
+  const SeedTreeNode(this.id, {this.isGroup = false, this.parent});
+  final String id;
+  /// A group (branch) node holds children; leaves are the ones records tag.
+  final bool isGroup;
+  /// Parent node id; null for the root.
+  final String? parent;
+}
+
+/// A starter hierarchy for a self-referential tree DocType — its DocType id plus
+/// the name/parent field keys and the nodes to lay down, so one loop seeds any
+/// of them (see [HubChart.treeMasters]).
+class SeedTreeMaster {
+  const SeedTreeMaster({
+    required this.docType,
+    required this.nameField,
+    required this.parentField,
+    required this.nodes,
+  });
+  final String docType;
+  final String nameField;
+  final String parentField;
+  final List<SeedTreeNode> nodes;
+}
+
 /// One tax band seeded so the tax engine works out of the box.
 class SeedTaxCode {
   const SeedTaxCode(this.id, this.rate, {this.isDefault = false, this.type = 'VAT'});
@@ -146,6 +174,62 @@ abstract final class HubChart {
     'default_cash_account': 'Bank',
     'default_vat_account': 'VAT',
   };
+
+  /// Starter hierarchies for the other tree masters, kept deliberately small and
+  /// micro-business oriented: a root group with a couple of practical leaves the
+  /// operator can tag records under, so each tree view reads as a real hierarchy
+  /// out of the box (mirrors the grouped chart of accounts above).
+  static const treeMasters = <SeedTreeMaster>[
+    SeedTreeMaster(
+      docType: 'Item Group',
+      nameField: 'item_group_name',
+      parentField: 'parent_item_group',
+      nodes: [
+        SeedTreeNode('All Item Groups', isGroup: true),
+        SeedTreeNode('Products', parent: 'All Item Groups'),
+        SeedTreeNode('Services', parent: 'All Item Groups'),
+      ],
+    ),
+    SeedTreeMaster(
+      docType: 'Customer Group',
+      nameField: 'customer_group_name',
+      parentField: 'parent_customer_group',
+      nodes: [
+        SeedTreeNode('All Customer Groups', isGroup: true),
+        SeedTreeNode('Retail', parent: 'All Customer Groups'),
+        SeedTreeNode('Business', parent: 'All Customer Groups'),
+      ],
+    ),
+    SeedTreeMaster(
+      docType: 'Supplier Group',
+      nameField: 'supplier_group_name',
+      parentField: 'parent_supplier_group',
+      nodes: [
+        SeedTreeNode('All Supplier Groups', isGroup: true),
+        SeedTreeNode('Goods', parent: 'All Supplier Groups'),
+        SeedTreeNode('Services', parent: 'All Supplier Groups'),
+      ],
+    ),
+    SeedTreeMaster(
+      docType: 'Territory',
+      nameField: 'territory_name',
+      parentField: 'parent_territory',
+      nodes: [
+        SeedTreeNode('All Territories', isGroup: true),
+        SeedTreeNode('Local', parent: 'All Territories'),
+        SeedTreeNode('Online', parent: 'All Territories'),
+      ],
+    ),
+    SeedTreeMaster(
+      docType: 'Cost Center',
+      nameField: 'cost_center_name',
+      parentField: 'parent_cost_center',
+      nodes: [
+        SeedTreeNode('Main', isGroup: true),
+        SeedTreeNode('Operations', parent: 'Main'),
+      ],
+    ),
+  ];
 }
 
 /// What a seed run created/found, for the onboarding summary.
@@ -219,6 +303,19 @@ class HubSeeder {
         if (a.parent != null) 'parent_account': a.parent,
         'currency': code,
       });
+    }
+
+    // 4b. Starter tree masters (item / customer / supplier groups, territories,
+    //     cost centres) — a small hierarchy each so their trees aren't empty.
+    //     Roots are listed first so a parent exists before its children.
+    for (final m in HubChart.treeMasters) {
+      for (final n in m.nodes) {
+        await ensure(m.docType, n.id, {
+          m.nameField: n.id,
+          'is_group': n.isGroup ? '1' : '0',
+          if (n.parent != null) m.parentField: n.parent,
+        });
+      }
     }
 
     // 5. Tax bands for the chosen jurisdiction, all posting to the VAT/Tax

@@ -78,6 +78,19 @@ void main() {
     expect(bank.payload['parent_account'], 'Assets');
     expect(vat.payload['parent_account'], 'Liabilities');
 
+    // Starter tree masters seed a small hierarchy each (root group + leaves).
+    final itemRoot = (await engine.fetch('Item Group', 'All Item Groups'))!;
+    expect(itemRoot.payload['is_group'], '1');
+    final products = (await engine.fetch('Item Group', 'Products'))!;
+    expect(products.payload['is_group'], '0');
+    expect(products.payload['parent_item_group'], 'All Item Groups');
+    expect(
+        (await engine.fetch('Customer Group', 'Retail'))!
+            .payload['parent_customer_group'],
+        'All Customer Groups');
+    expect((await engine.fetch('Cost Center', 'Operations'))!
+        .payload['parent_cost_center'], 'Main');
+
     final codes = await engine.list('Tax Code', userRoles: roles);
     expect(codes.length, 5);
     final std = (await engine.fetch('Tax Code', 'VAT 18%'))!;
