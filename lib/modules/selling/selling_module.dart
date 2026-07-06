@@ -26,6 +26,11 @@ abstract final class SellingModule {
           FieldDefinition(key: 'customer', label: 'Customer', type: FieldType.link, linkDocType: 'Customer', options: 'Customer', required: true),
           FieldDefinition(key: 'transaction_date', label: 'Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'valid_till', label: 'Valid Till', type: FieldType.date),
+          // Lifecycle timestamps (Phase 1A): stamped by the Mark as Sent /
+          // Accepted / Rejected actions; QuotationStatus derives the status.
+          FieldDefinition(key: 'sent_on', label: 'Sent On', type: FieldType.date, readOnly: true, allowOnSubmit: true),
+          FieldDefinition(key: 'accepted_on', label: 'Accepted On', type: FieldType.date, readOnly: true, allowOnSubmit: true),
+          FieldDefinition(key: 'rejected_on', label: 'Rejected On', type: FieldType.date, readOnly: true, allowOnSubmit: true),
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Quotation Item', options: 'Quotation Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),

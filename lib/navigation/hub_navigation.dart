@@ -4,6 +4,7 @@ import '../dashboards/hub_dashboard_cards.dart';
 import '../modules/accounting/hub_account_actions.dart';
 import '../modules/accounting/hub_compliance_actions.dart';
 import '../modules/selling/hub_conversion_actions.dart';
+import '../modules/selling/hub_quotation_actions.dart';
 import '../modules/selling/hub_lineage_actions.dart';
 import '../printing/hub_print_actions.dart';
 import '../screens/account_ledger_screen.dart';
@@ -53,6 +54,8 @@ void wireHubNavigation(WidgetRef ref) {
     // PO→Receipt/Invoice, Lead→Customer/Quotation, surfaced on the document's
     // command bar.
     registerHubConversionActions(ref);
+    // Quotation lifecycle (Phase 1A): Mark as Sent / Accepted / Rejected.
+    registerHubQuotationActions(ref);
     // Compliance (HU1): a "Prepare return" action on a Tax Filing.
     registerHubComplianceActions(ref);
     // Conversion lineage (HU4): a "Related" action listing up/downstream docs.
