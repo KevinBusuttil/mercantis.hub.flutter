@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../ledger/hub_tax_engine.dart';
 import '../ledger/ledger_values.dart';
+import '../modules/pos/pos_parking.dart';
+import '../modules/pos/pos_receipt.dart';
 import '../modules/pos/pos_shift_report.dart' as shift;
+import '../modules/pos/pos_till_logic.dart';
 import '../payments/pos_checkout.dart';
 
 const _systemRoles = {'System Manager'};
@@ -23,6 +27,7 @@ class _TillContext {
     this.profileTaxCode,
     this.pricesIncludeTax = false,
     this.company,
+    this.companyName,
     this.profileId,
     this.sessionId,
     this.openingFloat = 0,
@@ -37,6 +42,9 @@ class _TillContext {
   final String? profileTaxCode;
   final bool pricesIncludeTax;
   final String? company;
+
+  /// Display name for the receipt header.
+  final String? companyName;
 
   /// The configured POS Profile (null until one exists).
   final String? profileId;
@@ -99,6 +107,7 @@ final _tillContextProvider = FutureProvider<_TillContext>((ref) async {
     profileTaxCode: asNonEmpty(profile?.payload['tax_code']),
     pricesIncludeTax: isTrue(profile?.payload['prices_include_tax']),
     company: company?.id,
+    companyName: asNonEmpty(company?.payload['company_name']) ?? company?.id,
     profileId: profile?.id,
     sessionId: session?.id,
     openingFloat: asNum(session?.payload['opening_amount']),
@@ -137,11 +146,20 @@ class _CartLine {
 
 class _PosTillScreenState extends ConsumerState<PosTillScreen> {
   final List<_CartLine> _cart = [];
+  final _scanController = TextEditingController();
+  final _scanFocus = FocusNode();
   String? _customer;
   String? _warehouse;
   bool _posting = false;
   String? _result;
   String? _error;
+
+  @override
+  void dispose() {
+    _scanController.dispose();
+    _scanFocus.dispose();
+    super.dispose();
+  }
 
   TaxComputation _totals(_TillContext ctx) => HubTaxEngine.compute(
         [
@@ -160,6 +178,136 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         rate: asNum(item.payload['standard_rate']),
       ));
     });
+  }
+
+  /// Barcode / code entry: scanning the same product again bumps its
+  /// quantity instead of stacking duplicate lines. Focus stays in the field
+  /// so a scanner can fire line after line.
+  void _addByCode(String code, _TillContext ctx) {
+    final trimmed = code.trim();
+    if (trimmed.isEmpty) return;
+    final item = resolvePosItem(ctx.items, trimmed);
+    if (item == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No item matches "$trimmed"')));
+    } else {
+      final existing = _cart.where((l) => l.item == item.id);
+      if (existing.isNotEmpty) {
+        setState(() => existing.first.qty += 1);
+      } else {
+        _addItem(item, ctx);
+      }
+    }
+    _scanController.clear();
+    _scanFocus.requestFocus();
+  }
+
+  /// Suspends the cart as a POS Suspended Sale — the customer stepped away;
+  /// serve the next one and resume later from the Parked list.
+  Future<void> _parkSale(_TillContext ctx) async {
+    if (_cart.isEmpty) return;
+    final engine = await ref.read(documentEngineProvider.future);
+    final parked =
+        await PosParkingService(engine: engine).park(
+      lines: [
+        for (final l in _cart)
+          ParkedLine(
+              item: l.item, name: l.name, qty: l.qty, rate: l.lineRate,
+              taxCode: l.taxCode),
+      ],
+      profileId: ctx.profileId,
+      customer: _customer,
+      warehouse: _warehouse ?? ctx.defaultWarehouse,
+    );
+    if (!mounted) return;
+    setState(() {
+      _cart.clear();
+      _customer = null;
+    });
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('Sale parked as ${parked.id}')));
+  }
+
+  /// Lists parked sales; picking one loads its lines back into the cart
+  /// (appending to anything already rung up) and deletes the parking slip.
+  Future<void> _showParked(_TillContext ctx) async {
+    final engine = await ref.read(documentEngineProvider.future);
+    final service = PosParkingService(engine: engine);
+    final parked = await service.listParked(profileId: ctx.profileId);
+    if (!mounted) return;
+    if (parked.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('No parked sales.')));
+      return;
+    }
+    final pickedId = await showDialog<String>(
+      context: context,
+      builder: (c) => SimpleDialog(
+        title: const Text('Parked sales'),
+        children: [
+          for (final p in parked)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(c, p.id),
+              child: ListTile(
+                dense: true,
+                title: Text(asNonEmpty(p.payload['note']) ?? p.id),
+                subtitle: Text([
+                  if (asNonEmpty(p.payload['customer']) != null)
+                    '${p.payload['customer']}',
+                  'parked ${'${p.payload['parked_at']}'.split('T').first}',
+                ].join(' — ')),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (pickedId == null || !mounted) return;
+    final sale = await service.resume(pickedId);
+    if (sale == null || !mounted) return;
+    setState(() {
+      for (final l in sale.lines) {
+        _cart.add(_CartLine(
+            item: l.item, name: l.name, taxCode: l.taxCode, rate: l.rate)
+          ..qty = l.qty
+          ..lineRate = l.rate);
+      }
+      _customer ??= sale.customer;
+      if (sale.warehouse != null) _warehouse ??= sale.warehouse;
+    });
+  }
+
+  /// Shows the 80mm receipt for the completed sale — printable raw on a
+  /// thermal printer, or copied wherever it needs to go.
+  Future<void> _showReceipt(_TillContext ctx, Document posted) async {
+    final engine = await ref.read(documentEngineProvider.future);
+    final hydrated =
+        await engine.fetch(posted.docType, posted.id) ?? posted;
+    final text = PosReceiptBuilder.build(
+      invoice: hydrated,
+      businessName: ctx.companyName ?? 'Receipt',
+    );
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Receipt'),
+        content: SingleChildScrollView(
+          child: SelectableText(text,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: text));
+              Navigator.pop(c);
+            },
+            child: const Text('Copy & close'),
+          ),
+          FilledButton(
+              onPressed: () => Navigator.pop(c), child: const Text('Done')),
+        ],
+      ),
+    );
   }
 
   Future<void> _checkout(_TillContext ctx, List<PosTender> tenders) async {
@@ -194,6 +342,7 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         _cart.clear();
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sale ${posted.id} completed')));
+      await _showReceipt(ctx, posted);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -523,20 +672,40 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: DropdownButtonFormField<String>(
-            initialValue: null,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Add item', border: OutlineInputBorder()),
-            items: [
-              for (final it in ctx.items)
-                DropdownMenuItem(value: it.id, child: Text((it.payload['item_name'] as String?) ?? it.id)),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _scanController,
+                  focusNode: _scanFocus,
+                  enabled: !_posting,
+                  decoration: const InputDecoration(
+                    labelText: 'Scan / type code',
+                    prefixIcon: Icon(Icons.qr_code_scanner_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (code) => _addByCode(code, ctx),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: null,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Add item', border: OutlineInputBorder()),
+                  items: [
+                    for (final it in ctx.items)
+                      DropdownMenuItem(value: it.id, child: Text((it.payload['item_name'] as String?) ?? it.id)),
+                  ],
+                  onChanged: _posting
+                      ? null
+                      : (v) {
+                          final it = ctx.items.firstWhere((d) => d.id == v);
+                          _addItem(it, ctx);
+                        },
+                ),
+              ),
             ],
-            onChanged: _posting
-                ? null
-                : (v) {
-                    final it = ctx.items.firstWhere((d) => d.id == v);
-                    _addItem(it, ctx);
-                  },
           ),
         ),
         Expanded(
@@ -561,6 +730,28 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
                     label: 'Total',
                     value: totals.grandTotal.toStringAsFixed(2),
                     emphasize: true),
+                const SizedBox(height: MercantisSpacing.md),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: (_posting || _cart.isEmpty)
+                            ? null
+                            : () => _parkSale(ctx),
+                        icon: const Icon(Icons.pause_circle_outline),
+                        label: const Text('Park sale'),
+                      ),
+                    ),
+                    const SizedBox(width: MercantisSpacing.md),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _posting ? null : () => _showParked(ctx),
+                        icon: const Icon(Icons.play_circle_outline),
+                        label: const Text('Resume parked'),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: MercantisSpacing.md),
                 SizedBox(
                   width: double.infinity,
