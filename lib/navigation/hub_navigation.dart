@@ -25,6 +25,7 @@ import '../screens/low_stock_screen.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/scan_receipt_screen.dart';
 import '../screens/numbering_series_screen.dart';
+import '../screens/opening_balances_screen.dart';
 import '../screens/pos_till_screen.dart';
 import '../screens/report_builder_screen.dart';
 import '../screens/reports_screen.dart';
@@ -105,6 +106,8 @@ void wireHubNavigation(WidgetRef ref) {
     registry.registerRoute('settings', (c, s) => const SettingsScreen());
     registry.registerRoute(
         'setup-checklist', (c, s) => const SetupChecklistScreen());
+    registry.registerRoute(
+        'opening-balances', (c, s) => const OpeningBalancesScreen());
     // In-app notification inbox (ADR-048) and recently-opened records — shared
     // core-ui views surfaced from the Home workspace's quick actions.
     registry.registerRoute('notifications', (c, s) => const NotificationsScreen());

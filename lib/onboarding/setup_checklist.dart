@@ -181,7 +181,7 @@ Future<SetupChecklist> buildSetupChecklist(
       description: 'Bring over balances from your previous system — skip '
           'if you are starting fresh',
       status: has(hasOpeningEntry),
-      route: '/list/Journal Entry',
+      route: '/w/setup/opening-balances',
     ),
     SetupChecklistItem(
       id: 'bank_account',

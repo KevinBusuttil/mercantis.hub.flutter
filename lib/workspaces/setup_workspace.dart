@@ -22,6 +22,9 @@ const setupWorkspace = WorkspaceDescriptor(
         description: 'Operator, modules and advanced mode'),
     ]),
     WorkspaceSection(label: 'Organisation', items: [
+      CustomWorkspaceItem(routeName: 'opening-balances',
+        label: 'Opening balances', icon: Icons.playlist_add_check_outlined,
+        description: 'Bring balances over from your previous system'),
       DocTypeWorkspaceItem(docType: 'Company', icon: Icons.business_outlined),
       DocTypeWorkspaceItem(docType: 'Fiscal Year', icon: Icons.event_outlined),
       DocTypeWorkspaceItem(docType: 'Currency',
