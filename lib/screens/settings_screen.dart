@@ -12,6 +12,7 @@ import '../modules/accounting/year_end_close_service.dart';
 import '../settings/hub_settings.dart';
 import 'company_sync_screen.dart';
 import 'numbering_series_screen.dart';
+import '../modules/stock/inventory_takeon.dart';
 
 /// App preferences: the signed-in operator (passcode lock managed by the auth
 /// gate), optional-module visibility, and the advanced toggle. Module/advanced
@@ -122,6 +123,58 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Draft closing entry ${je.id} created — review and '
               'submit it from Journal Entries.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e is DocumentEngineError ? e.humanMessage : '$e')));
+    }
+  }
+
+  Future<void> _inventoryTakeOn() async {
+    final engine = await ref.read(documentEngineProvider.future);
+    final roles = ref.read(currentUserProvider).roles;
+    final takeOn = InventoryTakeOn(engine.list);
+    final gap = await takeOn.gap(userRoles: roles);
+    if (!mounted) return;
+    if (gap.abs() < 0.005) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Stock ledger and GL inventory already agree — '
+              'nothing to post.')));
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Post inventory take-on?'),
+        content: Text(
+            'The stock ledger carries €${gap.toStringAsFixed(2)} '
+            '${gap > 0 ? 'more' : 'less'} than the GL inventory account — '
+            'usually stock received before perpetual-inventory accounting '
+            'was enabled. This drafts a one-time journal against Opening '
+            'Balance Equity so the ledgers agree. It is a Draft you can '
+            'review and submit — nothing posts yet.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Draft take-on entry')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final draft = await takeOn.build(
+        postingDate: DateTime.now().toIso8601String().split('T').first,
+        userRoles: roles,
+      );
+      if (draft == null) return; // raced to agreement — nothing to post
+      final saved = await engine.save(draft, roles);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Draft take-on entry ${saved.id} created — review '
+              'and submit it from Journal Entries.')));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -264,6 +317,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       'Retained Earnings for review'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _closeYear,
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.inventory_2_outlined),
+                  title: const Text('Inventory take-on'),
+                  subtitle: const Text(
+                      'One-time upgrade: align the GL inventory account with '
+                      'the stock ledger'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _inventoryTakeOn,
                 ),
               ],
             ),
