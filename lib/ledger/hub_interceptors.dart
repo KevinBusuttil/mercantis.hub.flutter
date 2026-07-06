@@ -22,6 +22,7 @@ final hubInterceptorsOverride =
   BooksLockGuardInterceptor(),
   NegativeStockGuardInterceptor(),
   GroupAccountPostingGuardInterceptor(),
+  JournalBalanceGuardInterceptor(),
 ]);
 
 const _systemRoles = {'System Manager'};
@@ -512,6 +513,55 @@ class GroupAccountPostingGuardInterceptor extends DocumentInterceptor {
             'account instead.',
       ),
     ]);
+  }
+}
+
+/// Keeps a Journal Entry's `total_debit` / `total_credit` / `difference`
+/// display fields honest on every save, and blocks submitting an entry whose
+/// debits and credits do not balance (cent tolerance). Invoices and payments
+/// are balanced by construction in [LedgerDerivation]; a hand-entered journal
+/// was the one posting path that could write an unbalanced GL.
+class JournalBalanceGuardInterceptor extends DocumentInterceptor {
+  const JournalBalanceGuardInterceptor();
+
+  static const _tolerance = 0.005; // half a cent — same as invoice settlement
+
+  @override
+  Future<void> beforeSave(
+      DocumentEngine engine, Document doc, DocType docType,
+      {required bool isNew}) async {
+    if (docType.id != 'Journal Entry') return;
+    final (debit, credit) = _totals(doc);
+    doc.payload['total_debit'] = debit;
+    doc.payload['total_credit'] = credit;
+    doc.payload['difference'] = debit - credit;
+  }
+
+  @override
+  Future<void> beforeSubmit(
+      DocumentEngine engine, Document doc, DocType docType) async {
+    if (docType.id != 'Journal Entry') return;
+    final (debit, credit) = _totals(doc);
+    if ((debit - credit).abs() < _tolerance) return;
+    throw DocumentEngineError.validationFailed([
+      ValidationError(
+        stage: 'journal_balance',
+        fieldKey: 'accounts',
+        message: 'Journal Entry does not balance: total debit $debit ≠ total '
+            'credit $credit. Debits and credits must be equal before the '
+            'entry can be submitted.',
+      ),
+    ]);
+  }
+
+  (num, num) _totals(Document doc) {
+    num debit = 0;
+    num credit = 0;
+    for (final row in doc.children['accounts'] ?? const []) {
+      debit += asNum(row.payload['debit']);
+      credit += asNum(row.payload['credit']);
+    }
+    return (debit, credit);
   }
 }
 

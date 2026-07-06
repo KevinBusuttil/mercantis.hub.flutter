@@ -40,8 +40,11 @@ abstract final class LedgerDerivation {
   /// Vouchers whose monetary ledger rows are denominated in the document's
   /// transaction `currency`, so base-currency amounts get stamped onto them
   /// (GL `base_debit`/`base_credit`, customer/supplier `base_amount`). Stock
-  /// vouchers (POS / Delivery / Receipt / Stock Entry) post COGS / inventory at
-  /// moving-average cost — already in base currency — so they're excluded.
+  /// vouchers (POS / Delivery / Receipt / Stock Entry) carry their cost on
+  /// Stock Ledger Entries at moving-average/FIFO cost — already in base
+  /// currency — so they're excluded. NOTE: stock movements currently post to
+  /// the stock subledger only; they do NOT yet emit GL COGS / Inventory Asset
+  /// legs (see docs/STOCK_COGS_IMPLEMENTATION_PLAN.md, Track A).
   /// Mirrors the Swift `baseStampDocTypes`.
   static const _baseStampDocTypes = {
     'Sales Invoice',
