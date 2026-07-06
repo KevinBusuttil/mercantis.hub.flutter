@@ -10,6 +10,10 @@ const homeWorkspace = WorkspaceDescriptor(
   accentColor: MercantisBrandColors.accentHome,
   order: 0,
   quickActions: [
+    QuickAction(id: 'setup_checklist', label: 'Setup checklist',
+      icon: Icons.checklist_outlined,
+      routeName: '/w/home/setup-checklist',
+      color: MercantisBrandColors.accentSetup),
     QuickAction(id: 'scan_receipt', label: 'Scan receipt',
       icon: Icons.document_scanner_outlined,
       routeName: '/w/home/scan-receipt',

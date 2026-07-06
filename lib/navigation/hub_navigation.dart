@@ -27,6 +27,7 @@ import '../screens/report_builder_screen.dart';
 import '../screens/reports_screen.dart';
 import '../screens/sales_orders_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/setup_checklist_screen.dart';
 import '../screens/work_order_complete_screen.dart';
 import '../settings/hub_settings.dart';
 import '../workspaces/hub_workspaces.dart';
@@ -91,6 +92,8 @@ void wireHubNavigation(WidgetRef ref) {
     registry.registerRoute(
         'work-order-complete', (c, s) => const WorkOrderCompleteScreen());
     registry.registerRoute('settings', (c, s) => const SettingsScreen());
+    registry.registerRoute(
+        'setup-checklist', (c, s) => const SetupChecklistScreen());
     // In-app notification inbox (ADR-048) and recently-opened records — shared
     // core-ui views surfaced from the Home workspace's quick actions.
     registry.registerRoute('notifications', (c, s) => const NotificationsScreen());

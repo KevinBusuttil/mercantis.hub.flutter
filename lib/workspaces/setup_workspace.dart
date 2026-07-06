@@ -10,6 +10,12 @@ const setupWorkspace = WorkspaceDescriptor(
   accentColor: MercantisBrandColors.accentSetup,
   order: 90,
   sections: [
+    WorkspaceSection(label: 'Getting started', items: [
+      CustomWorkspaceItem(routeName: 'setup-checklist',
+        label: 'Setup checklist', icon: Icons.checklist_outlined,
+        description: 'What still needs doing — and whether you can '
+            'safely start invoicing'),
+    ]),
     WorkspaceSection(label: 'Preferences', items: [
       CustomWorkspaceItem(routeName: 'settings',
         label: 'Settings', icon: Icons.tune_outlined,
