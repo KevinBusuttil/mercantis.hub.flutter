@@ -188,7 +188,7 @@ Future<SetupChecklist> buildSetupChecklist(
       label: 'Bank account',
       description: 'Record the account customers pay into',
       status: has(bankAccounts.isNotEmpty),
-      route: '/list/Bank Account',
+      route: '/w/finance/bank-reconcile',
     ),
     SetupChecklistItem(
       id: 'stock',

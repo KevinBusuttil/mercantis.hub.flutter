@@ -17,6 +17,8 @@ abstract final class PosModule {
         _posInvoice(),
         lineItemDocType(id: 'POS Invoice Item', module: _module),
         _paymentTender(),
+        _suspendedSale(),
+        lineItemDocType(id: 'POS Suspended Sale Line', module: _module),
       ];
 
   /// Till configuration: supplies default warehouse / accounts / customer.
@@ -32,6 +34,7 @@ abstract final class PosModule {
           FieldDefinition(key: 'cash_account', label: 'Cash / Bank Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'income_account', label: 'Income Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
+          FieldDefinition(key: 'prices_include_tax', label: 'Prices Include Tax', type: FieldType.check, defaultValue: '1'),
           FieldDefinition(key: 'enabled', label: 'Enabled', type: FieldType.check, defaultValue: '1'),
         ],
       );
@@ -71,6 +74,7 @@ abstract final class PosModule {
           // `set_warehouse` so the shared stock derivation issues stock from it.
           FieldDefinition(key: 'set_warehouse', label: 'Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
           FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
+          FieldDefinition(key: 'prices_include_tax', label: 'Prices Include Tax', type: FieldType.check),
           // Posting accounts (resolved from POS Profile / Company defaults).
           FieldDefinition(key: 'cash_account', label: 'Cash / Bank Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'income_account', label: 'Income Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
@@ -88,6 +92,24 @@ abstract final class PosModule {
           FieldDefinition(key: 'paid_amount', label: 'Paid Amount', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'change_amount', label: 'Change', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'remarks', label: 'Remarks', type: FieldType.smallText, allowOnSubmit: true),
+        ],
+      );
+
+  /// A parked cart (Phase 6 POS polish): the till suspends an in-progress
+  /// sale — customer stepped away, next in line gets served — and resumes it
+  /// later. Staging only; it never posts. Resuming deletes the record.
+  static DocType _suspendedSale() => const DocType(
+        id: 'POS Suspended Sale',
+        name: 'POS Suspended Sale',
+        module: _module,
+        namingRule: 'PARK-.####',
+        fields: [
+          FieldDefinition(key: 'pos_profile', label: 'POS Profile', type: FieldType.link, linkDocType: 'POS Profile', options: 'POS Profile'),
+          FieldDefinition(key: 'customer', label: 'Customer', type: FieldType.link, linkDocType: 'Customer', options: 'Customer'),
+          FieldDefinition(key: 'warehouse', label: 'Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
+          FieldDefinition(key: 'note', label: 'Note', type: FieldType.data),
+          FieldDefinition(key: 'parked_at', label: 'Parked At', type: FieldType.data, readOnly: true),
+          FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'POS Suspended Sale Line', options: 'POS Suspended Sale Line'),
         ],
       );
 

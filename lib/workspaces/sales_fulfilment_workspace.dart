@@ -45,6 +45,8 @@ WorkspaceDescriptor salesFulfilmentWorkspace({bool posEnabled = true}) =>
               label: 'Customer payments',
               listFilter: {'payment_type': 'Receive'},
             ),
+            DocTypeWorkspaceItem(docType: 'Recurring Invoice',
+              icon: Icons.event_repeat_outlined),
           ],
         ),
         if (posEnabled)
@@ -63,6 +65,21 @@ WorkspaceDescriptor salesFulfilmentWorkspace({bool posEnabled = true}) =>
                 icon: Icons.schedule_outlined),
             ],
           ),
+        const WorkspaceSection(
+          label: 'Online channels',
+          description: 'Storefront orders staged for review, then posted as '
+              'official invoices with stock and COGS',
+          items: [
+            DocTypeWorkspaceItem(docType: 'Sales Channel',
+              icon: Icons.storefront_outlined),
+            DocTypeWorkspaceItem(docType: 'Channel Order',
+              icon: Icons.shopping_bag_outlined),
+            DocTypeWorkspaceItem(docType: 'Channel Product',
+              icon: Icons.qr_code_2_outlined, label: 'SKU mappings'),
+            DocTypeWorkspaceItem(docType: 'Channel Sync Log',
+              icon: Icons.sync_outlined),
+          ],
+        ),
         const WorkspaceSection(
           label: 'Customer base',
           items: [

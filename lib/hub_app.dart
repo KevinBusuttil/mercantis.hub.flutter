@@ -4,6 +4,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'auth/auth_gate.dart';
 import 'auth/auth_store.dart';
 import 'manifest/hub_manifest.dart';
+import 'modules/selling/recurring_invoice_service.dart';
 import 'printing/hub_print_formats.dart';
 import 'navigation/hub_navigation.dart';
 import 'deliveries/delivery_route_service.dart';
@@ -142,6 +143,9 @@ final _bootProvider = FutureProvider<void>((ref) async {
   await ref.read(authProvider.notifier).hydrate(engine);
   // Load the persisted theme mode (light/dark/system).
   await ref.read(themeModeProvider.notifier).hydrate();
+  // Draft whatever recurring invoices are due (retainers). Failures are
+  // stamped on each template's last_error rather than blocking boot.
+  await ref.read(recurringInvoiceRunProvider.future);
 });
 
 class _HubSplashScreen extends StatelessWidget {

@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../ledger/hub_tax_engine.dart';
 import '../ledger/ledger_values.dart';
+import '../modules/pos/pos_parking.dart';
+import '../modules/pos/pos_receipt.dart';
 import '../modules/pos/pos_shift_report.dart' as shift;
+import '../modules/pos/pos_till_logic.dart';
 import '../payments/pos_checkout.dart';
 
 const _systemRoles = {'System Manager'};
@@ -21,7 +25,10 @@ class _TillContext {
     required this.rateByCode,
     this.defaultWarehouse,
     this.profileTaxCode,
+    this.pricesIncludeTax = false,
     this.company,
+    this.companyName,
+    this.profileId,
     this.sessionId,
     this.openingFloat = 0,
   });
@@ -33,10 +40,17 @@ class _TillContext {
   final Map<String, TaxRateInfo> rateByCode;
   final String? defaultWarehouse;
   final String? profileTaxCode;
+  final bool pricesIncludeTax;
   final String? company;
 
-  /// The open POS Session this till posts sales into (null when no POS Profile
-  /// is configured, so a session can't be opened). Drives the shift reports.
+  /// Display name for the receipt header.
+  final String? companyName;
+
+  /// The configured POS Profile (null until one exists).
+  final String? profileId;
+
+  /// The open POS Session this till posts sales into (null until the operator
+  /// opens the till with a counted float). Drives the shift reports.
   final String? sessionId;
   final num openingFloat;
 }
@@ -78,15 +92,8 @@ final _tillContextProvider = FutureProvider<_TillContext>((ref) async {
         break;
       }
     }
-    session ??= await engine.save(
-      Document(id: '', docType: 'POS Session', payload: {
-        'pos_profile': profile.id,
-        'status': 'Open',
-        'opening_date': DateTime.now().toIso8601String().split('T').first,
-        'opening_amount': 0,
-      }),
-      _systemRoles,
-    );
+    // No open session → the screen shows the Open-till panel, which creates
+    // one with a real counted opening float (Phase 6: no more hardcoded 0).
   }
 
   return _TillContext(
@@ -98,7 +105,10 @@ final _tillContextProvider = FutureProvider<_TillContext>((ref) async {
     defaultWarehouse: asNonEmpty(profile?.payload['warehouse']) ??
         (warehouses.isEmpty ? null : warehouses.first.id),
     profileTaxCode: asNonEmpty(profile?.payload['tax_code']),
+    pricesIncludeTax: isTrue(profile?.payload['prices_include_tax']),
     company: company?.id,
+    companyName: asNonEmpty(company?.payload['company_name']) ?? company?.id,
+    profileId: profile?.id,
     sessionId: session?.id,
     openingFloat: asNum(session?.payload['opening_amount']),
   );
@@ -136,11 +146,20 @@ class _CartLine {
 
 class _PosTillScreenState extends ConsumerState<PosTillScreen> {
   final List<_CartLine> _cart = [];
+  final _scanController = TextEditingController();
+  final _scanFocus = FocusNode();
   String? _customer;
   String? _warehouse;
   bool _posting = false;
   String? _result;
   String? _error;
+
+  @override
+  void dispose() {
+    _scanController.dispose();
+    _scanFocus.dispose();
+    super.dispose();
+  }
 
   TaxComputation _totals(_TillContext ctx) => HubTaxEngine.compute(
         [
@@ -161,7 +180,137 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
     });
   }
 
-  Future<void> _checkout(_TillContext ctx) async {
+  /// Barcode / code entry: scanning the same product again bumps its
+  /// quantity instead of stacking duplicate lines. Focus stays in the field
+  /// so a scanner can fire line after line.
+  void _addByCode(String code, _TillContext ctx) {
+    final trimmed = code.trim();
+    if (trimmed.isEmpty) return;
+    final item = resolvePosItem(ctx.items, trimmed);
+    if (item == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No item matches "$trimmed"')));
+    } else {
+      final existing = _cart.where((l) => l.item == item.id);
+      if (existing.isNotEmpty) {
+        setState(() => existing.first.qty += 1);
+      } else {
+        _addItem(item, ctx);
+      }
+    }
+    _scanController.clear();
+    _scanFocus.requestFocus();
+  }
+
+  /// Suspends the cart as a POS Suspended Sale — the customer stepped away;
+  /// serve the next one and resume later from the Parked list.
+  Future<void> _parkSale(_TillContext ctx) async {
+    if (_cart.isEmpty) return;
+    final engine = await ref.read(documentEngineProvider.future);
+    final parked =
+        await PosParkingService(engine: engine).park(
+      lines: [
+        for (final l in _cart)
+          ParkedLine(
+              item: l.item, name: l.name, qty: l.qty, rate: l.lineRate,
+              taxCode: l.taxCode),
+      ],
+      profileId: ctx.profileId,
+      customer: _customer,
+      warehouse: _warehouse ?? ctx.defaultWarehouse,
+    );
+    if (!mounted) return;
+    setState(() {
+      _cart.clear();
+      _customer = null;
+    });
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('Sale parked as ${parked.id}')));
+  }
+
+  /// Lists parked sales; picking one loads its lines back into the cart
+  /// (appending to anything already rung up) and deletes the parking slip.
+  Future<void> _showParked(_TillContext ctx) async {
+    final engine = await ref.read(documentEngineProvider.future);
+    final service = PosParkingService(engine: engine);
+    final parked = await service.listParked(profileId: ctx.profileId);
+    if (!mounted) return;
+    if (parked.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('No parked sales.')));
+      return;
+    }
+    final pickedId = await showDialog<String>(
+      context: context,
+      builder: (c) => SimpleDialog(
+        title: const Text('Parked sales'),
+        children: [
+          for (final p in parked)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(c, p.id),
+              child: ListTile(
+                dense: true,
+                title: Text(asNonEmpty(p.payload['note']) ?? p.id),
+                subtitle: Text([
+                  if (asNonEmpty(p.payload['customer']) != null)
+                    '${p.payload['customer']}',
+                  'parked ${'${p.payload['parked_at']}'.split('T').first}',
+                ].join(' — ')),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (pickedId == null || !mounted) return;
+    final sale = await service.resume(pickedId);
+    if (sale == null || !mounted) return;
+    setState(() {
+      for (final l in sale.lines) {
+        _cart.add(_CartLine(
+            item: l.item, name: l.name, taxCode: l.taxCode, rate: l.rate)
+          ..qty = l.qty
+          ..lineRate = l.rate);
+      }
+      _customer ??= sale.customer;
+      if (sale.warehouse != null) _warehouse ??= sale.warehouse;
+    });
+  }
+
+  /// Shows the 80mm receipt for the completed sale — printable raw on a
+  /// thermal printer, or copied wherever it needs to go.
+  Future<void> _showReceipt(_TillContext ctx, Document posted) async {
+    final engine = await ref.read(documentEngineProvider.future);
+    final hydrated =
+        await engine.fetch(posted.docType, posted.id) ?? posted;
+    final text = PosReceiptBuilder.build(
+      invoice: hydrated,
+      businessName: ctx.companyName ?? 'Receipt',
+    );
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Receipt'),
+        content: SingleChildScrollView(
+          child: SelectableText(text,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: text));
+              Navigator.pop(c);
+            },
+            child: const Text('Copy & close'),
+          ),
+          FilledButton(
+              onPressed: () => Navigator.pop(c), child: const Text('Done')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _checkout(_TillContext ctx, List<PosTender> tenders) async {
     if (_cart.isEmpty) return;
     setState(() {
       _posting = true;
@@ -175,13 +324,14 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         customer: _customer,
         warehouse: _warehouse ?? ctx.defaultWarehouse,
         taxCode: ctx.profileTaxCode,
+        pricesIncludeTax: ctx.pricesIncludeTax,
         company: ctx.company,
         posSession: ctx.sessionId,
         lines: [
           for (final l in _cart)
             PosCartLine(item: l.item, qty: l.qty, rate: l.lineRate, taxCode: l.taxCode),
         ],
-        tenders: [PosTender(type: 'Cash', amount: _totals(ctx).grandTotal)],
+        tenders: tenders,
       );
       final saved = await engine.save(draft, _systemRoles);
       final posted = await engine.submit(saved, _systemRoles);
@@ -192,6 +342,7 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         _cart.clear();
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sale ${posted.id} completed')));
+      await _showReceipt(ctx, posted);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -199,6 +350,140 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         _error = e is DocumentEngineError ? e.humanMessage : '$e';
       });
     }
+  }
+
+  /// Opens the shift with a counted cash float (Phase 6: the float used to be
+  /// hardcoded to 0, which made every cash-variance check meaningless).
+  Future<void> _openTill(_TillContext ctx) async {
+    final profileId = ctx.profileId;
+    if (profileId == null) return;
+    final ctrl = TextEditingController(text: '0.00');
+    final float = await showDialog<num>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Open till'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Opening cash float',
+            helperText: 'Count the drawer before trading — the Z-report '
+                'compares expected cash against this.',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () =>
+                  Navigator.pop(c, num.tryParse(ctrl.text.trim()) ?? 0),
+              child: const Text('Open till')),
+        ],
+      ),
+    );
+    if (float == null) return;
+    final engine = await ref.read(documentEngineProvider.future);
+    await engine.save(
+      Document(id: '', docType: 'POS Session', payload: {
+        'pos_profile': profileId,
+        'status': 'Open',
+        'opening_date': DateTime.now().toIso8601String().split('T').first,
+        'opening_amount': float,
+      }),
+      _systemRoles,
+    );
+    ref.invalidate(_tillContextProvider);
+  }
+
+  /// Collects the tender split — cash, card, or both. Validates that the
+  /// tendered total covers the sale and shows the change due live.
+  Future<void> _takePayment(_TillContext ctx) async {
+    final total = _totals(ctx).grandTotal;
+    final cashCtrl = TextEditingController(text: total.toStringAsFixed(2));
+    final cardCtrl = TextEditingController(text: '0.00');
+    final tenders = await showDialog<List<PosTender>>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, setDialogState) {
+          final cash = num.tryParse(cashCtrl.text.trim()) ?? 0;
+          final card = num.tryParse(cardCtrl.text.trim()) ?? 0;
+          final tendered = cash + card;
+          final change = tendered - total;
+          return AlertDialog(
+            title: Text('Take payment — €${total.toStringAsFixed(2)}'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: cashCtrl,
+                  autofocus: true,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration:
+                      const InputDecoration(labelText: 'Cash', isDense: true),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: cardCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration:
+                      const InputDecoration(labelText: 'Card', isDense: true),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () => setDialogState(() {
+                        cashCtrl.text = total.toStringAsFixed(2);
+                        cardCtrl.text = '0.00';
+                      }),
+                      child: const Text('Exact cash'),
+                    ),
+                    TextButton(
+                      onPressed: () => setDialogState(() {
+                        cashCtrl.text = '0.00';
+                        cardCtrl.text = total.toStringAsFixed(2);
+                      }),
+                      child: const Text('Exact card'),
+                    ),
+                  ],
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    change >= 0
+                        ? 'Change due: €${change.toStringAsFixed(2)}'
+                        : 'Short by €${(-change).toStringAsFixed(2)}',
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(c),
+                  child: const Text('Cancel')),
+              FilledButton(
+                onPressed: tendered + 0.0001 < total
+                    ? null
+                    : () => Navigator.pop(c, [
+                          if (cash > 0) PosTender(type: 'Cash', amount: cash),
+                          if (card > 0) PosTender(type: 'Card', amount: card),
+                        ]),
+                child: const Text('Complete sale'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (tenders == null || tenders.isEmpty) return;
+    await _checkout(ctx, tenders);
   }
 
   Future<void> _showXReport(_TillContext ctx) async {
@@ -320,6 +605,35 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
   }
 
   Widget _till(_TillContext ctx) {
+    // No open shift yet: offer to open the till with a counted float (or
+    // point at Setup when there's no POS Profile at all).
+    if (ctx.sessionId == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.point_of_sale_outlined, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              ctx.profileId == null
+                  ? 'Create a POS Profile first (Sales → POS Profile) — it '
+                      'names the warehouse, cash account and taxes this till '
+                      'uses.'
+                  : 'The till is closed. Count the drawer and open a shift '
+                      'to start selling.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            if (ctx.profileId != null)
+              FilledButton.icon(
+                onPressed: () => _openTill(ctx),
+                icon: const Icon(Icons.lock_open_outlined),
+                label: const Text('Open till'),
+              ),
+          ],
+        ),
+      );
+    }
     final totals = _totals(ctx);
     return Column(
       children: [
@@ -358,20 +672,40 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: DropdownButtonFormField<String>(
-            initialValue: null,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Add item', border: OutlineInputBorder()),
-            items: [
-              for (final it in ctx.items)
-                DropdownMenuItem(value: it.id, child: Text((it.payload['item_name'] as String?) ?? it.id)),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _scanController,
+                  focusNode: _scanFocus,
+                  enabled: !_posting,
+                  decoration: const InputDecoration(
+                    labelText: 'Scan / type code',
+                    prefixIcon: Icon(Icons.qr_code_scanner_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (code) => _addByCode(code, ctx),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: null,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Add item', border: OutlineInputBorder()),
+                  items: [
+                    for (final it in ctx.items)
+                      DropdownMenuItem(value: it.id, child: Text((it.payload['item_name'] as String?) ?? it.id)),
+                  ],
+                  onChanged: _posting
+                      ? null
+                      : (v) {
+                          final it = ctx.items.firstWhere((d) => d.id == v);
+                          _addItem(it, ctx);
+                        },
+                ),
+              ),
             ],
-            onChanged: _posting
-                ? null
-                : (v) {
-                    final it = ctx.items.firstWhere((d) => d.id == v);
-                    _addItem(it, ctx);
-                  },
           ),
         ),
         Expanded(
@@ -397,14 +731,38 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
                     value: totals.grandTotal.toStringAsFixed(2),
                     emphasize: true),
                 const SizedBox(height: MercantisSpacing.md),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: (_posting || _cart.isEmpty)
+                            ? null
+                            : () => _parkSale(ctx),
+                        icon: const Icon(Icons.pause_circle_outline),
+                        label: const Text('Park sale'),
+                      ),
+                    ),
+                    const SizedBox(width: MercantisSpacing.md),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _posting ? null : () => _showParked(ctx),
+                        icon: const Icon(Icons.play_circle_outline),
+                        label: const Text('Resume parked'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: MercantisSpacing.md),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
-                    onPressed: (_posting || _cart.isEmpty) ? null : () => _checkout(ctx),
+                    onPressed: (_posting || _cart.isEmpty || ctx.sessionId == null)
+                        ? null
+                        : () => _takePayment(ctx),
                     icon: _posting
                         ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.point_of_sale),
-                    label: Text('Take cash ${totals.grandTotal.toStringAsFixed(2)}'),
+                    label: Text('Take payment ${totals.grandTotal.toStringAsFixed(2)}'),
                   ),
                 ),
                 if (_result != null)

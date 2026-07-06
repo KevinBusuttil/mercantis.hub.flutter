@@ -12,6 +12,7 @@ import '../modules/accounting/year_end_close_service.dart';
 import '../settings/hub_settings.dart';
 import 'company_sync_screen.dart';
 import 'numbering_series_screen.dart';
+import '../modules/stock/inventory_takeon.dart';
 
 /// App preferences: the signed-in operator (passcode lock managed by the auth
 /// gate), optional-module visibility, and the advanced toggle. Module/advanced
@@ -127,6 +128,107 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(e is DocumentEngineError ? e.humanMessage : '$e')));
     }
+  }
+
+  Future<void> _inventoryTakeOn() async {
+    final engine = await ref.read(documentEngineProvider.future);
+    final roles = ref.read(currentUserProvider).roles;
+    final takeOn = InventoryTakeOn(engine.list);
+    final gap = await takeOn.gap(userRoles: roles);
+    if (!mounted) return;
+    if (gap.abs() < 0.005) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Stock ledger and GL inventory already agree — '
+              'nothing to post.')));
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Post inventory take-on?'),
+        content: Text(
+            'The stock ledger carries €${gap.toStringAsFixed(2)} '
+            '${gap > 0 ? 'more' : 'less'} than the GL inventory account — '
+            'usually stock received before perpetual-inventory accounting '
+            'was enabled. This drafts a one-time journal against Opening '
+            'Balance Equity so the ledgers agree. It is a Draft you can '
+            'review and submit — nothing posts yet.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Draft take-on entry')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final draft = await takeOn.build(
+        postingDate: DateTime.now().toIso8601String().split('T').first,
+        userRoles: roles,
+      );
+      if (draft == null) return; // raced to agreement — nothing to post
+      final saved = await engine.save(draft, roles);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Draft take-on entry ${saved.id} created — review '
+              'and submit it from Journal Entries.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e is DocumentEngineError ? e.humanMessage : '$e')));
+    }
+  }
+
+  Future<void> _lockBooks() async {
+    final engine = await ref.read(documentEngineProvider.future);
+    final companies =
+        await engine.list('Company', userRoles: const {'System Manager'});
+    if (companies.isEmpty || !mounted) return;
+    final company = companies.first;
+    final currentRaw = '${company.payload['books_lock_date'] ?? ''}';
+    final current = DateTime.tryParse(currentRaw);
+
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current ?? DateTime(now.year, now.month, 0), // last month-end
+      firstDate: DateTime(now.year - 10),
+      lastDate: now,
+      helpText: 'Lock books through',
+    );
+    if (picked == null || !mounted) return;
+
+    final iso = '${picked.year.toString().padLeft(4, '0')}-'
+        '${picked.month.toString().padLeft(2, '0')}-'
+        '${picked.day.toString().padLeft(2, '0')}';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Lock the books?'),
+        content: Text(
+            'Nothing can be posted on or before $iso — invoices, payments, '
+            'journals and stock entries dated into the locked period are '
+            'rejected at submit. You can move or clear the lock here or on '
+            'the Company profile.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Lock books')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    company.payload['books_lock_date'] = iso;
+    await engine.save(company, const {'System Manager'});
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Books locked through $iso')));
   }
 
   Future<void> _changePasscode() async {
@@ -265,6 +367,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _closeYear,
                 ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.inventory_2_outlined),
+                  title: const Text('Inventory take-on'),
+                  subtitle: const Text(
+                      'One-time upgrade: align the GL inventory account with '
+                      'the stock ledger'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _inventoryTakeOn,
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.lock_clock_outlined),
+                  title: const Text('Lock books (period close)'),
+                  subtitle: const Text(
+                      'Reject any posting dated into a finalised period'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _lockBooks,
+                ),
               ],
             ),
           ),
@@ -278,6 +399,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   padding: const EdgeInsets.only(bottom: MercantisSpacing.xs),
                   child: Text('Hidden modules apply on next launch.',
                       style: theme.textTheme.bodySmall),
+                ),
+                AtlasFieldRow(
+                  label: 'Projects & Time',
+                  onTap: _saving
+                      ? null
+                      : () => setState(() => _draft = _draft.copyWith(
+                          projectsEnabled: !_draft.projectsEnabled)),
+                  trailing: Switch(
+                    value: _draft.projectsEnabled,
+                    onChanged: _saving
+                        ? null
+                        : (v) => setState(() =>
+                            _draft = _draft.copyWith(projectsEnabled: v)),
+                  ),
                 ),
                 AtlasFieldRow(
                   label: 'Stock & Warehousing',

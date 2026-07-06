@@ -13,39 +13,60 @@ abstract final class HubTaxEngine {
   /// posted to its own liability/asset account, rather than added like VAT.
   static const withholdingType = 'Withholding';
 
-  /// One taxable line as seen by the engine: its net (pre-tax) amount and the
-  /// tax code that applies (already resolved through the
-  /// line → item → document → party fallback chain by the caller).
+  /// One taxable line as seen by the engine: its amount and the tax code that
+  /// applies (already resolved through the line → item → document → party
+  /// fallback chain by the caller).
+  ///
+  /// With `inclusive: false` (default) line amounts are net (pre-tax) and tax
+  /// is added on top. With `inclusive: true` — retail pricing — line amounts
+  /// already CONTAIN the tax: each code's tax is extracted as
+  /// `gross × r / (100 + r)`, the net total shrinks accordingly, and the
+  /// grand total equals the entered line amounts. Withholding is always
+  /// computed on the (post-extraction) taxable base and deducted, exactly as
+  /// in exclusive mode.
   static TaxComputation compute(
     List<TaxLine> lines,
-    Map<String, TaxRateInfo> rates,
-  ) {
-    var netTotal = 0.0;
+    Map<String, TaxRateInfo> rates, {
+    bool inclusive = false,
+  }) {
+    var enteredTotal = 0.0;
     // Preserve first-seen order of codes for deterministic output.
     final orderedCodes = <String>[];
-    final taxableByCode = <String, double>{};
+    final amountByCode = <String, double>{};
 
     for (final line in lines) {
-      netTotal += line.netAmount;
+      enteredTotal += line.netAmount;
       final codeId = line.taxCodeId;
       if (codeId == null || !rates.containsKey(codeId)) continue;
-      if (!taxableByCode.containsKey(codeId)) orderedCodes.add(codeId);
-      taxableByCode[codeId] = (taxableByCode[codeId] ?? 0) + line.netAmount;
+      if (!amountByCode.containsKey(codeId)) orderedCodes.add(codeId);
+      amountByCode[codeId] = (amountByCode[codeId] ?? 0) + line.netAmount;
     }
 
     final rows = <ComputedTaxRow>[];
     var totalTax = 0.0;
+    var extracted = 0.0; // inclusive: tax removed from the entered amounts
     for (final codeId in orderedCodes) {
       final info = rates[codeId];
       if (info == null) continue;
-      final taxable = round2(taxableByCode[codeId] ?? 0);
+      final entered = round2(amountByCode[codeId] ?? 0);
+      final isWithholding = info.taxType == withholdingType;
+
+      final num taxable;
+      final num magnitude;
+      if (inclusive && !isWithholding) {
+        // Entered amount is gross: extract the contained tax.
+        magnitude = round2(entered * info.rate / (100.0 + info.rate));
+        taxable = round2(entered - magnitude);
+        extracted += magnitude;
+      } else {
+        taxable = entered;
+        magnitude = round2(taxable * info.rate / 100.0);
+      }
       // Withholding is deducted (it reduces what's owed), so its amount is
       // carried negative — that nets the grand total down and, downstream,
       // posts the ledger leg to the opposite side of VAT (a receivable on
       // sales, a payable on purchases) without any special-casing there.
-      final magnitude = round2(taxable * info.rate / 100.0);
-      final taxAmount =
-          info.taxType == withholdingType ? -magnitude : magnitude;
+      final taxAmount = isWithholding ? -magnitude : magnitude;
       totalTax += taxAmount;
       rows.add(ComputedTaxRow(
         taxCode: info.codeId,
@@ -58,7 +79,7 @@ abstract final class HubTaxEngine {
       ));
     }
 
-    final net = round2(netTotal);
+    final net = round2(enteredTotal - extracted);
     final tax = round2(totalTax);
     return TaxComputation(
       netTotal: net,

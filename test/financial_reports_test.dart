@@ -193,4 +193,152 @@ void main() {
       expect(r.rows[2], ['Difference', '20.00']);
     });
   });
+
+  group('Balance Sheet', () {
+    test('sections balance with a current-period profit line', () async {
+      // The COGS acceptance scenario after buy 10@5, sell 3@12 (no VAT):
+      // AR 36, Stock 35, AP -50 → profit 21 balances the sheet.
+      final reports = build({
+        'Account': [
+          account('Debtors', 'Asset'),
+          account('Stock', 'Asset', accountType: 'Stock'),
+          account('Creditors', 'Liability'),
+          account('Sales', 'Income'),
+          account('COGS', 'Expense'),
+          account('GRNI', 'Liability'),
+        ],
+        'GL Entry': [
+          gl('g1', 'Stock', 50, 0), // purchase receipt
+          gl('g2', 'GRNI', 0, 50),
+          gl('g3', 'GRNI', 50, 0), // bill clears GRNI
+          gl('g4', 'Creditors', 0, 50),
+          gl('g5', 'Debtors', 36, 0), // sale
+          gl('g6', 'Sales', 0, 36),
+          gl('g7', 'COGS', 15, 0),
+          gl('g8', 'Stock', 0, 15),
+        ],
+      });
+
+      final r = await reports.balanceSheet();
+      String amountOf(String account) => r.rows
+          .firstWhere((row) => row[1] == account)[2]!;
+      expect(amountOf('Debtors'), '36.00');
+      expect(amountOf('Stock'), '35.00');
+      expect(amountOf('Creditors'), '50.00');
+      expect(amountOf('Current period profit'), '21.00');
+      expect(amountOf('Total assets'), '71.00');
+      expect(r.rows.last, ['', 'Liabilities + equity', '71.00']);
+      // GRNI netted to zero — dropped rather than shown as noise.
+      expect(r.rows.where((row) => row[1] == 'GRNI'), isEmpty);
+    });
+  });
+
+  group('Cash Flow Overview', () {
+    test('groups cash-account movements by voucher type', () async {
+      final reports = build({
+        'Account': [
+          account('Bank', 'Asset', accountType: 'Bank'),
+          account('Cash', 'Asset', accountType: 'Cash'),
+          account('Debtors', 'Asset'), // not cash — ignored
+        ],
+        'GL Entry': [
+          Document(id: 'g1', docType: 'GL Entry', payload: {
+            'account': 'Bank', 'debit': 500, 'credit': 0,
+            'voucher_type': 'Payment Entry',
+          }),
+          Document(id: 'g2', docType: 'GL Entry', payload: {
+            'account': 'Bank', 'debit': 0, 'credit': 118,
+            'voucher_type': 'Expense',
+          }),
+          Document(id: 'g3', docType: 'GL Entry', payload: {
+            'account': 'Cash', 'debit': 36, 'credit': 0,
+            'voucher_type': 'POS Invoice',
+          }),
+          Document(id: 'g4', docType: 'GL Entry', payload: {
+            'account': 'Debtors', 'debit': 999, 'credit': 0,
+            'voucher_type': 'Sales Invoice', // non-cash — ignored
+          }),
+        ],
+      });
+
+      final r = await reports.cashFlowOverview();
+      expect(r.rows.firstWhere((row) => row[0] == 'Payment Entry'),
+          ['Payment Entry', '500.00', '0.00', '500.00']);
+      expect(r.rows.firstWhere((row) => row[0] == 'Expense'),
+          ['Expense', '0.00', '118.00', '-118.00']);
+      expect(r.rows.firstWhere((row) => row[0] == 'POS Invoice'),
+          ['POS Invoice', '36.00', '0.00', '36.00']);
+      expect(r.rows.last,
+          ['Net cash movement', '536.00', '118.00', '418.00']);
+    });
+  });
+
+  group('General Ledger journal (accountant export)', () {
+    Document entry(String id, String date, String voucher, String account,
+            num debit, num credit) =>
+        Document(id: id, docType: 'GL Entry', payload: {
+          'posting_date': date,
+          'voucher_type': 'Sales Invoice',
+          'voucher_no': voucher,
+          'account': account,
+          'debit': debit,
+          'credit': credit,
+          if (account == 'Debtors') ...{
+            'party_type': 'Customer',
+            'party': 'CUST-1',
+          },
+        });
+
+    test('one row per GL entry, ordered by date then voucher, balanced total',
+        () async {
+      final reports = build({
+        'Account': [
+          Document(id: 'Sales', docType: 'Account', payload: {
+            'account_name': 'Sales Revenue', 'root_type': 'Income',
+          }),
+          Document(id: 'Debtors', docType: 'Account', payload: {
+            'account_name': 'Accounts Receivable', 'root_type': 'Asset',
+          }),
+        ],
+        'GL Entry': [
+          // Deliberately out of order — the report must sort.
+          entry('g3', '2026-02-01', 'SINV-2', 'Debtors', 10, 0),
+          entry('g4', '2026-02-01', 'SINV-2', 'Sales', 0, 10),
+          entry('g1', '2026-01-15', 'SINV-1', 'Debtors', 36, 0),
+          entry('g2', '2026-01-15', 'SINV-1', 'Sales', 0, 36),
+        ],
+      });
+
+      final r = await reports.generalLedgerJournal();
+      expect(r.rows.length, 5); // 4 entries + total
+      expect(r.rows.first, [
+        '2026-01-15', 'Sales Invoice', 'SINV-1', 'Debtors',
+        'Accounts Receivable', '36.00', '0.00', 'Customer', 'CUST-1', '',
+      ]);
+      expect(r.rows[1][3], 'Sales');
+      expect(r.rows[1][4], 'Sales Revenue');
+      expect(r.rows[2][2], 'SINV-2'); // later date after earlier
+      // The export balances: total debit == total credit.
+      expect(r.rows.last[2], 'Total');
+      expect(r.rows.last[5], '46.00');
+      expect(r.rows.last[6], '46.00');
+    });
+
+    test('the date window is inclusive and drops entries outside it',
+        () async {
+      final reports = build({
+        'Account': const [],
+        'GL Entry': [
+          entry('g1', '2026-01-15', 'SINV-1', 'Sales', 0, 36),
+          entry('g2', '2026-02-01', 'SINV-2', 'Sales', 0, 10),
+          entry('g3', '2026-03-09', 'SINV-3', 'Sales', 0, 7),
+        ],
+      });
+
+      final r = await reports.generalLedgerJournal(
+          fromDate: '2026-02-01', toDate: '2026-02-28');
+      expect(r.rows.length, 2); // one entry + total
+      expect(r.rows.first[2], 'SINV-2');
+    });
+  });
 }

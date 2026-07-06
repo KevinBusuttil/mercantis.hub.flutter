@@ -15,12 +15,15 @@ class _Statement {
 
 final _statements = <_Statement>[
   _Statement('Profit & Loss', 'Income and expenses from the GL', profitAndLossProvider),
+  _Statement('Balance Sheet', 'Assets, liabilities and equity from the GL', balanceSheetProvider),
+  _Statement('Cash Flow Overview', 'Money in and out of cash/bank accounts', cashFlowProvider),
   _Statement('Trial Balance', 'GL Entry — debits vs credits per account', trialBalanceProvider),
   _Statement('AR Aging', 'Open Sales Invoices by age', arAgingProvider),
   _Statement('AP Aging', 'Open Purchase Invoices by age', apAgingProvider),
   _Statement('Gross Margin by Item', 'Revenue vs COGS per item', grossMarginProvider),
   _Statement('Stock Valuation', 'On-hand quantity and value per item', stockValuationProvider),
   _Statement('Stock ↔ GL Reconciliation', 'Stock ledger vs GL inventory balance', stockGlReconciliationProvider),
+  _Statement('Project Profitability', 'Invoiced vs costs per project', projectProfitabilityProvider),
 ];
 
 /// Lists every report the current user may run — the aggregating financial

@@ -146,6 +146,12 @@ abstract final class BuyingModule {
           FieldDefinition(key: 'tax_account', label: 'VAT Account', type: FieldType.link, linkDocType: 'Account', options: 'Account', readOnly: true),
           FieldDefinition(key: 'gross_amount', label: 'Gross Amount', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'is_paid', label: 'Paid', type: FieldType.check, defaultValue: '1'),
+          // Phase 6: pass-through project costs. billed/billed_on are stamped
+          // after submit by ProjectBilling, hence allowOnSubmit.
+          FieldDefinition(key: 'project', label: 'Project', type: FieldType.link, linkDocType: 'Project', options: 'Project'),
+          FieldDefinition(key: 'billable', label: 'Billable to Customer', type: FieldType.check),
+          FieldDefinition(key: 'billed', label: 'Billed', type: FieldType.check, readOnly: true, allowOnSubmit: true),
+          FieldDefinition(key: 'billed_on', label: 'Billed On', type: FieldType.link, linkDocType: 'Sales Invoice', options: 'Sales Invoice', readOnly: true, allowOnSubmit: true),
           FieldDefinition(key: 'paid_from', label: 'Paid From', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'credit_to', label: 'Payable Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
         ],

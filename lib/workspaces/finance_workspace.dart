@@ -22,6 +22,9 @@ const financeWorkspace = WorkspaceDescriptor(
           icon: Icons.donut_small_outlined),
         DocTypeWorkspaceItem(docType: 'Journal Entry',
           icon: Icons.menu_book_outlined),
+        CustomWorkspaceItem(routeName: 'audit-trail',
+          label: 'Audit trail', icon: Icons.history,
+          description: 'Who changed what, when — across the whole book'),
       ],
     ),
     WorkspaceSection(
@@ -33,6 +36,19 @@ const financeWorkspace = WorkspaceDescriptor(
           icon: Icons.receipt_outlined),
         DocTypeWorkspaceItem(docType: 'Payment Entry',
           icon: Icons.payments_outlined),
+      ],
+    ),
+    WorkspaceSection(
+      label: 'Banking',
+      description: 'Statements in, matches accepted, books agreeing',
+      items: [
+        DocTypeWorkspaceItem(docType: 'Bank Account',
+          icon: Icons.account_balance_outlined),
+        CustomWorkspaceItem(routeName: 'bank-reconcile',
+          label: 'Bank reconciliation', icon: Icons.rule_outlined,
+          description: 'Import statements, match payments, explain the rest'),
+        DocTypeWorkspaceItem(docType: 'Bank Statement Line',
+          icon: Icons.receipt_long_outlined),
       ],
     ),
     WorkspaceSection(

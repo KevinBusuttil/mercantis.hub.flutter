@@ -162,6 +162,84 @@ class HubAggregatingReports {
     );
   }
 
+  /// The full General Ledger journal — one row per GL Entry, the file an
+  /// accountant (or their software) actually imports. Optionally windowed to
+  /// [fromDate]/[toDate] (inclusive, ISO dates); ordered by posting date,
+  /// then voucher, so a voucher's legs sit together. A closing row proves
+  /// the export balances (total debit == total credit).
+  Future<ReportResult> generalLedgerJournal({
+    String? fromDate,
+    String? toDate,
+    Set<String>? userRoles,
+  }) async {
+    final entries = await _list('GL Entry', userRoles: userRoles);
+    final accounts = await _list('Account', userRoles: userRoles);
+    final nameByAccount = {
+      for (final a in accounts)
+        a.id: asNonEmpty(a.payload['account_name']) ?? a.id,
+    };
+
+    final window = entries.where((e) {
+      final date = asNonEmpty(e.payload['posting_date']);
+      if (date == null) return false;
+      final day = date.split('T').first;
+      if (fromDate != null && day.compareTo(fromDate) < 0) return false;
+      if (toDate != null && day.compareTo(toDate) > 0) return false;
+      return true;
+    }).toList()
+      ..sort((l, r) {
+        final byDate = '${l.payload['posting_date']}'
+            .compareTo('${r.payload['posting_date']}');
+        if (byDate != 0) return byDate;
+        final byVoucher = '${l.payload['voucher_no']}'
+            .compareTo('${r.payload['voucher_no']}');
+        return byVoucher != 0 ? byVoucher : l.id.compareTo(r.id);
+      });
+
+    num totalDebit = 0, totalCredit = 0;
+    final rows = <List<String?>>[];
+    for (final e in window) {
+      final p = e.payload;
+      final account = asNonEmpty(p['account']) ?? '';
+      totalDebit += asNum(p['debit']);
+      totalCredit += asNum(p['credit']);
+      rows.add([
+        asNonEmpty(p['posting_date'])?.split('T').first ?? '',
+        asNonEmpty(p['voucher_type']) ?? '',
+        asNonEmpty(p['voucher_no']) ?? '',
+        account,
+        nameByAccount[account] ?? account,
+        _money(asNum(p['debit'])),
+        _money(asNum(p['credit'])),
+        asNonEmpty(p['party_type']) ?? '',
+        asNonEmpty(p['party']) ?? '',
+        isTrue(p['is_reversal']) ? 'Yes' : '',
+      ]);
+    }
+    rows.add([
+      '', '', 'Total', '', '',
+      _money(totalDebit), _money(totalCredit), '', '', '',
+    ]);
+
+    return ReportResult(
+      reportId: 'gl_journal',
+      name: 'General Ledger',
+      columns: const [
+        ReportColumn(fieldKey: 'posting_date', label: 'Posting Date'),
+        ReportColumn(fieldKey: 'voucher_type', label: 'Voucher Type'),
+        ReportColumn(fieldKey: 'voucher_no', label: 'Voucher No'),
+        ReportColumn(fieldKey: 'account', label: 'Account'),
+        ReportColumn(fieldKey: 'account_name', label: 'Account Name'),
+        ReportColumn(fieldKey: 'debit', label: 'Debit', type: 'currency'),
+        ReportColumn(fieldKey: 'credit', label: 'Credit', type: 'currency'),
+        ReportColumn(fieldKey: 'party_type', label: 'Party Type'),
+        ReportColumn(fieldKey: 'party', label: 'Party'),
+        ReportColumn(fieldKey: 'is_reversal', label: 'Reversal'),
+      ],
+      rows: rows,
+    );
+  }
+
   /// Profit & Loss: every Income and Expense account's GL balance (all time —
   /// year-end close zeroes a finished year into Retained Earnings, so the
   /// open period is what remains). Income reads credit−debit, expenses
@@ -377,6 +455,223 @@ class HubAggregatingReports {
         ],
         ['Difference', _money(binsValue - glValue)],
       ],
+    );
+  }
+
+  /// Balance Sheet: every Asset / Liability / Equity account's GL balance,
+  /// plus a "Current period profit" equity line (income − expense balances
+  /// not yet closed to Retained Earnings) so the statement always balances:
+  /// Assets = Liabilities + Equity.
+  Future<ReportResult> balanceSheet({Set<String>? userRoles}) async {
+    final entries = await _list('GL Entry', userRoles: userRoles);
+    final accounts = await _list('Account', userRoles: userRoles);
+    final rootByAccount = {
+      for (final a in accounts)
+        a.id: asNonEmpty(a.payload['root_type']) ?? 'Unclassified',
+    };
+
+    final balances = <String, Map<String, num>>{
+      'Asset': {},
+      'Liability': {},
+      'Equity': {},
+    };
+    num profit = 0; // credit-positive income − debit-positive expense
+    for (final e in entries) {
+      final account = asNonEmpty(e.payload['account']);
+      if (account == null) continue;
+      final net = asNum(e.payload['debit']) - asNum(e.payload['credit']);
+      switch (rootByAccount[account]) {
+        case 'Asset':
+          balances['Asset']![account] =
+              (balances['Asset']![account] ?? 0) + net; // debit balance
+        case 'Liability':
+          balances['Liability']![account] =
+              (balances['Liability']![account] ?? 0) - net; // credit balance
+        case 'Equity':
+          balances['Equity']![account] =
+              (balances['Equity']![account] ?? 0) - net;
+        case 'Income':
+          profit -= net;
+        case 'Expense':
+          profit -= net; // expenses reduce profit (net is debit-positive)
+      }
+    }
+
+    final rows = <List<String?>>[];
+    final totals = <String, num>{};
+    for (final section in const ['Asset', 'Liability', 'Equity']) {
+      final byAccount = balances[section]!;
+      final ordered = byAccount.keys.toList()
+        ..sort((l, r) {
+          final byAmount = (byAccount[r] ?? 0).compareTo(byAccount[l] ?? 0);
+          return byAmount != 0 ? byAmount : l.compareTo(r);
+        });
+      num total = 0;
+      for (final a in ordered) {
+        final v = byAccount[a]!;
+        if (v == 0) continue; // silent zero rows just add noise
+        total += v;
+        rows.add([section, a, _money(v)]);
+      }
+      if (section == 'Equity' && profit != 0) {
+        total += profit;
+        rows.add([section, 'Current period profit', _money(profit)]);
+      }
+      totals[section] = total;
+      rows.add([section, 'Total ${section.toLowerCase()}s', _money(total)]);
+    }
+    rows.add([
+      '',
+      'Liabilities + equity',
+      _money((totals['Liability'] ?? 0) + (totals['Equity'] ?? 0)),
+    ]);
+
+    return ReportResult(
+      reportId: 'balance_sheet',
+      name: 'Balance Sheet',
+      columns: const [
+        ReportColumn(fieldKey: 'section', label: 'Section'),
+        ReportColumn(fieldKey: 'account', label: 'Account'),
+        ReportColumn(fieldKey: 'amount', label: 'Amount', type: 'currency'),
+      ],
+      rows: rows,
+    );
+  }
+
+  /// Cash Flow overview: every GL movement on Cash/Bank-type accounts,
+  /// grouped by the voucher type that caused it — the owner-friendly
+  /// "where did the money come from / go" view (a formal indirect-method
+  /// statement is a later refinement).
+  Future<ReportResult> cashFlowOverview({Set<String>? userRoles}) async {
+    final accounts = await _list('Account', userRoles: userRoles);
+    final cashAccounts = {
+      for (final a in accounts)
+        if (const {'Cash', 'Bank'}
+            .contains('${a.payload['account_type'] ?? ''}'))
+          a.id,
+    };
+
+    final inflow = <String, num>{};
+    final outflow = <String, num>{};
+    for (final e in await _list('GL Entry', userRoles: userRoles)) {
+      if (!cashAccounts.contains(asNonEmpty(e.payload['account']))) continue;
+      final voucher = asNonEmpty(e.payload['voucher_type']) ?? 'Other';
+      final net = asNum(e.payload['debit']) - asNum(e.payload['credit']);
+      if (net >= 0) {
+        inflow[voucher] = (inflow[voucher] ?? 0) + net;
+      } else {
+        outflow[voucher] = (outflow[voucher] ?? 0) - net;
+      }
+    }
+
+    final vouchers = {...inflow.keys, ...outflow.keys}.toList()
+      ..sort((l, r) {
+        num netOf(String v) => (inflow[v] ?? 0) - (outflow[v] ?? 0);
+        final byNet = netOf(r).compareTo(netOf(l));
+        return byNet != 0 ? byNet : l.compareTo(r);
+      });
+
+    num totalIn = 0, totalOut = 0;
+    final rows = <List<String?>>[];
+    for (final v in vouchers) {
+      final i = inflow[v] ?? 0;
+      final o = outflow[v] ?? 0;
+      totalIn += i;
+      totalOut += o;
+      rows.add([v, _money(i), _money(o), _money(i - o)]);
+    }
+    rows.add(['Net cash movement', _money(totalIn), _money(totalOut), _money(totalIn - totalOut)]);
+
+    return ReportResult(
+      reportId: 'cash_flow_overview',
+      name: 'Cash Flow Overview',
+      columns: const [
+        ReportColumn(fieldKey: 'source', label: 'Source'),
+        ReportColumn(fieldKey: 'in', label: 'Money in', type: 'currency'),
+        ReportColumn(fieldKey: 'out', label: 'Money out', type: 'currency'),
+        ReportColumn(fieldKey: 'net', label: 'Net', type: 'currency'),
+      ],
+      rows: rows,
+    );
+  }
+
+  /// Project profitability (Phase 6): per project — invoiced value (submitted
+  /// Sales Invoices linked to the project), project costs (submitted Expenses
+  /// linked to it, net), logged hours, the value of still-unbilled billable
+  /// time, and margin = invoiced − costs.
+  Future<ReportResult> projectProfitability({Set<String>? userRoles}) async {
+    final projects = await _list('Project', userRoles: userRoles);
+    final rateByProject = {
+      for (final p in projects)
+        p.id: asNum(p.payload['default_billing_rate']),
+    };
+    final nameByProject = {
+      for (final p in projects)
+        p.id: asNonEmpty(p.payload['project_name']) ?? p.id,
+    };
+
+    final invoiced = <String, num>{};
+    for (final si in await _list('Sales Invoice', userRoles: userRoles)) {
+      if (si.docStatus != 1) continue;
+      final project = asNonEmpty(si.payload['project']);
+      if (project == null) continue;
+      invoiced[project] = (invoiced[project] ?? 0) + asNum(si.payload['grand_total']);
+    }
+
+    final costs = <String, num>{};
+    for (final e in await _list('Expense', userRoles: userRoles)) {
+      if (e.docStatus != 1) continue;
+      final project = asNonEmpty(e.payload['project']);
+      if (project == null) continue;
+      costs[project] = (costs[project] ?? 0) + asNum(e.payload['net_amount']);
+    }
+
+    final hours = <String, num>{};
+    final unbilled = <String, num>{};
+    for (final t in await _list('Timesheet', userRoles: userRoles)) {
+      final project = asNonEmpty(t.payload['project']);
+      if (project == null) continue;
+      final h = asNum(t.payload['hours']);
+      hours[project] = (hours[project] ?? 0) + h;
+      if (isTrue(t.payload['billable']) && !isTrue(t.payload['billed'])) {
+        final rate = asNum(t.payload['billing_rate']) != 0
+            ? asNum(t.payload['billing_rate'])
+            : (rateByProject[project] ?? 0);
+        unbilled[project] = (unbilled[project] ?? 0) + h * rate;
+      }
+    }
+
+    final ids = nameByProject.keys.toList()
+      ..sort((l, r) {
+        num marginOf(String p) => (invoiced[p] ?? 0) - (costs[p] ?? 0);
+        final byMargin = marginOf(r).compareTo(marginOf(l));
+        return byMargin != 0 ? byMargin : l.compareTo(r);
+      });
+
+    final rows = <List<String?>>[
+      for (final id in ids)
+        [
+          nameByProject[id],
+          _money(invoiced[id] ?? 0),
+          _money(costs[id] ?? 0),
+          '${hours[id] ?? 0}',
+          _money(unbilled[id] ?? 0),
+          _money((invoiced[id] ?? 0) - (costs[id] ?? 0)),
+        ],
+    ];
+
+    return ReportResult(
+      reportId: 'project_profitability',
+      name: 'Project Profitability',
+      columns: const [
+        ReportColumn(fieldKey: 'project', label: 'Project'),
+        ReportColumn(fieldKey: 'invoiced', label: 'Invoiced', type: 'currency'),
+        ReportColumn(fieldKey: 'costs', label: 'Costs', type: 'currency'),
+        ReportColumn(fieldKey: 'hours', label: 'Hours'),
+        ReportColumn(fieldKey: 'unbilled', label: 'Unbilled time', type: 'currency'),
+        ReportColumn(fieldKey: 'margin', label: 'Margin', type: 'currency'),
+      ],
+      rows: rows,
     );
   }
 

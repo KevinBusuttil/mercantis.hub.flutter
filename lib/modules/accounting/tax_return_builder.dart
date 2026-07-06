@@ -11,10 +11,16 @@ class TaxReturnRow {
     required this.partyType,
     required this.baseAmount,
     required this.taxAmount,
+    this.rate = 0,
   });
   final String? partyType;
   final num baseAmount;
   final num taxAmount;
+
+  /// The tax rate (%) the row was computed at — what jurisdiction layouts
+  /// split supplies by (e.g. Malta's standard-vs-reduced sections). 0 when
+  /// the source didn't record it.
+  final num rate;
 }
 
 /// One line of the computed return.
@@ -44,16 +50,34 @@ class TaxReturnResult {
   final List<TaxReturnBoxLine> boxes;
 }
 
-/// Pure tax-return aggregation (H2 — ported from the Swift `TaxReturnBuilder`).
-/// Folds a period's tax rows into output/input tax, the net due, the taxable
-/// bases, and the numbered return boxes. Database-free.
+/// Pure tax-return aggregation (H2 — ported from the Swift `TaxReturnBuilder`;
+/// jurisdiction layouts added in Phase 8). Folds a period's tax rows into
+/// output/input tax, the net due, the taxable bases, and the numbered return
+/// boxes of the chosen [jurisdiction] layout. Database-free.
+///
+/// Layouts:
+///  * `Generic` — the 5-line summary (unchanged default).
+///  * `United Kingdom` — the VAT100's nine boxes. EU/NI acquisition boxes
+///    (2, 8, 9) render as 0 — Atlas doesn't track those flows yet, and a 0
+///    on the form is the honest value for a business that has none.
+///  * `Malta` — the CFR VAT return's flow: supplies split standard-rate
+///    (18%) vs reduced/other rates, total output, input, net.
 abstract final class TaxReturnBuilder {
-  static TaxReturnResult build(Iterable<TaxReturnRow> rows) {
+  /// Malta's standard VAT rate — what splits the supplies sections.
+  static const _maltaStandardRate = 18;
+
+  static TaxReturnResult build(Iterable<TaxReturnRow> rows,
+      {String jurisdiction = 'Generic'}) {
     num outputTax = 0, inputTax = 0, salesBase = 0, purchasesBase = 0;
+    // Output split by rate, for layouts with per-rate sections (Malta).
+    final outputTaxByRate = <num, num>{};
+    final salesBaseByRate = <num, num>{};
     for (final r in rows) {
       if (r.partyType == 'Customer') {
         outputTax += r.taxAmount;
         salesBase += r.baseAmount;
+        outputTaxByRate[r.rate] = (outputTaxByRate[r.rate] ?? 0) + r.taxAmount;
+        salesBaseByRate[r.rate] = (salesBaseByRate[r.rate] ?? 0) + r.baseAmount;
       } else if (r.partyType == 'Supplier') {
         inputTax += r.taxAmount;
         purchasesBase += r.baseAmount;
@@ -65,19 +89,58 @@ abstract final class TaxReturnBuilder {
     purchasesBase = round2(purchasesBase);
     final net = round2(outputTax - inputTax);
 
+    final List<TaxReturnBoxLine> boxes;
+    switch (jurisdiction) {
+      case 'United Kingdom':
+        boxes = [
+          TaxReturnBoxLine('1', 'VAT due on sales and other outputs', outputTax, true),
+          const TaxReturnBoxLine('2', 'VAT due on acquisitions of goods in NI from the EU', 0, true),
+          TaxReturnBoxLine('3', 'Total VAT due (box 1 + box 2)', outputTax, true),
+          TaxReturnBoxLine('4', 'VAT reclaimed on purchases and other inputs', inputTax, true),
+          TaxReturnBoxLine('5', 'Net VAT to pay to HMRC or reclaim', round2((outputTax - inputTax).abs()), true),
+          TaxReturnBoxLine('6', 'Total value of sales excluding VAT', salesBase, false),
+          TaxReturnBoxLine('7', 'Total value of purchases excluding VAT', purchasesBase, false),
+          const TaxReturnBoxLine('8', 'Total value of dispatches of goods from NI to the EU', 0, false),
+          const TaxReturnBoxLine('9', 'Total value of acquisitions of goods in NI from the EU', 0, false),
+        ];
+      case 'Malta':
+        num standardBase = 0, standardTax = 0, otherBase = 0, otherTax = 0;
+        for (final entry in salesBaseByRate.entries) {
+          if (entry.key == _maltaStandardRate) {
+            standardBase += entry.value;
+            standardTax += outputTaxByRate[entry.key] ?? 0;
+          } else {
+            otherBase += entry.value;
+            otherTax += outputTaxByRate[entry.key] ?? 0;
+          }
+        }
+        boxes = [
+          TaxReturnBoxLine('M1', 'Supplies at the standard rate (18%) — value', round2(standardBase), false),
+          TaxReturnBoxLine('M2', 'Output VAT at the standard rate (18%)', round2(standardTax), true),
+          TaxReturnBoxLine('M3', 'Supplies at reduced / other rates — value', round2(otherBase), false),
+          TaxReturnBoxLine('M4', 'Output VAT at reduced / other rates', round2(otherTax), true),
+          TaxReturnBoxLine('M5', 'Total output VAT', outputTax, true),
+          TaxReturnBoxLine('M6', 'Purchases — value', purchasesBase, false),
+          TaxReturnBoxLine('M7', 'Input VAT claimed', inputTax, true),
+          TaxReturnBoxLine('M8', 'Net VAT payable (negative = refund due)', net, true),
+        ];
+      default:
+        boxes = [
+          TaxReturnBoxLine('1', 'Output tax (sales)', outputTax, true),
+          TaxReturnBoxLine('2', 'Input tax (purchases)', inputTax, true),
+          TaxReturnBoxLine('3', 'Net tax due', net, true),
+          TaxReturnBoxLine('4', 'Taxable sales', salesBase, false),
+          TaxReturnBoxLine('5', 'Taxable purchases', purchasesBase, false),
+        ];
+    }
+
     return TaxReturnResult(
       outputTax: outputTax,
       inputTax: inputTax,
       netTax: net,
       taxableSales: salesBase,
       taxablePurchases: purchasesBase,
-      boxes: [
-        TaxReturnBoxLine('1', 'Output tax (sales)', outputTax, true),
-        TaxReturnBoxLine('2', 'Input tax (purchases)', inputTax, true),
-        TaxReturnBoxLine('3', 'Net tax due', net, true),
-        TaxReturnBoxLine('4', 'Taxable sales', salesBase, false),
-        TaxReturnBoxLine('5', 'Taxable purchases', purchasesBase, false),
-      ],
+      boxes: boxes,
     );
   }
 }
@@ -112,10 +175,12 @@ class TaxReturnService {
             partyType: asNonEmpty(t.payload['party_type']),
             baseAmount: asNum(t.payload['base_amount']),
             taxAmount: asNum(t.payload['tax_amount']),
+            rate: asNum(t.payload['rate']),
           ),
     ];
 
-    final r = TaxReturnBuilder.build(rows);
+    final r = TaxReturnBuilder.build(rows,
+        jurisdiction: asNonEmpty(filing.payload['jurisdiction']) ?? 'Generic');
     filing.payload['output_tax'] = r.outputTax;
     filing.payload['input_tax'] = r.inputTax;
     filing.payload['net_tax'] = r.netTax;

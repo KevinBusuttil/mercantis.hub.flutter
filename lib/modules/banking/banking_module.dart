@@ -60,7 +60,7 @@ abstract final class BankingModule {
             defaultValue: 'Unreconciled',
           ),
           // What this line was reconciled against, once matched.
-          FieldDefinition(key: 'matched_voucher_type', label: 'Matched Voucher Type', type: FieldType.select, options: 'Payment Entry\nJournal Entry'),
+          FieldDefinition(key: 'matched_voucher_type', label: 'Matched Voucher Type', type: FieldType.select, options: 'Payment Entry\nJournal Entry\nExpense'),
           FieldDefinition(key: 'matched_voucher', label: 'Matched Voucher', type: FieldType.data),
           // Groups the lines that came in from one CSV import.
           FieldDefinition(key: 'import_batch', label: 'Import Batch', type: FieldType.data),

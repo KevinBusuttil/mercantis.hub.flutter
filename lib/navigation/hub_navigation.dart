@@ -2,6 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import '../dashboards/hub_dashboard_cards.dart';
 import '../modules/accounting/hub_account_actions.dart';
+import '../modules/accounting/hub_history_actions.dart';
+import '../modules/channels/hub_channel_actions.dart';
+import '../modules/projects/hub_project_actions.dart';
 import '../modules/accounting/hub_compliance_actions.dart';
 import '../modules/selling/hub_conversion_actions.dart';
 import '../modules/selling/hub_quotation_actions.dart';
@@ -12,6 +15,8 @@ import '../screens/account_ledger_screen.dart';
 import '../screens/accountant_export_screen.dart';
 import '../screens/dashboards_screen.dart';
 import '../screens/approvals_inbox_screen.dart';
+import '../screens/audit_trail_screen.dart';
+import '../screens/bank_reconcile_screen.dart';
 import '../screens/customer_account_screen.dart';
 import '../screens/customer_statement_screen.dart';
 import '../screens/delivery_route_screen.dart';
@@ -70,6 +75,12 @@ void wireHubNavigation(WidgetRef ref) {
     registerHubPrintActions(ref);
     // Accounting: a "Ledger" action on an Account, opening its ledger.
     registerHubAccountActions(ref);
+    // Phase 8: a "History" action on every saved record (audit trail).
+    registerHubHistoryActions(ref);
+    // Phase 6: Quotation -> Project and Bill-project actions.
+    registerHubProjectActions(ref);
+    // Phase 5: CSV order import + posting on Sales Channel / Channel Order.
+    registerHubChannelActions(ref);
     // Workspace visibility follows the business preset / Settings toggles
     // (applies on next launch, mirroring the Swift visibility model).
     registerHubWorkspaces(registry, settings);
@@ -111,6 +122,13 @@ void wireHubNavigation(WidgetRef ref) {
         'opening-balances', (c, s) => const OpeningBalancesScreen());
     registry.registerRoute(
         'stock-count', (c, s) => const StockCountScreen());
+    registry.registerRoute(
+        'bank-reconcile', (c, s) => const BankReconcileScreen());
+    registry.registerRoute(
+        'audit-trail',
+        (c, s) => AuditTrailScreen(
+            docType: s.uri.queryParameters['docType'],
+            documentId: s.uri.queryParameters['id']));
     // In-app notification inbox (ADR-048) and recently-opened records — shared
     // core-ui views surfaced from the Home workspace's quick actions.
     registry.registerRoute('notifications', (c, s) => const NotificationsScreen());

@@ -143,7 +143,13 @@ class TaxCalculationInterceptor extends DocumentInterceptor {
       lines.add(TaxLine(net, effective));
     }
 
-    final comp = HubTaxEngine.compute(lines, rateByCode);
+    // Retail pricing (Phase 1B A7): sales documents may enter VAT-inclusive
+    // line amounts — the engine extracts the contained tax so grand_total
+    // equals the entered amounts. Purchases stay exclusive (an inclusive
+    // purchase would gross-up stock valuation and the GRNI split).
+    final inclusive = isTrue(doc.payload['prices_include_tax']) &&
+        (docType.id == 'Sales Invoice' || docType.id == 'POS Invoice');
+    final comp = HubTaxEngine.compute(lines, rateByCode, inclusive: inclusive);
 
     if (keys.contains('total')) doc.payload['total'] = comp.netTotal;
     if (keys.contains('tax_total')) doc.payload['tax_total'] = comp.totalTax;
