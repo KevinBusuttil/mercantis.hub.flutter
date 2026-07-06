@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import '../dashboards/hub_dashboard_cards.dart';
-import '../mock/mock_data.dart';
 import '../modules/accounting/hub_account_actions.dart';
 import '../modules/accounting/hub_compliance_actions.dart';
 import '../modules/selling/hub_conversion_actions.dart';
@@ -32,13 +31,8 @@ import '../screens/work_order_complete_screen.dart';
 import '../settings/hub_settings.dart';
 import '../workspaces/hub_workspaces.dart';
 
-/// Prototype: serve the approval inbox from in-memory mock entries.
-final mockApprovalInboxSourceOverride = approvalInboxSourceProvider.overrideWith(
-  (ref) => StaticApprovalInboxSource(MockData.approvals()),
-);
-
-/// Production: serve the approval inbox by scanning every submittable
-/// DocType for documents in docStatus=0.
+/// Serves the approval inbox by scanning every submittable DocType for
+/// documents in docStatus=0 (drafts awaiting submission/approval).
 final metadataApprovalInboxSourceOverride =
     approvalInboxSourceProvider.overrideWith(
   (ref) => MetadataApprovalInboxSource(
@@ -46,9 +40,6 @@ final metadataApprovalInboxSourceOverride =
     userRoles: ref.watch(currentUserProvider).roles,
   ),
 );
-
-/// Backwards-compatible alias used by main.dart.
-final hubApprovalInboxSourceOverride = mockApprovalInboxSourceOverride;
 
 /// Optional modules can be hidden via Settings; gate their workspaces here.
 /// (Takes effect on next launch, mirroring the Swift visibility model.)

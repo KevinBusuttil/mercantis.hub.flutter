@@ -3,9 +3,8 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../ledger/ledger_values.dart';
 
-/// Real data sources for the Hub's bespoke custom screens, replacing the old
-/// `MockData` prototypes. Each provider reads the live document store via
-/// `DocumentEngine.list`.
+/// Real data sources for the Hub's bespoke custom screens. Each provider
+/// reads the live document store via `DocumentEngine.list`.
 
 /// Shared light currency format (no intl locale dependency).
 String money(num v) => '€${v.toDouble().toStringAsFixed(2)}';

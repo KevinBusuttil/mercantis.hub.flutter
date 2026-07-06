@@ -12,9 +12,8 @@ void main() {
         hubCurrentUserOverride,
         // Business-profile defaults + fiscal-year posting guard.
         hubInterceptorsOverride,
-        // Prototype: feed the approval inbox with mock entries. Swap for
-        // [metadataApprovalInboxSourceOverride] once real documents exist.
-        mockApprovalInboxSourceOverride,
+        // Approval inbox scans every submittable DocType for drafts.
+        metadataApprovalInboxSourceOverride,
       ],
       child: const MercantisHubApp(),
     ),
