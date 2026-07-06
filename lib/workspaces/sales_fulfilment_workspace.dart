@@ -45,6 +45,8 @@ WorkspaceDescriptor salesFulfilmentWorkspace({bool posEnabled = true}) =>
               label: 'Customer payments',
               listFilter: {'payment_type': 'Receive'},
             ),
+            DocTypeWorkspaceItem(docType: 'Recurring Invoice',
+              icon: Icons.event_repeat_outlined),
           ],
         ),
         if (posEnabled)

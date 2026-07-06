@@ -11,6 +11,8 @@ abstract final class SellingModule {
         _salesInvoice(),
         // Line-item child tables referenced by the documents above.
         lineItemDocType(id: 'Quotation Item', module: _module),
+        lineItemDocType(id: 'Recurring Invoice Item', module: _module),
+        _recurringInvoice(),
         lineItemDocType(id: 'Sales Order Item', module: _module),
         lineItemDocType(id: 'Sales Invoice Item', module: _module),
       ];
@@ -93,6 +95,7 @@ abstract final class SellingModule {
           // Retail pricing: line rates already contain VAT; the tax
           // interceptor extracts it so grand_total == the entered amounts.
           FieldDefinition(key: 'prices_include_tax', label: 'Prices Include Tax', type: FieldType.check),
+          FieldDefinition(key: 'recurring_invoice', label: 'Recurring Template', type: FieldType.link, linkDocType: 'Recurring Invoice', options: 'Recurring Invoice', readOnly: true),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Sales Invoice Item', options: 'Sales Invoice Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           // Computed VAT rows (output tax) — one per distinct tax code on submit.
@@ -101,6 +104,38 @@ abstract final class SellingModule {
           FieldDefinition(key: 'grand_total', label: 'Grand Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'outstanding_amount', label: 'Outstanding', type: FieldType.currency, readOnly: true, allowOnSubmit: true),
           FieldDefinition(key: 'payment_terms', label: 'Payment Terms', type: FieldType.data),
+        ],
+      );
+
+  /// Recurring invoice template (Phase 1A/7): a retainer that drafts its own
+  /// Sales Invoice each period. RecurringInvoiceService generates the drafts
+  /// (at boot and on demand), advances next_invoice_date, and records
+  /// failures on the template; auto_submit posts them without review.
+  static DocType _recurringInvoice() => const DocType(
+        id: 'Recurring Invoice',
+        name: 'Recurring Invoice',
+        module: _module,
+        namingRule: 'RINV-.YYYY.-.####',
+        fields: [
+          FieldDefinition(key: 'customer', label: 'Customer', type: FieldType.link, linkDocType: 'Customer', options: 'Customer', required: true),
+          FieldDefinition(
+            key: 'frequency',
+            label: 'Frequency',
+            type: FieldType.select,
+            options: 'Weekly\nMonthly\nQuarterly\nYearly',
+            defaultValue: 'Monthly',
+            required: true,
+          ),
+          FieldDefinition(key: 'start_date', label: 'Start Date', type: FieldType.date, required: true),
+          FieldDefinition(key: 'next_invoice_date', label: 'Next Invoice Date', type: FieldType.date, required: true),
+          FieldDefinition(key: 'end_date', label: 'End Date', type: FieldType.date),
+          FieldDefinition(key: 'active', label: 'Active', type: FieldType.check, defaultValue: '1'),
+          FieldDefinition(key: 'auto_submit', label: 'Submit Automatically', type: FieldType.check),
+          FieldDefinition(key: 'tax_code', label: 'Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
+          FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Recurring Invoice Item', options: 'Recurring Invoice Item'),
+          FieldDefinition(key: 'last_generated_on', label: 'Last Generated', type: FieldType.date, readOnly: true),
+          FieldDefinition(key: 'last_error', label: 'Last Error', type: FieldType.data, readOnly: true),
         ],
       );
 }
