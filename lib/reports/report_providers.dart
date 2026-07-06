@@ -72,6 +72,20 @@ final stockValuationProvider = FutureProvider<ReportResult>((ref) async {
   return reports.stockValuation(userRoles: roles);
 });
 
+/// Balance Sheet from the GL's asset/liability/equity balances.
+final balanceSheetProvider = FutureProvider<ReportResult>((ref) async {
+  final reports = await ref.watch(aggregatingReportsProvider.future);
+  final roles = ref.watch(currentUserProvider).roles;
+  return reports.balanceSheet(userRoles: roles);
+});
+
+/// Cash movements on Cash/Bank accounts grouped by voucher type.
+final cashFlowProvider = FutureProvider<ReportResult>((ref) async {
+  final reports = await ref.watch(aggregatingReportsProvider.future);
+  final roles = ref.watch(currentUserProvider).roles;
+  return reports.cashFlowOverview(userRoles: roles);
+});
+
 /// Stock ledger vs GL inventory balance — the perpetual-inventory trust check.
 final stockGlReconciliationProvider = FutureProvider<ReportResult>((ref) async {
   final reports = await ref.watch(aggregatingReportsProvider.future);

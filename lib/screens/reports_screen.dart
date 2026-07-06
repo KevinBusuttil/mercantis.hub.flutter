@@ -15,6 +15,8 @@ class _Statement {
 
 final _statements = <_Statement>[
   _Statement('Profit & Loss', 'Income and expenses from the GL', profitAndLossProvider),
+  _Statement('Balance Sheet', 'Assets, liabilities and equity from the GL', balanceSheetProvider),
+  _Statement('Cash Flow Overview', 'Money in and out of cash/bank accounts', cashFlowProvider),
   _Statement('Trial Balance', 'GL Entry — debits vs credits per account', trialBalanceProvider),
   _Statement('AR Aging', 'Open Sales Invoices by age', arAgingProvider),
   _Statement('AP Aging', 'Open Purchase Invoices by age', apAgingProvider),
