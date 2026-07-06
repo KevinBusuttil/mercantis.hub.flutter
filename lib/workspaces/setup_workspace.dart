@@ -10,12 +10,21 @@ const setupWorkspace = WorkspaceDescriptor(
   accentColor: MercantisBrandColors.accentSetup,
   order: 90,
   sections: [
+    WorkspaceSection(label: 'Getting started', items: [
+      CustomWorkspaceItem(routeName: 'setup-checklist',
+        label: 'Setup checklist', icon: Icons.checklist_outlined,
+        description: 'What still needs doing — and whether you can '
+            'safely start invoicing'),
+    ]),
     WorkspaceSection(label: 'Preferences', items: [
       CustomWorkspaceItem(routeName: 'settings',
         label: 'Settings', icon: Icons.tune_outlined,
         description: 'Operator, modules and advanced mode'),
     ]),
     WorkspaceSection(label: 'Organisation', items: [
+      CustomWorkspaceItem(routeName: 'opening-balances',
+        label: 'Opening balances', icon: Icons.playlist_add_check_outlined,
+        description: 'Bring balances over from your previous system'),
       DocTypeWorkspaceItem(docType: 'Company', icon: Icons.business_outlined),
       DocTypeWorkspaceItem(docType: 'Fiscal Year', icon: Icons.event_outlined),
       DocTypeWorkspaceItem(docType: 'Currency',

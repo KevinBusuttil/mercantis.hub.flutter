@@ -16,8 +16,16 @@ class HubAggregatingReports {
   final DocumentListFn _list;
   final ReportValueFormatter _formatter;
 
-  HubAggregatingReports(this._list, {ReportValueFormatter? formatter})
-      : _formatter = formatter ?? const ReportValueFormatter();
+  /// Hydrates one document with its child rows — `_list` alone returns
+  /// headers only. Needed by [grossMarginByItem] for invoice lines; reports
+  /// that can't fetch (fetch left null) simply skip line-level revenue.
+  final Future<Document?> Function(String docType, String id)? _fetch;
+
+  HubAggregatingReports(this._list,
+      {ReportValueFormatter? formatter,
+      Future<Document?> Function(String docType, String id)? fetch})
+      : _formatter = formatter ?? const ReportValueFormatter(),
+        _fetch = fetch;
 
   /// Root-type display/sort order; anything else sorts last as "Unclassified".
   static const _rootOrder = ['Asset', 'Liability', 'Equity', 'Income', 'Expense', 'Unclassified'];
@@ -153,6 +161,227 @@ class HubAggregatingReports {
       rows: rows,
     );
   }
+
+  /// Profit & Loss: every Income and Expense account's GL balance (all time —
+  /// year-end close zeroes a finished year into Retained Earnings, so the
+  /// open period is what remains). Income reads credit−debit, expenses
+  /// debit−credit; the closing row is net profit.
+  Future<ReportResult> profitAndLoss({Set<String>? userRoles}) async {
+    final entries = await _list('GL Entry', userRoles: userRoles);
+    final accounts = await _list('Account', userRoles: userRoles);
+    final rootByAccount = {
+      for (final a in accounts)
+        a.id: asNonEmpty(a.payload['root_type']) ?? 'Unclassified',
+    };
+
+    final income = <String, num>{};
+    final expense = <String, num>{};
+    for (final e in entries) {
+      final account = asNonEmpty(e.payload['account']);
+      if (account == null) continue;
+      final net = asNum(e.payload['debit']) - asNum(e.payload['credit']);
+      switch (rootByAccount[account]) {
+        case 'Income':
+          income[account] = (income[account] ?? 0) - net; // credit balance
+        case 'Expense':
+          expense[account] = (expense[account] ?? 0) + net; // debit balance
+      }
+    }
+
+    List<String> ordered(Map<String, num> m) => m.keys.toList()
+      ..sort((l, r) {
+        final byAmount = (m[r] ?? 0).compareTo(m[l] ?? 0);
+        return byAmount != 0 ? byAmount : l.compareTo(r);
+      });
+
+    final rows = <List<String?>>[];
+    num totalIncome = 0, totalExpense = 0;
+    for (final a in ordered(income)) {
+      totalIncome += income[a]!;
+      rows.add(['Income', a, _money(income[a]!)]);
+    }
+    rows.add(['Income', 'Total income', _money(totalIncome)]);
+    for (final a in ordered(expense)) {
+      totalExpense += expense[a]!;
+      rows.add(['Expenses', a, _money(expense[a]!)]);
+    }
+    rows.add(['Expenses', 'Total expenses', _money(totalExpense)]);
+    rows.add(['', 'Net profit', _money(totalIncome - totalExpense)]);
+
+    return ReportResult(
+      reportId: 'profit_and_loss',
+      name: 'Profit & Loss',
+      columns: const [
+        ReportColumn(fieldKey: 'section', label: 'Section'),
+        ReportColumn(fieldKey: 'account', label: 'Account'),
+        ReportColumn(fieldKey: 'amount', label: 'Amount', type: 'currency'),
+      ],
+      rows: rows,
+    );
+  }
+
+  /// Gross margin by item (needs Phase 1B perpetual inventory): revenue from
+  /// submitted Sales / POS Invoice lines, COGS from the sale vouchers' costed
+  /// Stock Ledger Entries (issues positive, returns negative — cancellations
+  /// net out because reversal SLEs stay in the ledger). Service items appear
+  /// with revenue and no COGS — 100% margin, correctly.
+  Future<ReportResult> grossMarginByItem({Set<String>? userRoles}) async {
+    const saleVouchers = {'Sales Invoice', 'Delivery Note', 'POS Invoice'};
+
+    final cogs = <String, num>{};
+    for (final s in await _list('Stock Ledger Entry', userRoles: userRoles)) {
+      if (!saleVouchers.contains('${s.payload['voucher_type'] ?? ''}')) {
+        continue;
+      }
+      final item = asNonEmpty(s.payload['item']);
+      if (item == null) continue;
+      cogs[item] = (cogs[item] ?? 0) -
+          asNum(s.payload['qty_change']) * asNum(s.payload['valuation_rate']);
+    }
+
+    final revenue = <String, num>{};
+    for (final docType in const ['Sales Invoice', 'POS Invoice']) {
+      for (final header in await _list(docType, userRoles: userRoles)) {
+        if (header.docStatus != 1) continue;
+        var lines = header.children['items'];
+        final fetch = _fetch;
+        if ((lines == null || lines.isEmpty) && fetch != null) {
+          lines = (await fetch(docType, header.id))?.children['items'];
+        }
+        for (final line in lines ?? const <ChildRow>[]) {
+          final item = asNonEmpty(line.payload['item']);
+          if (item == null) continue;
+          final amount = line.payload.containsKey('amount')
+              ? asNum(line.payload['amount'])
+              : asNum(line.payload['qty']) * asNum(line.payload['rate']);
+          revenue[item] = (revenue[item] ?? 0) + amount;
+        }
+      }
+    }
+
+    final items = {...revenue.keys, ...cogs.keys}.toList()
+      ..sort((l, r) {
+        final byMargin = ((revenue[r] ?? 0) - (cogs[r] ?? 0))
+            .compareTo((revenue[l] ?? 0) - (cogs[l] ?? 0));
+        return byMargin != 0 ? byMargin : l.compareTo(r);
+      });
+
+    num totalRevenue = 0, totalCogs = 0;
+    final rows = <List<String?>>[];
+    for (final item in items) {
+      final rev = revenue[item] ?? 0;
+      final cost = cogs[item] ?? 0;
+      totalRevenue += rev;
+      totalCogs += cost;
+      rows.add([item, _money(rev), _money(cost), _money(rev - cost), _pct(rev - cost, rev)]);
+    }
+    rows.add([
+      'Total',
+      _money(totalRevenue),
+      _money(totalCogs),
+      _money(totalRevenue - totalCogs),
+      _pct(totalRevenue - totalCogs, totalRevenue),
+    ]);
+
+    return ReportResult(
+      reportId: 'gross_margin_by_item',
+      name: 'Gross Margin by Item',
+      columns: const [
+        ReportColumn(fieldKey: 'item', label: 'Item'),
+        ReportColumn(fieldKey: 'revenue', label: 'Revenue', type: 'currency'),
+        ReportColumn(fieldKey: 'cogs', label: 'COGS', type: 'currency'),
+        ReportColumn(fieldKey: 'margin', label: 'Margin', type: 'currency'),
+        ReportColumn(fieldKey: 'margin_pct', label: 'Margin %'),
+      ],
+      rows: rows,
+    );
+  }
+
+  /// Stock valuation summary: every Bin folded per item (qty, average rate,
+  /// value) with a grand-total row — the totalled statement the flat Bin
+  /// register can't give.
+  Future<ReportResult> stockValuation({Set<String>? userRoles}) async {
+    final bins = await _list('Bin', userRoles: userRoles);
+    final qty = <String, num>{};
+    final value = <String, num>{};
+    for (final b in bins) {
+      final item = asNonEmpty(b.payload['item']);
+      if (item == null) continue;
+      qty[item] = (qty[item] ?? 0) + asNum(b.payload['actual_qty']);
+      value[item] = (value[item] ?? 0) + asNum(b.payload['stock_value']);
+    }
+    final items = value.keys.toList()
+      ..sort((l, r) {
+        final byValue = (value[r] ?? 0).compareTo(value[l] ?? 0);
+        return byValue != 0 ? byValue : l.compareTo(r);
+      });
+
+    num totalValue = 0;
+    final rows = <List<String?>>[];
+    for (final item in items) {
+      final q = qty[item] ?? 0;
+      final v = value[item] ?? 0;
+      totalValue += v;
+      rows.add([item, '$q', q == 0 ? '—' : _money(v / q), _money(v)]);
+    }
+    rows.add(['Total', '', '', _money(totalValue)]);
+
+    return ReportResult(
+      reportId: 'stock_valuation',
+      name: 'Stock Valuation',
+      columns: const [
+        ReportColumn(fieldKey: 'item', label: 'Item'),
+        ReportColumn(fieldKey: 'qty', label: 'Qty'),
+        ReportColumn(fieldKey: 'rate', label: 'Avg rate', type: 'currency'),
+        ReportColumn(fieldKey: 'value', label: 'Value', type: 'currency'),
+      ],
+      rows: rows,
+    );
+  }
+
+  /// The perpetual-inventory trust check: total Bin stock value vs the GL
+  /// balance of every account whose `account_type` is `Stock`. A healthy
+  /// ledger shows a difference of zero; anything else means postings and
+  /// stock have drifted (e.g. pre-Phase-1B history without a take-on journal).
+  Future<ReportResult> stockGlReconciliation({Set<String>? userRoles}) async {
+    num binsValue = 0;
+    for (final b in await _list('Bin', userRoles: userRoles)) {
+      binsValue += asNum(b.payload['stock_value']);
+    }
+
+    final accounts = await _list('Account', userRoles: userRoles);
+    final inventoryAccounts = {
+      for (final a in accounts)
+        if ('${a.payload['account_type'] ?? ''}' == 'Stock') a.id,
+    };
+    num glValue = 0;
+    for (final e in await _list('GL Entry', userRoles: userRoles)) {
+      if (!inventoryAccounts.contains(asNonEmpty(e.payload['account']))) {
+        continue;
+      }
+      glValue += asNum(e.payload['debit']) - asNum(e.payload['credit']);
+    }
+
+    return ReportResult(
+      reportId: 'stock_gl_reconciliation',
+      name: 'Stock ↔ GL Reconciliation',
+      columns: const [
+        ReportColumn(fieldKey: 'measure', label: 'Measure'),
+        ReportColumn(fieldKey: 'amount', label: 'Amount', type: 'currency'),
+      ],
+      rows: [
+        ['Stock ledger value (all bins)', _money(binsValue)],
+        [
+          'GL inventory balance (${inventoryAccounts.isEmpty ? 'no Stock-type accounts' : inventoryAccounts.join(', ')})',
+          _money(glValue),
+        ],
+        ['Difference', _money(binsValue - glValue)],
+      ],
+    );
+  }
+
+  String _pct(num part, num whole) =>
+      whole == 0 ? '—' : '${(part / whole * 100).toStringAsFixed(1)}%';
 
   String? _money(num value) => _formatter.format(value, type: 'currency');
 

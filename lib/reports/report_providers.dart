@@ -27,7 +27,7 @@ final reportResultProvider =
 /// rather than flat-project.
 final aggregatingReportsProvider = FutureProvider<HubAggregatingReports>((ref) async {
   final engine = await ref.watch(documentEngineProvider.future);
-  return HubAggregatingReports(engine.list);
+  return HubAggregatingReports(engine.list, fetch: engine.fetch);
 });
 
 /// Trial Balance for the current user's roles.
@@ -49,6 +49,34 @@ final apAgingProvider = FutureProvider<ReportResult>((ref) async {
   final reports = await ref.watch(aggregatingReportsProvider.future);
   final roles = ref.watch(currentUserProvider).roles;
   return reports.apAging(userRoles: roles);
+});
+
+/// Profit & Loss from the GL's income/expense balances.
+final profitAndLossProvider = FutureProvider<ReportResult>((ref) async {
+  final reports = await ref.watch(aggregatingReportsProvider.future);
+  final roles = ref.watch(currentUserProvider).roles;
+  return reports.profitAndLoss(userRoles: roles);
+});
+
+/// Gross margin by item (revenue vs perpetual-inventory COGS).
+final grossMarginProvider = FutureProvider<ReportResult>((ref) async {
+  final reports = await ref.watch(aggregatingReportsProvider.future);
+  final roles = ref.watch(currentUserProvider).roles;
+  return reports.grossMarginByItem(userRoles: roles);
+});
+
+/// Totalled stock valuation from the Bins.
+final stockValuationProvider = FutureProvider<ReportResult>((ref) async {
+  final reports = await ref.watch(aggregatingReportsProvider.future);
+  final roles = ref.watch(currentUserProvider).roles;
+  return reports.stockValuation(userRoles: roles);
+});
+
+/// Stock ledger vs GL inventory balance — the perpetual-inventory trust check.
+final stockGlReconciliationProvider = FutureProvider<ReportResult>((ref) async {
+  final reports = await ref.watch(aggregatingReportsProvider.future);
+  final roles = ref.watch(currentUserProvider).roles;
+  return reports.stockGlReconciliation(userRoles: roles);
 });
 
 /// The Hub's [DashboardEngine], sharing the report engine (for `chart` tiles)

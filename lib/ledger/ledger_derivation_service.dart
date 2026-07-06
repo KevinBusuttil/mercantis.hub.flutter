@@ -56,6 +56,14 @@ class LedgerDerivationService {
       derived = await _dropNonStockMovements(derived);
       if (derived.isEmpty) return;
       await _costStockMovements(derived, source: source, reversal: reversal);
+      // Perpetual inventory (Phase 1B): every costed stock movement posts its
+      // GL counterpart (COGS / Inventory / GRNI / Adjustment)…
+      derived.addAll(await _stockGlLegs(derived, source: source));
+      // …and a Purchase Invoice's stock lines debit GRNI, not expense, so the
+      // clearing account nets to zero once goods and bill are both in.
+      if (source.docType == 'Purchase Invoice') {
+        await _splitGrniFromExpense(derived, source, reversal: reversal);
+      }
 
       for (final row in derived) {
         await engine.save(
@@ -69,7 +77,8 @@ class LedgerDerivationService {
         );
       }
 
-      if (LedgerDerivation.stockSources.contains(source.docType)) {
+      if (LedgerDerivation.stockSources.contains(source.docType) ||
+          isTrue(source.payload['update_stock'])) {
         await _recomputeBins(derived, source.company);
       }
       await _maintainOutstanding(source, derived, reversal);
@@ -243,6 +252,172 @@ class LedgerDerivationService {
         leg['valuation_rate'] = rate;
       }
     }
+  }
+
+  /// Perpetual inventory (Phase 1B): posts the GL counterpart of every costed
+  /// Stock Ledger Entry, so the financial ledger finally tracks the stock
+  /// subledger. Runs after [_costStockMovements] (issue rows carry their true
+  /// valuation cost) and after [_dropNonStockMovements] (service items are
+  /// gone), for both submit and cancel — a reversal SLE already carries the
+  /// negated qty at the original cost, so its legs flip sides by sign alone.
+  ///
+  /// Mapping per movement value `v = qty_change × valuation_rate`:
+  ///   sale vouchers (Delivery Note / POS Invoice / Sales Invoice):
+  ///     v < 0  →  Dr COGS / Cr Inventory        (issue at cost)
+  ///     v > 0  →  Dr Inventory / Cr COGS        (sales return)
+  ///   purchase vouchers (Purchase Receipt / Purchase Invoice update_stock):
+  ///     v > 0  →  Dr Inventory / Cr GRNI        (goods in, awaiting the bill)
+  ///     v < 0  →  Dr GRNI / Cr Inventory        (purchase return)
+  ///   Stock Entry issues / receipts / adjustments:
+  ///     v > 0  →  Dr Inventory / Cr Stock Adjustment
+  ///     v < 0  →  Dr Stock Adjustment / Cr Inventory
+  ///   Transfers and Manufacture (Production) legs post no GL: with a single
+  ///   company-level inventory account they are value-neutral by construction.
+  ///
+  /// Accounts resolve item → company default → seeded chart id. Costs are
+  /// company/base currency by definition, so the legs carry conversion_rate 1.
+  Future<List<DerivedDoc>> _stockGlLegs(List<DerivedDoc> derived,
+      {required Document source}) async {
+    final sleRows = [
+      for (final d in derived)
+        if (d.docType == LedgerDerivation.stockLedger) d,
+    ];
+    if (sleRows.isEmpty) return const [];
+
+    const saleVouchers = {'Delivery Note', 'POS Invoice', 'Sales Invoice'};
+    const purchaseVouchers = {'Purchase Receipt', 'Purchase Invoice'};
+    final docType = source.docType;
+
+    final company = source.company == null
+        ? null
+        : await engine.fetch('Company', source.company!);
+    final items = <String, Document?>{};
+
+    String resolve(Document? itemDoc, String itemField, String companyField,
+            String seedId) =>
+        asNonEmpty(itemDoc?.payload[itemField]) ??
+        asNonEmpty(company?.payload[companyField]) ??
+        seedId;
+
+    final legs = <DerivedDoc>[];
+    for (final row in sleRows) {
+      final value = asNum(row.payload['qty_change']) *
+          asNum(row.payload['valuation_rate']);
+      if (value.abs() < 0.0000001) continue;
+      final trans = '${row.payload['trans_type'] ?? ''}';
+      if (trans == 'Transfer' || trans == 'Production') continue;
+
+      final itemId = asNonEmpty(row.payload['item']);
+      final itemDoc = itemId == null
+          ? null
+          : (items[itemId] ??= await engine.fetch('Item', itemId));
+
+      final inventory = resolve(
+          itemDoc, 'inventory_account', 'default_inventory_account', 'Stock');
+      final String counter;
+      if (saleVouchers.contains(docType)) {
+        counter =
+            resolve(itemDoc, 'cogs_account', 'default_cogs_account', 'COGS');
+      } else if (purchaseVouchers.contains(docType)) {
+        counter =
+            asNonEmpty(company?.payload['default_grni_account']) ?? 'GRNI';
+      } else {
+        counter = resolve(itemDoc, 'stock_adjustment_account',
+            'default_stock_adjustment_account', 'Stock Adjustment');
+      }
+
+      final amount = value.abs();
+      final drAccount = value > 0 ? inventory : counter;
+      final crAccount = value > 0 ? counter : inventory;
+      final isReversal = isTrue(row.payload['is_reversal']);
+      legs.add(_stockGl('${row.id}-gl-d', drAccount, amount, 0, row, isReversal));
+      legs.add(_stockGl('${row.id}-gl-c', crAccount, 0, amount, row, isReversal));
+    }
+    return legs;
+  }
+
+  DerivedDoc _stockGl(String id, String account, num debit, num credit,
+          DerivedDoc sle, bool reversal) =>
+      DerivedDoc(LedgerDerivation.glEntry, id, {
+        'posting_date': sle.payload['posting_date'],
+        'account': account,
+        'debit': debit,
+        'credit': credit,
+        'voucher_type': sle.payload['voucher_type'],
+        'voucher_no': sle.payload['voucher_no'],
+        'is_reversal': reversal,
+        // Valuation cost is already company/base currency.
+        'conversion_rate': 1,
+        'base_debit': debit,
+        'base_credit': credit,
+      });
+
+  /// Moves a Purchase Invoice's stock-line value off the expense leg and onto
+  /// GRNI, so buying stock never lands in COGS at purchase time:
+  ///   two-document flow: Receipt posts Dr Inventory / Cr GRNI, this bill
+  ///     posts Dr GRNI / Cr AP — GRNI clears when both are in;
+  ///   one-document flow (update_stock): the bill's own SLE legs post
+  ///     Dr Inventory / Cr GRNI and this split posts Dr GRNI — GRNI nets to
+  ///     zero inside the document.
+  /// Service / non-stock lines keep today's expense treatment. Runs on both
+  /// submit and cancel (the expense leg sits in the flipped column on a
+  /// reversal). Amounts stay algebraically signed so debit-note returns
+  /// (negative lines) flow through unchanged.
+  Future<void> _splitGrniFromExpense(List<DerivedDoc> derived, Document source,
+      {required bool reversal}) async {
+    num stockNet = 0;
+    final stockStatus = <String, bool>{};
+    for (final row in source.children['items'] ?? const <ChildRow>[]) {
+      final itemId = asNonEmpty(row.payload['item']);
+      if (itemId == null) continue;
+      final isStock = stockStatus[itemId] ??= isStockItem(
+          (await engine.fetch('Item', itemId))?.payload ??
+              const <String, dynamic>{});
+      if (!isStock) continue;
+      stockNet += row.payload.containsKey('amount')
+          ? asNum(row.payload['amount'])
+          : asNum(row.payload['qty']) * asNum(row.payload['rate']);
+    }
+    if (stockNet.abs() < 0.0000001) return;
+
+    final sfx = reversalSuffix(reversal);
+    final expenseId = 'GL-${source.id}-debit$sfx';
+    DerivedDoc? expense;
+    for (final d in derived) {
+      if (d.docType == LedgerDerivation.glEntry && d.id == expenseId) {
+        expense = d;
+        break;
+      }
+    }
+    if (expense == null) return;
+
+    final rate = LedgerDerivation.conversionRate(source);
+    final column = reversal ? 'credit' : 'debit';
+    expense.payload[column] = asNum(expense.payload[column]) - stockNet;
+    expense.payload['base_$column'] = asNum(expense.payload[column]) * rate;
+    if (asNum(expense.payload['debit']).abs() < 0.0000001 &&
+        asNum(expense.payload['credit']).abs() < 0.0000001) {
+      derived.remove(expense);
+    }
+
+    final company = source.company == null
+        ? null
+        : await engine.fetch('Company', source.company!);
+    final grni = asNonEmpty(company?.payload['default_grni_account']) ?? 'GRNI';
+    derived.add(DerivedDoc(LedgerDerivation.glEntry, 'GL-${source.id}-grni$sfx', {
+      'posting_date': source.payload['posting_date'],
+      'account': grni,
+      'debit': reversal ? 0 : stockNet,
+      'credit': reversal ? stockNet : 0,
+      'voucher_type': source.docType,
+      'voucher_no': source.id,
+      'is_reversal': reversal,
+      'conversion_rate': rate,
+      'base_debit': (reversal ? 0 : stockNet) * rate,
+      'base_credit': (reversal ? stockNet : 0) * rate,
+      if (asNonEmpty(source.payload['currency']) != null)
+        'currency': source.payload['currency'],
+    }));
   }
 
   /// The cost to re-enter returned stock for [item] in [wh]: the rate the

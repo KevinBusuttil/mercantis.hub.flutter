@@ -280,6 +280,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       style: theme.textTheme.bodySmall),
                 ),
                 AtlasFieldRow(
+                  label: 'Stock & Warehousing',
+                  onTap: _saving
+                      ? null
+                      : () => setState(() => _draft =
+                          _draft.copyWith(stockEnabled: !_draft.stockEnabled)),
+                  trailing: Switch(
+                    value: _draft.stockEnabled,
+                    onChanged: _saving
+                        ? null
+                        : (v) => setState(
+                            () => _draft = _draft.copyWith(stockEnabled: v)),
+                  ),
+                ),
+                AtlasFieldRow(
                   label: 'Point of Sale',
                   onTap: _saving
                       ? null

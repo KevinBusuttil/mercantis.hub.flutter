@@ -47,4 +47,33 @@ void main() {
             Document(id: '', docType: 'Sales Invoice', payload: {}), docType),
         isEmpty);
   });
+
+  group('company letterhead (Phase 1A branding)', () {
+    test('builds header from the business profile and skips blanks', () {
+      final lh = companyLetterHead({
+        'company_name': 'Acme Ltd',
+        'address': '1 Main Street, Valletta',
+        'phone': '+356 2100 0000',
+        'email': 'hello@acme.mt',
+        'tax_id': 'MT12345678',
+        'website': '',
+      });
+      expect(lh.id, hubLetterHeadId);
+      expect(lh.header, contains('Acme Ltd'));
+      expect(lh.header, contains('1 Main Street, Valletta'));
+      expect(lh.header, contains('+356 2100 0000 · hello@acme.mt'));
+      expect(lh.header, contains('VAT: MT12345678'));
+      expect(lh.footer, isNotNull);
+    });
+
+    test('a bare profile still yields a usable letterhead', () {
+      final lh = companyLetterHead(const {});
+      expect(lh.header, 'My Business');
+    });
+
+    test('hub default formats carry the letterhead id', () {
+      const docType = DocType(id: 'X', name: 'X', module: 'm', fields: []);
+      expect(hubDefaultPrintFormat(docType).letterHeadId, hubLetterHeadId);
+    });
+  });
 }

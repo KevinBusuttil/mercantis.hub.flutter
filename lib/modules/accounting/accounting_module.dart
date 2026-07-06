@@ -43,7 +43,7 @@ abstract final class AccountingModule {
             key: 'account_type',
             label: 'Account Type',
             type: FieldType.select,
-            options: 'Accumulated Depreciation\nAsset Received But Not Billed\nBank\nCash\nChargeable\nCost of Goods Sold\nDepreciation\nEquity\nExpense Account\nExpenses Included In Asset Valuation\nFixed Asset\nIncome Account\nPayable\nReceivable\nRound Off\nStock\nStock Adjustment\nTax\nTemporary',
+            options: 'Accumulated Depreciation\nAsset Received But Not Billed\nBank\nCash\nChargeable\nCost of Goods Sold\nDepreciation\nEquity\nExpense Account\nExpenses Included In Asset Valuation\nFixed Asset\nIncome Account\nPayable\nReceivable\nRound Off\nStock\nStock Adjustment\nStock Received But Not Billed\nTax\nTemporary',
           ),
           FieldDefinition(key: 'parent_account', label: 'Parent Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'is_group', label: 'Is Group', type: FieldType.check),

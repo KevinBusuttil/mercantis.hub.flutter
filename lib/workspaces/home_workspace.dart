@@ -10,6 +10,10 @@ const homeWorkspace = WorkspaceDescriptor(
   accentColor: MercantisBrandColors.accentHome,
   order: 0,
   quickActions: [
+    QuickAction(id: 'setup_checklist', label: 'Setup checklist',
+      icon: Icons.checklist_outlined,
+      routeName: '/w/home/setup-checklist',
+      color: MercantisBrandColors.accentSetup),
     QuickAction(id: 'scan_receipt', label: 'Scan receipt',
       icon: Icons.document_scanner_outlined,
       routeName: '/w/home/scan-receipt',
@@ -37,6 +41,11 @@ const homeWorkspace = WorkspaceDescriptor(
   ],
   // Cards fed by the real `home` dashboard (Core DashboardEngine), not mock.
   dashboardCards: [
+    DashboardCardSpec.kpi(id: 'home_cash_position', title: 'Cash position'),
+    DashboardCardSpec.kpi(id: 'home_overdue', title: 'Overdue'),
+    DashboardCardSpec.kpi(id: 'home_bills_due', title: 'Bills due'),
+    DashboardCardSpec.kpi(id: 'home_sales_month', title: 'Sales this month'),
+    DashboardCardSpec.kpi(id: 'home_vat_estimate', title: 'VAT estimate'),
     DashboardCardSpec.kpi(id: 'home_open_orders', title: 'Open Sales Orders'),
     DashboardCardSpec.kpi(id: 'home_receivables', title: 'Receivables'),
     DashboardCardSpec.kpi(id: 'home_payables', title: 'Payables'),

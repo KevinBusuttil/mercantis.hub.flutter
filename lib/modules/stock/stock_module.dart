@@ -62,6 +62,11 @@ abstract final class StockModule {
             options: 'Moving Average\nFIFO',
             defaultValue: 'Moving Average',
           ),
+          // Perpetual-inventory posting accounts (Phase 1B). Blank falls back
+          // to the Company defaults, then the seeded chart.
+          FieldDefinition(key: 'inventory_account', label: 'Inventory Asset Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
+          FieldDefinition(key: 'cogs_account', label: 'COGS Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
+          FieldDefinition(key: 'stock_adjustment_account', label: 'Stock Adjustment Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
           // A single mutually-exclusive type replaces the old is_stock_item /
           // is_service_item checkbox pair (which allowed the contradictory
@@ -143,7 +148,7 @@ abstract final class StockModule {
             key: 'stock_entry_type',
             label: 'Stock Entry Type',
             type: FieldType.select,
-            options: 'Material Issue\nMaterial Receipt\nMaterial Transfer\nManufacture\nRepack',
+            options: 'Material Issue\nMaterial Receipt\nMaterial Transfer\nManufacture\nRepack\nStock Count',
             required: true,
           ),
           FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),

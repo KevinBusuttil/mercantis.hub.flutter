@@ -6,6 +6,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import '../onboarding/business_preset.dart';
 import '../onboarding/hub_seeder.dart';
 import '../onboarding/onboarding_providers.dart';
+import '../settings/hub_settings.dart';
 
 /// First-run wizard: name the business, pick a currency + a business preset,
 /// then seed the chart of accounts, fiscal year, VAT bands, and a wired Company
@@ -46,6 +47,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         currencyCode: _currency,
         jurisdiction: _jurisdiction,
       );
+      // Make the chosen preset functional: persist it and set the module
+      // toggles it implies (workspace visibility follows on this launch).
+      final settings = ref.read(hubSettingsProvider);
+      await ref
+          .read(hubSettingsProvider.notifier)
+          .save(engine, settings.applyingPreset(_preset));
       ref.invalidate(companyExistsProvider);
       // The boot gate rebuilds on the invalidated provider and shows the shell.
     } catch (e) {

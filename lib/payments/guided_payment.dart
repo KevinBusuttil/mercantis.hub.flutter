@@ -106,6 +106,14 @@ abstract final class GuidedPayment {
   /// Pay → paid_from = bank/cash, paid_to = payable (party). Blank accounts are
   /// still filled by the Business Profile defaults interceptor on save, so the
   /// builder works even before accounts are chosen.
+  ///
+  /// [amount] is the money actually received/paid. When it exceeds the
+  /// allocations, the surplus is NOT dropped: the Payment Entry carries the
+  /// full amount, so the ledger books the whole receipt against the party —
+  /// the unallocated remainder becomes a customer/supplier advance (credit)
+  /// applicable to future invoices. Omitted (or below the allocations, which
+  /// a UI shouldn't allow), it falls back to the allocated total so the
+  /// books can never settle more than was paid.
   static Document buildPaymentEntry({
     required bool receive,
     required String party,
@@ -115,8 +123,11 @@ abstract final class GuidedPayment {
     String? partyAccount,
     String? company,
     required List<PaymentAllocation> allocations,
+    num? amount,
   }) {
-    final total = totalAllocated(allocations);
+    final allocated = totalAllocated(allocations);
+    final total =
+        (amount != null && round2(amount) > allocated) ? round2(amount) : allocated;
     final paidFrom = receive ? partyAccount : bankAccount;
     final paidTo = receive ? bankAccount : partyAccount;
 

@@ -40,8 +40,11 @@ abstract final class LedgerDerivation {
   /// Vouchers whose monetary ledger rows are denominated in the document's
   /// transaction `currency`, so base-currency amounts get stamped onto them
   /// (GL `base_debit`/`base_credit`, customer/supplier `base_amount`). Stock
-  /// vouchers (POS / Delivery / Receipt / Stock Entry) post COGS / inventory at
-  /// moving-average cost — already in base currency — so they're excluded.
+  /// vouchers (POS / Delivery / Receipt / Stock Entry) carry their cost on
+  /// Stock Ledger Entries at moving-average/FIFO cost — already in base
+  /// currency — so they're excluded. The GL COGS / Inventory / GRNI legs for
+  /// stock movements are emitted by the runtime service after costing
+  /// (`LedgerDerivationService._stockGlLegs`), also in base currency.
   /// Mirrors the Swift `baseStampDocTypes`.
   static const _baseStampDocTypes = {
     'Sales Invoice',
@@ -66,6 +69,11 @@ abstract final class LedgerDerivation {
         return const {
           'credit_to': 'default_payable_account',
           'expense_account': 'default_expense_account',
+        };
+      case 'Expense':
+        return const {
+          'paid_from': 'default_cash_account',
+          'credit_to': 'default_payable_account',
         };
       case 'POS Invoice':
         return const {
@@ -107,6 +115,8 @@ abstract final class LedgerDerivation {
         return _salesInvoice(doc, reversal);
       case 'Purchase Invoice':
         return _purchaseInvoice(doc, reversal);
+      case 'Expense':
+        return _expense(doc, reversal);
       case 'POS Invoice':
         return _posInvoice(doc, reversal);
       case 'Payment Entry':
@@ -135,6 +145,10 @@ abstract final class LedgerDerivation {
     final customer = asNonEmpty(p['customer']);
     final sfx = reversalSuffix(reversal);
     return [
+      // update_stock: the invoice itself issues stock (Phase 1B) — the runtime
+      // costs these rows and posts the matching Dr COGS / Cr Inventory legs.
+      if (isTrue(p['update_stock']))
+        ..._stockDocument(doc, reversal, incoming: false, transType: 'Issue'),
       // Dr Accounts Receivable (gross — customer owes net + VAT)
       _gl(
         id: 'GL-$id-debit$sfx',
@@ -186,6 +200,12 @@ abstract final class LedgerDerivation {
     final supplier = asNonEmpty(p['supplier']);
     final sfx = reversalSuffix(reversal);
     return [
+      // update_stock: the bill itself receives stock (Phase 1B) — the runtime
+      // posts Dr Inventory / Cr GRNI from these rows, and the GRNI split below
+      // moves the stock lines' financial debit from expense to GRNI so the
+      // clearing account nets to zero within this one document.
+      if (isTrue(p['update_stock']))
+        ..._stockDocument(doc, reversal, incoming: true, transType: 'Receipt'),
       // Cr Accounts Payable (gross — we owe net + VAT)
       _gl(
         id: 'GL-$id-credit$sfx',
@@ -225,6 +245,83 @@ abstract final class LedgerDerivation {
       // Dr Input VAT — one GL leg + one Tax Transaction row per tax line.
       ..._taxLegs(doc, reversal,
           isOutput: false, partyType: 'Supplier', party: supplier),
+    ];
+  }
+
+  /// Lightweight expense (Phase 1A): Dr category (net) + Dr Input VAT /
+  /// Cr cash-bank when paid, or Cr payable when not — with a Tax Transaction
+  /// row so the VAT lands in the return, and a Supplier Transaction row when
+  /// an unpaid expense names a supplier (it is money owed).
+  static List<DerivedDoc> _expense(Document doc, bool reversal) {
+    final id = doc.id;
+    final p = doc.payload;
+    final net = asNum(p['net_amount']);
+    final tax = asNum(p['tax_amount']);
+    final gross = asNum(p['gross_amount']) != 0 ? asNum(p['gross_amount']) : net + tax;
+    final paid = isTrue(p['is_paid']);
+    final supplier = asNonEmpty(p['supplier']);
+    final sfx = reversalSuffix(reversal);
+    return [
+      // Dr Category (net of VAT).
+      _gl(
+        id: 'GL-$id-debit$sfx',
+        account: asNonEmpty(p['expense_account']),
+        debit: reversal ? 0 : net,
+        credit: reversal ? net : 0,
+        voucherType: doc.docType,
+        voucherNo: id,
+        postingDate: p['posting_date'],
+        reversal: reversal,
+      ),
+      // Dr Input VAT + subledger row for the return.
+      if (tax != 0) ...[
+        _gl(
+          id: 'GL-$id-tax$sfx',
+          account: asNonEmpty(p['tax_account']),
+          debit: reversal ? 0 : tax,
+          credit: reversal ? tax : 0,
+          voucherType: doc.docType,
+          voucherNo: id,
+          postingDate: p['posting_date'],
+          reversal: reversal,
+        ),
+        DerivedDoc(taxTxn, 'TT-$id-0$sfx', {
+          'tax_type': 'VAT',
+          if (asNonEmpty(p['tax_code']) != null) 'tax': asNonEmpty(p['tax_code']),
+          'posting_date': p['posting_date'],
+          'base_amount': negate(net, reversal),
+          'tax_amount': negate(tax, reversal),
+          'party_type': 'Supplier',
+          if (supplier != null) 'party': supplier,
+          'voucher_type': doc.docType,
+          'voucher_no': id,
+          'is_reversal': reversal,
+        }),
+      ],
+      // Cr cash/bank (paid) or Cr payable (owed) — gross.
+      _gl(
+        id: 'GL-$id-credit$sfx',
+        account: asNonEmpty(paid ? p['paid_from'] : p['credit_to']),
+        debit: reversal ? gross : 0,
+        credit: reversal ? 0 : gross,
+        partyType: paid ? null : 'Supplier',
+        party: paid ? null : supplier,
+        voucherType: doc.docType,
+        voucherNo: id,
+        postingDate: p['posting_date'],
+        reversal: reversal,
+      ),
+      if (!paid && supplier != null)
+        DerivedDoc(supplierTxn, 'VT-$id$sfx', {
+          'trans_type': reversal ? 'CreditNote' : 'Invoice',
+          'supplier': supplier,
+          'posting_date': p['posting_date'],
+          'amount': negate(gross, reversal),
+          'currency': p['currency'],
+          'voucher_type': doc.docType,
+          'voucher_no': id,
+          'is_reversal': reversal,
+        }),
     ];
   }
 
@@ -551,6 +648,7 @@ abstract final class LedgerDerivation {
       case 'Material Transfer':
         return 'Transfer';
       case 'Repack':
+      case 'Stock Count':
         return 'Adjustment';
       case 'Manufacture':
       case 'Manufacturing':

@@ -6,6 +6,7 @@ abstract final class BuyingModule {
   static const _module = 'Buying';
 
   static List<DocType> docTypes() => [
+        _expense(),
         _supplier(),
         _supplierQuotation(),
         _purchaseOrder(),
@@ -109,6 +110,10 @@ abstract final class BuyingModule {
           // negative amounts.
           FieldDefinition(key: 'is_return', label: 'Is Return (Debit Note)', type: FieldType.check),
           FieldDefinition(key: 'return_against', label: 'Return Against', type: FieldType.link, linkDocType: 'Purchase Invoice', options: 'Purchase Invoice'),
+          // Phase 1B: a one-document business can receive stock (Dr Inventory /
+          // Cr GRNI) straight from the bill instead of raising a Purchase Receipt.
+          FieldDefinition(key: 'update_stock', label: 'Update Stock', type: FieldType.check),
+          FieldDefinition(key: 'set_warehouse', label: 'To Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Purchase Invoice Item', options: 'Purchase Invoice Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           // Computed VAT rows (input tax) — one per distinct tax code on submit.
@@ -116,6 +121,33 @@ abstract final class BuyingModule {
           FieldDefinition(key: 'tax_total', label: 'Tax Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'grand_total', label: 'Grand Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'outstanding_amount', label: 'Outstanding', type: FieldType.currency, readOnly: true, allowOnSubmit: true),
+        ],
+      );
+
+  /// Lightweight expense (Phase 1A): the coffee-receipt document. One
+  /// category, net + VAT, paid from cash/bank (or left unpaid against the
+  /// supplier). Posts straight to the GL on submit via LedgerDerivation —
+  /// no line items, no full Purchase Invoice ceremony.
+  static DocType _expense() => const DocType(
+        id: 'Expense',
+        name: 'Expense',
+        module: _module,
+        isSubmittable: true,
+        namingRule: 'EXP-.YYYY.-.####',
+        workflowId: 'wf-expense',
+        fields: [
+          FieldDefinition(key: 'posting_date', label: 'Date', type: FieldType.date, required: true),
+          FieldDefinition(key: 'description', label: 'Description', type: FieldType.data, required: true),
+          FieldDefinition(key: 'supplier', label: 'Supplier', type: FieldType.link, linkDocType: 'Supplier', options: 'Supplier'),
+          FieldDefinition(key: 'expense_account', label: 'Category', type: FieldType.link, linkDocType: 'Account', options: 'Account', required: true),
+          FieldDefinition(key: 'net_amount', label: 'Net Amount', type: FieldType.currency, required: true),
+          FieldDefinition(key: 'tax_code', label: 'Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
+          FieldDefinition(key: 'tax_amount', label: 'VAT Amount', type: FieldType.currency),
+          FieldDefinition(key: 'tax_account', label: 'VAT Account', type: FieldType.link, linkDocType: 'Account', options: 'Account', readOnly: true),
+          FieldDefinition(key: 'gross_amount', label: 'Gross Amount', type: FieldType.currency, readOnly: true),
+          FieldDefinition(key: 'is_paid', label: 'Paid', type: FieldType.check, defaultValue: '1'),
+          FieldDefinition(key: 'paid_from', label: 'Paid From', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
+          FieldDefinition(key: 'credit_to', label: 'Payable Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
         ],
       );
 }

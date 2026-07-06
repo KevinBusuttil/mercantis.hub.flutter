@@ -25,6 +25,7 @@ abstract final class HubWorkflows {
         _stockEntry(),
         _journalEntry(),
         _paymentEntry(),
+        _expense(),
         _bom(),
         _workOrder(),
         _productionPlan(),
@@ -228,6 +229,19 @@ abstract final class HubWorkflows {
         transitions: [
           _t('wf-journal-entry', 'Draft', 'Submitted', 'Submit'),
           _t('wf-journal-entry', 'Submitted', 'Cancelled', 'Cancel'),
+        ],
+      );
+
+  static WorkflowDefinition _expense() => WorkflowDefinition(
+        id: 'wf-expense',
+        states: [
+          _state('Draft', isDefault: true, allowEdit: true),
+          _state('Submitted'),
+          _state('Cancelled'),
+        ],
+        transitions: [
+          _t('wf-expense', 'Draft', 'Submitted', 'Submit'),
+          _t('wf-expense', 'Submitted', 'Cancelled', 'Cancel'),
         ],
       );
 

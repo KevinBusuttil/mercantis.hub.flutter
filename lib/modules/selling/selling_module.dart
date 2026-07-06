@@ -26,6 +26,11 @@ abstract final class SellingModule {
           FieldDefinition(key: 'customer', label: 'Customer', type: FieldType.link, linkDocType: 'Customer', options: 'Customer', required: true),
           FieldDefinition(key: 'transaction_date', label: 'Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'valid_till', label: 'Valid Till', type: FieldType.date),
+          // Lifecycle timestamps (Phase 1A): stamped by the Mark as Sent /
+          // Accepted / Rejected actions; QuotationStatus derives the status.
+          FieldDefinition(key: 'sent_on', label: 'Sent On', type: FieldType.date, readOnly: true, allowOnSubmit: true),
+          FieldDefinition(key: 'accepted_on', label: 'Accepted On', type: FieldType.date, readOnly: true, allowOnSubmit: true),
+          FieldDefinition(key: 'rejected_on', label: 'Rejected On', type: FieldType.date, readOnly: true, allowOnSubmit: true),
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Quotation Item', options: 'Quotation Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
@@ -81,6 +86,10 @@ abstract final class SellingModule {
           // automatically from the negative amounts.
           FieldDefinition(key: 'is_return', label: 'Is Return (Credit Note)', type: FieldType.check),
           FieldDefinition(key: 'return_against', label: 'Return Against', type: FieldType.link, linkDocType: 'Sales Invoice', options: 'Sales Invoice'),
+          // Phase 1B: an invoice-only business can issue stock (and post COGS)
+          // straight from the invoice instead of raising a Delivery Note.
+          FieldDefinition(key: 'update_stock', label: 'Update Stock', type: FieldType.check),
+          FieldDefinition(key: 'set_warehouse', label: 'From Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Sales Invoice Item', options: 'Sales Invoice Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           // Computed VAT rows (output tax) — one per distinct tax code on submit.

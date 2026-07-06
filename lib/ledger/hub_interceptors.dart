@@ -22,6 +22,9 @@ final hubInterceptorsOverride =
   BooksLockGuardInterceptor(),
   NegativeStockGuardInterceptor(),
   GroupAccountPostingGuardInterceptor(),
+  JournalBalanceGuardInterceptor(),
+  DuplicateSupplierBillGuardInterceptor(),
+  ExpenseDefaultsInterceptor(),
 ]);
 
 const _systemRoles = {'System Manager'};
@@ -424,7 +427,10 @@ class NegativeStockGuardInterceptor extends DocumentInterceptor {
   @override
   Future<void> beforeSubmit(
       DocumentEngine engine, Document doc, DocType docType) async {
-    if (!_issueDocTypes.contains(doc.docType)) return;
+    // A Sales Invoice only issues stock when update_stock is set (Phase 1B).
+    final issues = _issueDocTypes.contains(doc.docType) ||
+        (doc.docType == 'Sales Invoice' && isTrue(doc.payload['update_stock']));
+    if (!issues) return;
     if (isTrue(doc.payload['is_return'])) return; // a return adds stock back
     final company = await _companyFor(engine, doc.company);
     if (isTrue(company?.payload['allow_negative_stock'])) return;
@@ -512,6 +518,132 @@ class GroupAccountPostingGuardInterceptor extends DocumentInterceptor {
             'account instead.',
       ),
     ]);
+  }
+}
+
+/// Keeps a Journal Entry's `total_debit` / `total_credit` / `difference`
+/// display fields honest on every save, and blocks submitting an entry whose
+/// debits and credits do not balance (cent tolerance). Invoices and payments
+/// are balanced by construction in [LedgerDerivation]; a hand-entered journal
+/// was the one posting path that could write an unbalanced GL.
+class JournalBalanceGuardInterceptor extends DocumentInterceptor {
+  const JournalBalanceGuardInterceptor();
+
+  static const _tolerance = 0.005; // half a cent — same as invoice settlement
+
+  @override
+  Future<void> beforeSave(
+      DocumentEngine engine, Document doc, DocType docType,
+      {required bool isNew}) async {
+    if (docType.id != 'Journal Entry') return;
+    final (debit, credit) = _totals(doc);
+    doc.payload['total_debit'] = debit;
+    doc.payload['total_credit'] = credit;
+    doc.payload['difference'] = debit - credit;
+  }
+
+  @override
+  Future<void> beforeSubmit(
+      DocumentEngine engine, Document doc, DocType docType) async {
+    if (docType.id != 'Journal Entry') return;
+    final (debit, credit) = _totals(doc);
+    if ((debit - credit).abs() < _tolerance) return;
+    throw DocumentEngineError.validationFailed([
+      ValidationError(
+        stage: 'journal_balance',
+        fieldKey: 'accounts',
+        message: 'Journal Entry does not balance: total debit $debit ≠ total '
+            'credit $credit. Debits and credits must be equal before the '
+            'entry can be submitted.',
+      ),
+    ]);
+  }
+
+  (num, num) _totals(Document doc) {
+    num debit = 0;
+    num credit = 0;
+    for (final row in doc.children['accounts'] ?? const []) {
+      debit += asNum(row.payload['debit']);
+      credit += asNum(row.payload['credit']);
+    }
+    return (debit, credit);
+  }
+}
+
+/// Keeps a lightweight Expense's amounts honest on save: computes `tax_amount`
+/// from the tax code's rate when left blank, stamps `gross_amount = net + tax`
+/// and resolves `tax_account` (code's account → company default VAT account)
+/// so the ledger derivation can stay pure. A VAT-free expense posts net only.
+class ExpenseDefaultsInterceptor extends DocumentInterceptor {
+  const ExpenseDefaultsInterceptor();
+
+  @override
+  Future<void> beforeSave(
+      DocumentEngine engine, Document doc, DocType docType,
+      {required bool isNew}) async {
+    if (docType.id != 'Expense') return;
+    final net = asNum(doc.payload['net_amount']);
+    final codeId = asNonEmpty(doc.payload['tax_code']);
+
+    num tax = asNum(doc.payload['tax_amount']);
+    String? taxAccount;
+    if (codeId != null) {
+      final code = await engine.fetch('Tax Code', codeId);
+      if (code != null) {
+        if (doc.payload['tax_amount'] == null) {
+          tax = net * asNum(code.payload['rate']) / 100;
+        }
+        taxAccount = asNonEmpty(code.payload['tax_account']);
+      }
+    }
+    if (tax != 0 && taxAccount == null) {
+      final company = await _companyFor(engine, doc.company);
+      taxAccount = asNonEmpty(company?.payload['default_vat_account']);
+    }
+
+    doc.payload['tax_amount'] = tax;
+    doc.payload['gross_amount'] = net + tax;
+    if (taxAccount != null) doc.payload['tax_account'] = taxAccount;
+  }
+}
+
+/// Warns about double-entering (and so double-paying) a supplier bill: saving
+/// a Purchase Invoice whose supplier + supplier's-invoice-number pair already
+/// exists on another live document is rejected. Blank numbers are never
+/// checked (micro-businesses won't always have one), cancelled documents
+/// don't count, and re-saving the same draft passes.
+class DuplicateSupplierBillGuardInterceptor extends DocumentInterceptor {
+  const DuplicateSupplierBillGuardInterceptor();
+
+  @override
+  Future<void> beforeSave(
+      DocumentEngine engine, Document doc, DocType docType,
+      {required bool isNew}) async {
+    if (docType.id != 'Purchase Invoice') return;
+    final supplier = asNonEmpty(doc.payload['supplier']);
+    final number = asNonEmpty(doc.payload['supplier_invoice_no']);
+    if (supplier == null || number == null) return;
+
+    final others = await engine.list('Purchase Invoice',
+        filters: {'supplier': supplier}, userRoles: _systemRoles);
+    final normalized = number.trim().toLowerCase();
+    for (final other in others) {
+      if (other.id == doc.id) continue; // re-saving the same document
+      if (other.docStatus == 2) continue; // cancelled bills don't count
+      final otherNo = asNonEmpty(other.payload['supplier_invoice_no']);
+      if (otherNo != null && otherNo.trim().toLowerCase() == normalized) {
+        throw DocumentEngineError.validationFailed([
+          ValidationError(
+            stage: 'duplicate_supplier_bill',
+            fieldKey: 'supplier_invoice_no',
+            message: "Supplier invoice '$number' from $supplier already "
+                'exists (${other.id}). Entering it again would risk paying '
+                'the bill twice — open the existing document instead, or '
+                'change the number if this is genuinely a different bill.',
+          ),
+        ]);
+      }
+    }
   }
 }
 

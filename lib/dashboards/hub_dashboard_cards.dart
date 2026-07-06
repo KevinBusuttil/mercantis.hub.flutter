@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import '../reports/report_providers.dart';
+import 'owner_kpis.dart';
 
 /// Registers dashboard card builders into the Core registry, keyed by spec.id.
 ///
@@ -58,6 +59,58 @@ void registerHubDashboardCards(WidgetRef ref) {
       idKey: 'id',
       seeAllRoute: '/list/Sales Invoice',
       emptyLabel: 'No invoices yet',
+    ),
+  );
+
+  // ---- Owner KPI cards (Phase 1A): the daily questions -------------------
+  registry.registerCard(
+    'home_cash_position',
+    (context, spec) => _OwnerKpiCard(
+      provider: cashPositionKpiProvider,
+      title: spec.title,
+      icon: Icons.account_balance_outlined,
+      accent: MercantisBrandColors.accentFinance,
+      route: '/w/finance',
+    ),
+  );
+  registry.registerCard(
+    'home_overdue',
+    (context, spec) => _OwnerKpiCard(
+      provider: overdueKpiProvider,
+      title: spec.title,
+      icon: Icons.schedule_outlined,
+      accent: MercantisBrandColors.accentFinance,
+      route: '/list/Sales Invoice',
+    ),
+  );
+  registry.registerCard(
+    'home_bills_due',
+    (context, spec) => _OwnerKpiCard(
+      provider: billsDueKpiProvider,
+      title: spec.title,
+      icon: Icons.receipt_long_outlined,
+      accent: MercantisBrandColors.accentPurchase,
+      route: '/list/Purchase Invoice',
+    ),
+  );
+  registry.registerCard(
+    'home_sales_month',
+    (context, spec) => _OwnerKpiCard(
+      provider: salesMonthKpiProvider,
+      title: spec.title,
+      icon: Icons.trending_up,
+      accent: MercantisBrandColors.accentSales,
+      route: '/list/Sales Invoice',
+    ),
+  );
+  registry.registerCard(
+    'home_vat_estimate',
+    (context, spec) => _OwnerKpiCard(
+      provider: vatEstimateKpiProvider,
+      title: spec.title,
+      icon: Icons.account_balance_wallet_outlined,
+      accent: MercantisBrandColors.accentFinance,
+      route: '/list/Tax Filing',
     ),
   );
 
@@ -161,6 +214,42 @@ DashboardWidgetResult? _widget(DashboardResult result, String id) {
 }
 
 /// A KPI card whose value is one `count`/`sum` tile of a real dashboard.
+/// A KPI tile fed by one of the owner-question providers (cash, overdue,
+/// bills due, month sales, VAT estimate). Tapping opens [route].
+class _OwnerKpiCard extends ConsumerWidget {
+  const _OwnerKpiCard({
+    required this.provider,
+    required this.title,
+    required this.icon,
+    required this.accent,
+    required this.route,
+  });
+
+  final AutoDisposeFutureProvider<OwnerKpi> provider;
+  final String title;
+  final IconData icon;
+  final Color accent;
+  final String route;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(provider);
+    final value = async.when(
+      loading: () => '…',
+      error: (_, __) => '—',
+      data: (kpi) => '€${kpi.amount.toDouble().toStringAsFixed(2)}',
+    );
+    final caption = async.valueOrNull?.caption;
+    return KpiCard(
+      title: caption == null ? title : '$title · $caption',
+      value: value,
+      icon: icon,
+      accentColor: accent,
+      onTap: () => context.go(route),
+    );
+  }
+}
+
 class _DashboardMetricCard extends ConsumerWidget {
   const _DashboardMetricCard({
     required this.dashboardId,
