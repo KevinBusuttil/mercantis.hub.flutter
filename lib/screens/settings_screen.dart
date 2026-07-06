@@ -182,6 +182,55 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Future<void> _lockBooks() async {
+    final engine = await ref.read(documentEngineProvider.future);
+    final companies =
+        await engine.list('Company', userRoles: const {'System Manager'});
+    if (companies.isEmpty || !mounted) return;
+    final company = companies.first;
+    final currentRaw = '${company.payload['books_lock_date'] ?? ''}';
+    final current = DateTime.tryParse(currentRaw);
+
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current ?? DateTime(now.year, now.month, 0), // last month-end
+      firstDate: DateTime(now.year - 10),
+      lastDate: now,
+      helpText: 'Lock books through',
+    );
+    if (picked == null || !mounted) return;
+
+    final iso = '${picked.year.toString().padLeft(4, '0')}-'
+        '${picked.month.toString().padLeft(2, '0')}-'
+        '${picked.day.toString().padLeft(2, '0')}';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Lock the books?'),
+        content: Text(
+            'Nothing can be posted on or before $iso — invoices, payments, '
+            'journals and stock entries dated into the locked period are '
+            'rejected at submit. You can move or clear the lock here or on '
+            'the Company profile.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Lock books')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    company.payload['books_lock_date'] = iso;
+    await engine.save(company, const {'System Manager'});
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Books locked through $iso')));
+  }
+
   Future<void> _changePasscode() async {
     final auth = ref.read(authProvider);
     final active = auth.active;
@@ -327,6 +376,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       'the stock ledger'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _inventoryTakeOn,
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.lock_clock_outlined),
+                  title: const Text('Lock books (period close)'),
+                  subtitle: const Text(
+                      'Reject any posting dated into a finalised period'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _lockBooks,
                 ),
               ],
             ),
