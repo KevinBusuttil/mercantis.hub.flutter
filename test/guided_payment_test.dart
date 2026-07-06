@@ -125,5 +125,35 @@ void main() {
       expect(pe.payload.containsKey('paid_from'), isFalse);
       expect(pe.payload.containsKey('paid_to'), isFalse);
     });
+
+    test('an overpayment keeps the full amount (surplus = party advance)', () {
+      final pe = GuidedPayment.buildPaymentEntry(
+        receive: true,
+        party: 'C1',
+        postingDate: '2026-03-01',
+        allocations: allocs,
+        amount: 100, // more than the allocations — surplus becomes credit
+      );
+      expect(pe.payload['paid_amount'], 100);
+      expect(pe.payload['received_amount'], 100);
+      // Allocations unchanged — settlements only reduce invoices by their sum.
+      num allocated = 0;
+      for (final r in pe.children['references']!) {
+        allocated += r.payload['allocated_amount'] as num;
+      }
+      expect(allocated, GuidedPayment.totalAllocated(allocs));
+    });
+
+    test('an amount below the allocations is clamped up (books stay sane)',
+        () {
+      final pe = GuidedPayment.buildPaymentEntry(
+        receive: true,
+        party: 'C1',
+        postingDate: '2026-03-01',
+        allocations: allocs,
+        amount: 10, // invalid — a UI should prevent it; builder clamps up
+      );
+      expect(pe.payload['paid_amount'], GuidedPayment.totalAllocated(allocs));
+    });
   });
 }

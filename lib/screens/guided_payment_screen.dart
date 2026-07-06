@@ -68,6 +68,9 @@ class GuidedPaymentScreen extends ConsumerStatefulWidget {
 class _GuidedPaymentScreenState extends ConsumerState<GuidedPaymentScreen> {
   String? _party;
   String? _bank;
+  /// Optional "money actually received/paid" — blank means exactly the
+  /// allocated total; a surplus becomes a party advance (credit).
+  final _amountCtrl = TextEditingController();
   DateTime _postingDate = DateTime.now();
   List<_AllocRow> _rows = [];
   bool _loadingInvoices = false;
@@ -82,6 +85,7 @@ class _GuidedPaymentScreenState extends ConsumerState<GuidedPaymentScreen> {
 
   @override
   void dispose() {
+    _amountCtrl.dispose();
     for (final r in _rows) {
       r.ctrl.dispose();
     }
@@ -94,6 +98,19 @@ class _GuidedPaymentScreenState extends ConsumerState<GuidedPaymentScreen> {
       if (r.selected) t += num.tryParse(r.ctrl.text.trim()) ?? 0;
     }
     return t;
+  }
+
+  /// The entered received/paid amount, or null when blank/invalid.
+  num? get _amount {
+    final raw = _amountCtrl.text.trim();
+    if (raw.isEmpty) return null;
+    return num.tryParse(raw);
+  }
+
+  /// Surplus over the allocations that will be kept as a party credit.
+  num get _unallocated {
+    final a = _amount;
+    return (a == null || a <= _total) ? 0 : a - _total;
   }
 
   String _partyName(Document d) =>
@@ -159,6 +176,18 @@ class _GuidedPaymentScreenState extends ConsumerState<GuidedPaymentScreen> {
       setState(() => _error = 'Select a $_partyLabel and at least one $_docLabel with an amount.');
       return;
     }
+    final amount = _amount;
+    if (_amountCtrl.text.trim().isNotEmpty && amount == null) {
+      setState(() => _error = 'Amount is not a number.');
+      return;
+    }
+    if (amount != null && amount < _total) {
+      setState(() => _error =
+          'Amount (${amount.toStringAsFixed(2)}) is less than the allocated '
+          'total (${_total.toStringAsFixed(2)}) — reduce the allocations or '
+          'increase the amount.');
+      return;
+    }
 
     setState(() {
       _saving = true;
@@ -175,6 +204,7 @@ class _GuidedPaymentScreenState extends ConsumerState<GuidedPaymentScreen> {
         company: ctx.company,
         currency: ctx.currency,
         allocations: allocations,
+        amount: amount,
       );
       final saved = await engine.save(draft, _systemRoles);
       final submitted = await engine.submit(saved, _systemRoles);
@@ -184,6 +214,7 @@ class _GuidedPaymentScreenState extends ConsumerState<GuidedPaymentScreen> {
         _successId = submitted.id;
         _party = null;
         _rows = [];
+        _amountCtrl.clear();
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Posted ${submitted.id}')),
@@ -262,6 +293,22 @@ class _GuidedPaymentScreenState extends ConsumerState<GuidedPaymentScreen> {
                 onChanged: (s) =>
                     setState(() => _postingDate = DateTime.parse(s)),
               ),
+              const SizedBox(height: MercantisSpacing.md),
+              TextField(
+                controller: _amountCtrl,
+                enabled: !_saving,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText:
+                      'Amount ${_receive ? 'received' : 'paid'} (optional)',
+                  helperText: 'Leave blank to match the allocations. A '
+                      'surplus is kept as ${_receive ? 'customer' : 'supplier'} '
+                      'credit for future ${_docLabel}s.',
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
             ],
           ),
         ),
@@ -288,10 +335,16 @@ class _GuidedPaymentScreenState extends ConsumerState<GuidedPaymentScreen> {
         ),
         const SizedBox(height: MercantisSpacing.lg),
         AtlasTotalRow(
-          label: 'Total',
+          label: 'Total allocated',
           value: _total.toStringAsFixed(2),
           emphasize: true,
         ),
+        if (_unallocated > 0)
+          AtlasTotalRow(
+            label:
+                'Kept as ${_receive ? 'customer' : 'supplier'} credit',
+            value: _unallocated.toStringAsFixed(2),
+          ),
         const SizedBox(height: MercantisSpacing.lg),
         FilledButton.icon(
           onPressed: (_saving || _total <= 0) ? null : () => _post(ctx),
