@@ -39,6 +39,50 @@ void main() {
       expect(r.outputTax, 0);
       expect(r.inputTax, 0);
     });
+
+    test('United Kingdom layout fills the VAT100 nine boxes', () {
+      final r = TaxReturnBuilder.build(const [
+        TaxReturnRow(partyType: 'Customer', baseAmount: 1000, taxAmount: 200, rate: 20),
+        TaxReturnRow(partyType: 'Supplier', baseAmount: 600, taxAmount: 120, rate: 20),
+      ], jurisdiction: 'United Kingdom');
+      expect(r.boxes.map((b) => b.number),
+          ['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+      expect(r.boxes[0].amount, 200); // VAT due on sales
+      expect(r.boxes[1].amount, 0); // NI/EU acquisitions — not tracked
+      expect(r.boxes[2].amount, 200); // total VAT due
+      expect(r.boxes[3].amount, 120); // VAT reclaimed
+      expect(r.boxes[4].amount, 80); // net to pay
+      expect(r.boxes[5].amount, 1000); // sales ex VAT
+      expect(r.boxes[5].isTax, isFalse);
+      expect(r.boxes[6].amount, 600); // purchases ex VAT
+    });
+
+    test('UK box 5 is the absolute difference (a reclaim is positive)', () {
+      final r = TaxReturnBuilder.build(const [
+        TaxReturnRow(partyType: 'Customer', baseAmount: 100, taxAmount: 20, rate: 20),
+        TaxReturnRow(partyType: 'Supplier', baseAmount: 500, taxAmount: 100, rate: 20),
+      ], jurisdiction: 'United Kingdom');
+      expect(r.netTax, -80); // headline stays signed
+      expect(r.boxes[4].amount, 80); // the form's box is absolute
+    });
+
+    test('Malta layout splits supplies standard (18%) vs reduced rates', () {
+      final r = TaxReturnBuilder.build(const [
+        TaxReturnRow(partyType: 'Customer', baseAmount: 1000, taxAmount: 180, rate: 18),
+        TaxReturnRow(partyType: 'Customer', baseAmount: 400, taxAmount: 28, rate: 7),
+        TaxReturnRow(partyType: 'Customer', baseAmount: 50, taxAmount: 0, rate: 0),
+        TaxReturnRow(partyType: 'Supplier', baseAmount: 600, taxAmount: 108, rate: 18),
+      ], jurisdiction: 'Malta');
+      final byNumber = {for (final b in r.boxes) b.number: b};
+      expect(byNumber['M1']!.amount, 1000); // standard-rate base
+      expect(byNumber['M2']!.amount, 180); // standard-rate VAT
+      expect(byNumber['M3']!.amount, 450); // reduced + zero base
+      expect(byNumber['M4']!.amount, 28);
+      expect(byNumber['M5']!.amount, 208); // total output
+      expect(byNumber['M6']!.amount, 600);
+      expect(byNumber['M7']!.amount, 108);
+      expect(byNumber['M8']!.amount, 100); // 208 − 108
+    });
   });
 
   group('TaxReturnService (engine)', () {
@@ -116,6 +160,24 @@ void main() {
       final net = filled.children['boxes']!
           .firstWhere((b) => b.payload['box_number'] == '3');
       expect(asNum(net.payload['amount']), 54);
+    });
+
+    test('a UK filing prepares the VAT100 layout', () async {
+      final filing = await engine.save(
+          Document(id: '', docType: 'Tax Filing', payload: {
+            'tax_type': 'VAT',
+            'jurisdiction': 'United Kingdom',
+            'from_date': '2026-04-01',
+            'to_date': '2026-06-30',
+          }),
+          roles);
+      await tt('UK1', type: 'VAT', party: 'Customer', base: 1000, tax: 200, date: '2026-04-15');
+
+      final filled = await service.prepare(filing.id);
+      expect(filled.children['boxes'], hasLength(9));
+      final box6 = filled.children['boxes']!
+          .firstWhere((b) => b.payload['box_number'] == '6');
+      expect(asNum(box6.payload['amount']), 1000);
     });
 
     test('only the filing company\'s rows count (multi-company books)', () async {

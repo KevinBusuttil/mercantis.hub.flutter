@@ -28,6 +28,16 @@ abstract final class ComplianceModule {
           FieldDefinition(key: 'tax_type', label: 'Tax Type', type: FieldType.select, options: 'VAT\nSalesTax\nExcise\nWithholding', defaultValue: 'VAT', required: true),
           FieldDefinition(key: 'from_date', label: 'From Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'to_date', label: 'To Date', type: FieldType.date, required: true),
+          // Which authority's return layout the builder fills the boxes for:
+          // the UK VAT100's nine boxes, the Malta VAT return's rate-split
+          // sections, or the generic 5-line summary.
+          FieldDefinition(
+            key: 'jurisdiction',
+            label: 'Return Layout',
+            type: FieldType.select,
+            options: 'Generic\nMalta\nUnited Kingdom',
+            defaultValue: 'Generic',
+          ),
           FieldDefinition(
             key: 'filing_frequency',
             label: 'Frequency',
