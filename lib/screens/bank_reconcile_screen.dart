@@ -8,6 +8,7 @@ import '../ledger/ledger_values.dart';
 import '../modules/banking/bank_import_service.dart';
 import '../modules/banking/bank_matcher.dart';
 import '../modules/banking/bank_matching_service.dart';
+import '../modules/banking/payout_import.dart';
 
 const _systemRoles = {'System Manager'};
 
@@ -125,6 +126,76 @@ class _BankReconcileScreenState extends ConsumerState<BankReconcileScreen> {
     }
   }
 
+  /// Books a payment-provider payout report (Stripe etc.) against this bank
+  /// account: Dr Bank net + Dr Payment Fees / Cr Payment Clearing — so the
+  /// payout statement line has a voucher to match and the fees become a
+  /// visible expense.
+  Future<void> _importPayout() async {
+    final accountId = _account;
+    if (accountId == null) return;
+    final csv = await showDialog<String>(
+      context: context,
+      builder: (c) {
+        final ctrl = TextEditingController();
+        return AlertDialog(
+          title: const Text('Import payout report (Stripe CSV)'),
+          content: SizedBox(
+            width: 520,
+            child: TextField(
+              controller: ctrl,
+              maxLines: 12,
+              decoration: const InputDecoration(
+                hintText: 'Paste the provider\'s balance/payout CSV (one row '
+                    'per charge with Amount, Fee and Net columns). One draft '
+                    'journal is created: bank receives the net, fees become '
+                    'an expense, and Payment Clearing is credited the gross.',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(c, ctrl.text),
+                child: const Text('Create journal')),
+          ],
+        );
+      },
+    );
+    if (csv == null || csv.trim().isEmpty) return;
+
+    setState(() => _busy = true);
+    try {
+      final engine = await ref.read(documentEngineProvider.future);
+      final account = await engine.fetch('Bank Account', accountId);
+      final gl = asNonEmpty(account?.payload['gl_account']);
+      if (gl == null) {
+        throw StateError('Set the Ledger Account on this Bank Account first.');
+      }
+      final je = await PayoutImportService(engine: engine).importPayoutCsv(
+        csv: csv,
+        postingDate: DateTime.now().toIso8601String().split('T').first,
+        bankGlAccount: gl,
+        provider: 'Stripe',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Draft journal ${je.id} created — review and '
+              'submit it to post.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Payout import failed: $e')));
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+        ref.invalidate(_workbenchProvider);
+      }
+    }
+  }
+
   Future<void> _accept(BankMatch match) async {
     setState(() => _busy = true);
     try {
@@ -190,6 +261,11 @@ class _BankReconcileScreenState extends ConsumerState<BankReconcileScreen> {
             tooltip: 'Import statement CSV',
             icon: const Icon(Icons.upload_file_outlined),
             onPressed: (_account == null || _busy) ? null : _importCsv,
+          ),
+          IconButton(
+            tooltip: 'Import payout report (Stripe CSV)',
+            icon: const Icon(Icons.credit_card_outlined),
+            onPressed: (_account == null || _busy) ? null : _importPayout,
           ),
         ],
       ),
