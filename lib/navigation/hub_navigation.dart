@@ -12,6 +12,7 @@ import '../screens/accountant_export_screen.dart';
 import '../screens/dashboards_screen.dart';
 import '../screens/approvals_inbox_screen.dart';
 import '../screens/customer_account_screen.dart';
+import '../screens/customer_statement_screen.dart';
 import '../screens/delivery_route_screen.dart';
 import '../screens/driver_today_screen.dart';
 import '../screens/guided_payment_screen.dart';
@@ -76,6 +77,10 @@ void wireHubNavigation(WidgetRef ref) {
     registry.registerRoute('route', (c, s) => const DeliveryRouteScreen());
     registry.registerRoute('customer-account',
         (c, s) => const CustomerAccountScreen());
+    registry.registerRoute(
+        'customer-statement',
+        (c, s) => CustomerStatementScreen(
+            customerId: s.uri.queryParameters['customer'] ?? ''));
     registry.registerRoute('account-ledger',
         (c, s) => AccountLedgerScreen(
             accountId: s.uri.queryParameters['account']));

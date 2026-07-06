@@ -87,16 +87,29 @@ class CustomerAccountScreen extends ConsumerWidget {
                         Text(r.customerName),
                         Text('${r.openInvoices}'),
                         Text(_money(r.outstanding)),
-                        if (r.outstanding > 0)
-                          const StatusChip(
-                              label: 'Due',
-                              tone: StatusTone.overdue,
-                              dense: true)
-                        else
-                          const StatusChip(
-                              label: 'Clear',
-                              tone: StatusTone.approved,
-                              dense: true),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (r.outstanding > 0)
+                              const StatusChip(
+                                  label: 'Due',
+                                  tone: StatusTone.overdue,
+                                  dense: true)
+                            else
+                              const StatusChip(
+                                  label: 'Clear',
+                                  tone: StatusTone.approved,
+                                  dense: true),
+                            IconButton(
+                              tooltip: 'Statement',
+                              icon: const Icon(Icons.receipt_long_outlined,
+                                  size: 18),
+                              onPressed: () => context.go(
+                                  '/w/sales_fulfilment/customer-statement'
+                                  '?customer=${Uri.encodeQueryComponent(r.customerId)}'),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                 ],
