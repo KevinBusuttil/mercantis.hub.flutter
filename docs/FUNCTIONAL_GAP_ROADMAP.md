@@ -1,5 +1,7 @@
 # Neuradix Atlas (Mercantis Hub/Core) — Functional ERP Gap Audit & Roadmap
 
+> **Status note (2026-07-06):** Sections 9 (MVP scope) and 12 (roadmap) are **superseded by `docs/ROADMAP_V2_SOLO_TEAM.md`**, which encodes the Atlas Solo / Atlas Team edition split, the Atlas Team Rust Backend, the Atlas Setup Library, and the rule-first AI strategy (see also `docs/ATLAS_SOLO_TEAM_BACKEND_DECISION.md`, `docs/STOCK_COGS_IMPLEMENTATION_PLAN.md`, `docs/ATLAS_SETUP_LIBRARY_AND_RULE_FIRST_AI.md`). The audit findings in this document remain the factual baseline. POS wording in §6/§12 has been corrected: POS document and Z-report **foundations** are present, but POS is not accounting-complete for product businesses until stock-to-GL/COGS is implemented.
+
 **Audience:** product owner / founding team
 **Perspective:** senior functional ERP consultant, micro-business & very-small-business ERP
 **Scope:** `mercantis.hub.flutter` (the product) + `mercantis.core.flutter` (the platform packages)
@@ -156,7 +158,7 @@ Ranked by how directly they block a paying micro-business customer:
 🟡→❌ Availability ✅ (bins), receive ✅ (purchase receipt), sell ✅ (delivery note/POS reduces stock at cost). Counting: no count-sheet workflow (adjustments only via raw Stock Entry). Reorder: low-stock list only, no suggestions. **Margin: impossible — COGS never reaches the P&L.** Verdict: **quantities trustworthy, money not.**
 
 **Retail/POS user** — *"Open till → sell fast → mixed tenders → receipt → close and reconcile cash."*
-🎭 Open session (no float entry), sell via a dropdown (no grid/barcode), cash-exact only, no receipt, no returns, close with Z-report ✅ (variance math is right but float=0 undermines it). Verdict: **not usable for a real counter yet; the hard accounting part is already done.**
+🎭 Open session (no float entry), sell via a dropdown (no grid/barcode), cash-exact only, no receipt, no returns, close with Z-report ✅ (variance math is right but float=0 undermines it). Verdict: **not usable for a real counter yet — and not accounting-complete either: POS document and Z-report foundations are present (revenue/VAT/cash posting, stock issue at cost), but POS sales post no COGS or Inventory Asset movement to the GL until the stock-to-GL work lands.**
 
 **Service business user** — *"Quote work, track jobs and time, recurring invoices, project profit."*
 ❌ Quote→invoice works; jobs/time/retainers/recurring/profitability all absent. Verdict: **usable only as an invoicing tool.**
@@ -330,7 +332,7 @@ Banking UI over existing logic (import, match workbench, create-from-line, split
 **Phase 4 — Sales channel MVP.**
 Generic channel entities; CSV order channel; WooCommerce polling connector; SKU mapping; payment/fee reconciliation via Phase-3 clearing machinery; sync log. *Depends on the backend decision if real-time is wanted; polling works serverless.*
 
-**Phase 5 — POS completion.** Float entry, barcode/search grid, card/mixed tender, receipts, returns, discounts, cashier attribution, suspended sales, offline crash recovery of the cart. (The accounting is already done — this phase is till UX.)
+**Phase 5 — POS completion.** Float entry, barcode/search grid, card/mixed tender, receipts, returns, discounts, cashier attribution, suspended sales, offline crash recovery of the cart. (POS document and Z-report foundations are already in place, but POS is only accounting-complete for product businesses once Phase 2's stock-to-GL/COGS work has landed — both are prerequisites of this phase.)
 
 **Phase 6 — Service business.** Projects/tasks/timesheets/billable expenses; recurring invoices (may be pulled earlier — it is small and high-value); retainers; project profitability.
 
