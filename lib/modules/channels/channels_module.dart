@@ -54,6 +54,13 @@ abstract final class ChannelsModule {
           FieldDefinition(key: 'auto_submit', label: 'Submit Invoices Automatically', type: FieldType.check),
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
           FieldDefinition(key: 'disabled', label: 'Disabled', type: FieldType.check),
+          // WooCommerce polling (channel_type == WooCommerce): the store URL
+          // and the REST API key pair created under WooCommerce → Settings →
+          // Advanced → REST API (read permission is enough).
+          FieldDefinition(key: 'store_url', label: 'Store URL', type: FieldType.data),
+          FieldDefinition(key: 'consumer_key', label: 'API Consumer Key', type: FieldType.data),
+          FieldDefinition(key: 'consumer_secret', label: 'API Consumer Secret', type: FieldType.password),
+          FieldDefinition(key: 'last_polled_at', label: 'Last Polled', type: FieldType.data, readOnly: true),
         ],
       );
 
@@ -120,7 +127,7 @@ abstract final class ChannelsModule {
             key: 'run_type',
             label: 'Run',
             type: FieldType.select,
-            options: 'CSV Import\nPost Orders',
+            options: 'CSV Import\nWooCommerce Poll\nPost Orders',
             required: true,
           ),
           FieldDefinition(key: 'run_on', label: 'Run At', type: FieldType.data, readOnly: true),

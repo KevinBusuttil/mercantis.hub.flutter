@@ -17,14 +17,21 @@ List<DocumentAction> hubChannelActionsFor(Document doc, DocType docType) {
   switch (docType.id) {
     case 'Sales Channel':
       if (doc.id.isEmpty) return const [];
-      return const [
-        DocumentAction(
+      return [
+        const DocumentAction(
           id: 'channel-import-csv',
           label: 'Import orders (CSV)',
           icon: Icons.upload_file_outlined,
           invoke: _importCsv,
         ),
-        DocumentAction(
+        if (doc.payload['channel_type'] == 'WooCommerce')
+          const DocumentAction(
+            id: 'channel-poll-woo',
+            label: 'Fetch orders (WooCommerce)',
+            icon: Icons.cloud_download_outlined,
+            invoke: _pollWoo,
+          ),
+        const DocumentAction(
           id: 'channel-post-orders',
           label: 'Post imported orders',
           icon: Icons.receipt_long_outlined,
@@ -96,6 +103,21 @@ Future<void> _importCsv(
         content: Text('${result.imported} order(s) staged, '
             '${result.duplicates} already imported, '
             '${result.skipped} unreadable row(s).')));
+  } catch (e) {
+    messenger.showSnackBar(SnackBar(content: Text('$e')));
+  }
+}
+
+Future<void> _pollWoo(
+    BuildContext context, WidgetRef ref, Document doc) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final engine = await ref.read(documentEngineProvider.future);
+  try {
+    final result = await ChannelImportService(engine: engine)
+        .pollWooCommerce(channelId: doc.id);
+    messenger.showSnackBar(SnackBar(
+        content: Text('${result.imported} order(s) staged, '
+            '${result.duplicates} already imported.')));
   } catch (e) {
     messenger.showSnackBar(SnackBar(content: Text('$e')));
   }

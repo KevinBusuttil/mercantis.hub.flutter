@@ -1,7 +1,9 @@
+import 'package:http/http.dart' as http;
 import 'package:mercantis_core/mercantis_core.dart';
 
 import '../../ledger/ledger_values.dart';
 import 'channel_order_csv_importer.dart';
+import 'woocommerce_client.dart';
 
 /// The outcome of one CSV import run.
 class ChannelImportResult {
@@ -58,11 +60,68 @@ class ChannelImportService {
       throw StateError('Sales Channel $channelId does not exist.');
     }
     final parsed = ChannelOrderCsvImporter.parse(csv);
+    return stageOrders(
+      channelId: channelId,
+      orders: parsed.orders,
+      skipped: parsed.skipped,
+    );
+  }
+
+  /// Polls a WooCommerce channel for orders created since the last poll and
+  /// stages them through the same pipeline as a CSV import. The channel's
+  /// `store_url` / `consumer_key` / `consumer_secret` drive the API call;
+  /// `last_polled_at` advances only after a successful run, so a failed poll
+  /// re-covers its window next time.
+  Future<ChannelImportResult> pollWooCommerce({
+    required String channelId,
+    http.Client? httpClient,
+  }) async {
+    final channel = await engine.fetch('Sales Channel', channelId);
+    if (channel == null) {
+      throw StateError('Sales Channel $channelId does not exist.');
+    }
+    if (channel.payload['channel_type'] != 'WooCommerce') {
+      throw StateError('${channel.id} is not a WooCommerce channel.');
+    }
+    final storeUrl = asNonEmpty(channel.payload['store_url']);
+    final key = asNonEmpty(channel.payload['consumer_key']);
+    final secret = asNonEmpty(channel.payload['consumer_secret']);
+    if (storeUrl == null || key == null || secret == null) {
+      throw StateError('Fill in the store URL and API keys on ${channel.id} '
+          'first (WooCommerce → Settings → Advanced → REST API).');
+    }
+    final client = WooCommerceChannelClient(
+      storeUrl: storeUrl,
+      consumerKey: key,
+      consumerSecret: secret,
+      client: httpClient,
+    );
+    final orders = await client.fetchOrders(
+        after: asNonEmpty(channel.payload['last_polled_at']));
+    final result = await stageOrders(
+      channelId: channelId,
+      orders: orders,
+      runType: 'WooCommerce Poll',
+    );
+    channel.payload['last_polled_at'] =
+        DateTime.now().toUtc().toIso8601String();
+    await engine.save(channel, roles);
+    return result;
+  }
+
+  /// Stages one `Channel Order` per parsed storefront order — the shared
+  /// back half of every connector (CSV, WooCommerce, Shopify later).
+  Future<ChannelImportResult> stageOrders({
+    required String channelId,
+    required List<ParsedChannelOrder> orders,
+    int skipped = 0,
+    String runType = 'CSV Import',
+  }) async {
     final batchId = 'CHIMP-${DateTime.now().millisecondsSinceEpoch}';
 
     var imported = 0;
     var duplicates = 0;
-    for (final order in parsed.orders) {
+    for (final order in orders) {
       final id = 'CHO-${_fnv1a('$channelId|${order.externalId}')}';
       if (await engine.fetch('Channel Order', id) != null) {
         duplicates++;
@@ -96,15 +155,15 @@ class ChannelImportService {
       imported++;
     }
 
-    await _log(channelId, 'CSV Import', {
+    await _log(channelId, runType, {
       'imported': imported,
       'duplicates': duplicates,
-      'skipped': parsed.skipped,
+      'skipped': skipped,
     });
     return ChannelImportResult(
       imported: imported,
       duplicates: duplicates,
-      skipped: parsed.skipped,
+      skipped: skipped,
       batchId: batchId,
     );
   }
