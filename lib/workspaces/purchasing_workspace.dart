@@ -27,6 +27,8 @@ const purchasingWorkspace = WorkspaceDescriptor(
       items: [
         DocTypeWorkspaceItem(docType: 'Purchase Invoice',
           icon: Icons.receipt_outlined),
+        DocTypeWorkspaceItem(docType: 'Expense',
+          icon: Icons.local_cafe_outlined),
         DocTypeWorkspaceItem(
           docType: 'Payment Entry',
           icon: Icons.payments_outlined,

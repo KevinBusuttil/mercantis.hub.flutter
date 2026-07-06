@@ -24,6 +24,7 @@ final hubInterceptorsOverride =
   GroupAccountPostingGuardInterceptor(),
   JournalBalanceGuardInterceptor(),
   DuplicateSupplierBillGuardInterceptor(),
+  ExpenseDefaultsInterceptor(),
 ]);
 
 const _systemRoles = {'System Manager'};
@@ -566,6 +567,43 @@ class JournalBalanceGuardInterceptor extends DocumentInterceptor {
       credit += asNum(row.payload['credit']);
     }
     return (debit, credit);
+  }
+}
+
+/// Keeps a lightweight Expense's amounts honest on save: computes `tax_amount`
+/// from the tax code's rate when left blank, stamps `gross_amount = net + tax`
+/// and resolves `tax_account` (code's account → company default VAT account)
+/// so the ledger derivation can stay pure. A VAT-free expense posts net only.
+class ExpenseDefaultsInterceptor extends DocumentInterceptor {
+  const ExpenseDefaultsInterceptor();
+
+  @override
+  Future<void> beforeSave(
+      DocumentEngine engine, Document doc, DocType docType,
+      {required bool isNew}) async {
+    if (docType.id != 'Expense') return;
+    final net = asNum(doc.payload['net_amount']);
+    final codeId = asNonEmpty(doc.payload['tax_code']);
+
+    num tax = asNum(doc.payload['tax_amount']);
+    String? taxAccount;
+    if (codeId != null) {
+      final code = await engine.fetch('Tax Code', codeId);
+      if (code != null) {
+        if (doc.payload['tax_amount'] == null) {
+          tax = net * asNum(code.payload['rate']) / 100;
+        }
+        taxAccount = asNonEmpty(code.payload['tax_account']);
+      }
+    }
+    if (tax != 0 && taxAccount == null) {
+      final company = await _companyFor(engine, doc.company);
+      taxAccount = asNonEmpty(company?.payload['default_vat_account']);
+    }
+
+    doc.payload['tax_amount'] = tax;
+    doc.payload['gross_amount'] = net + tax;
+    if (taxAccount != null) doc.payload['tax_account'] = taxAccount;
   }
 }
 
