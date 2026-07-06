@@ -401,6 +401,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       style: theme.textTheme.bodySmall),
                 ),
                 AtlasFieldRow(
+                  label: 'Projects & Time',
+                  onTap: _saving
+                      ? null
+                      : () => setState(() => _draft = _draft.copyWith(
+                          projectsEnabled: !_draft.projectsEnabled)),
+                  trailing: Switch(
+                    value: _draft.projectsEnabled,
+                    onChanged: _saving
+                        ? null
+                        : (v) => setState(() =>
+                            _draft = _draft.copyWith(projectsEnabled: v)),
+                  ),
+                ),
+                AtlasFieldRow(
                   label: 'Stock & Warehousing',
                   onTap: _saving
                       ? null

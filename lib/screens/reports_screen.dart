@@ -23,6 +23,7 @@ final _statements = <_Statement>[
   _Statement('Gross Margin by Item', 'Revenue vs COGS per item', grossMarginProvider),
   _Statement('Stock Valuation', 'On-hand quantity and value per item', stockValuationProvider),
   _Statement('Stock ↔ GL Reconciliation', 'Stock ledger vs GL inventory balance', stockGlReconciliationProvider),
+  _Statement('Project Profitability', 'Invoiced vs costs per project', projectProfitabilityProvider),
 ];
 
 /// Lists every report the current user may run — the aggregating financial

@@ -7,6 +7,7 @@ import 'home_workspace.dart';
 import 'inventory_workspace.dart';
 import 'manufacturing_workspace.dart';
 import 'purchasing_workspace.dart';
+import 'projects_workspace.dart';
 import 'reports_workspace.dart';
 import 'sales_fulfilment_workspace.dart';
 import 'setup_workspace.dart';
@@ -18,6 +19,7 @@ import 'setup_workspace.dart';
 List<WorkspaceDescriptor> hubWorkspaces(HubSettings settings) => [
       homeWorkspace,
       salesFulfilmentWorkspace(posEnabled: settings.posEnabled),
+      if (settings.projectsEnabled) projectsWorkspace,
       purchasingWorkspace,
       if (settings.stockEnabled) inventoryWorkspace,
       if (settings.manufacturingEnabled) manufacturingWorkspace,

@@ -517,6 +517,86 @@ class HubAggregatingReports {
     );
   }
 
+  /// Project profitability (Phase 6): per project — invoiced value (submitted
+  /// Sales Invoices linked to the project), project costs (submitted Expenses
+  /// linked to it, net), logged hours, the value of still-unbilled billable
+  /// time, and margin = invoiced − costs.
+  Future<ReportResult> projectProfitability({Set<String>? userRoles}) async {
+    final projects = await _list('Project', userRoles: userRoles);
+    final rateByProject = {
+      for (final p in projects)
+        p.id: asNum(p.payload['default_billing_rate']),
+    };
+    final nameByProject = {
+      for (final p in projects)
+        p.id: asNonEmpty(p.payload['project_name']) ?? p.id,
+    };
+
+    final invoiced = <String, num>{};
+    for (final si in await _list('Sales Invoice', userRoles: userRoles)) {
+      if (si.docStatus != 1) continue;
+      final project = asNonEmpty(si.payload['project']);
+      if (project == null) continue;
+      invoiced[project] = (invoiced[project] ?? 0) + asNum(si.payload['grand_total']);
+    }
+
+    final costs = <String, num>{};
+    for (final e in await _list('Expense', userRoles: userRoles)) {
+      if (e.docStatus != 1) continue;
+      final project = asNonEmpty(e.payload['project']);
+      if (project == null) continue;
+      costs[project] = (costs[project] ?? 0) + asNum(e.payload['net_amount']);
+    }
+
+    final hours = <String, num>{};
+    final unbilled = <String, num>{};
+    for (final t in await _list('Timesheet', userRoles: userRoles)) {
+      final project = asNonEmpty(t.payload['project']);
+      if (project == null) continue;
+      final h = asNum(t.payload['hours']);
+      hours[project] = (hours[project] ?? 0) + h;
+      if (isTrue(t.payload['billable']) && !isTrue(t.payload['billed'])) {
+        final rate = asNum(t.payload['billing_rate']) != 0
+            ? asNum(t.payload['billing_rate'])
+            : (rateByProject[project] ?? 0);
+        unbilled[project] = (unbilled[project] ?? 0) + h * rate;
+      }
+    }
+
+    final ids = nameByProject.keys.toList()
+      ..sort((l, r) {
+        num marginOf(String p) => (invoiced[p] ?? 0) - (costs[p] ?? 0);
+        final byMargin = marginOf(r).compareTo(marginOf(l));
+        return byMargin != 0 ? byMargin : l.compareTo(r);
+      });
+
+    final rows = <List<String?>>[
+      for (final id in ids)
+        [
+          nameByProject[id],
+          _money(invoiced[id] ?? 0),
+          _money(costs[id] ?? 0),
+          '${hours[id] ?? 0}',
+          _money(unbilled[id] ?? 0),
+          _money((invoiced[id] ?? 0) - (costs[id] ?? 0)),
+        ],
+    ];
+
+    return ReportResult(
+      reportId: 'project_profitability',
+      name: 'Project Profitability',
+      columns: const [
+        ReportColumn(fieldKey: 'project', label: 'Project'),
+        ReportColumn(fieldKey: 'invoiced', label: 'Invoiced', type: 'currency'),
+        ReportColumn(fieldKey: 'costs', label: 'Costs', type: 'currency'),
+        ReportColumn(fieldKey: 'hours', label: 'Hours'),
+        ReportColumn(fieldKey: 'unbilled', label: 'Unbilled time', type: 'currency'),
+        ReportColumn(fieldKey: 'margin', label: 'Margin', type: 'currency'),
+      ],
+      rows: rows,
+    );
+  }
+
   String _pct(num part, num whole) =>
       whole == 0 ? '—' : '${(part / whole * 100).toStringAsFixed(1)}%';
 

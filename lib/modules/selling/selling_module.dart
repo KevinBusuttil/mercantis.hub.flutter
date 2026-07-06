@@ -96,6 +96,7 @@ abstract final class SellingModule {
           // interceptor extracts it so grand_total == the entered amounts.
           FieldDefinition(key: 'prices_include_tax', label: 'Prices Include Tax', type: FieldType.check),
           FieldDefinition(key: 'recurring_invoice', label: 'Recurring Template', type: FieldType.link, linkDocType: 'Recurring Invoice', options: 'Recurring Invoice', readOnly: true),
+          FieldDefinition(key: 'project', label: 'Project', type: FieldType.link, linkDocType: 'Project', options: 'Project'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Sales Invoice Item', options: 'Sales Invoice Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           // Computed VAT rows (output tax) — one per distinct tax code on submit.

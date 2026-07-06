@@ -28,6 +28,7 @@ class HubSettings {
   const HubSettings({
     this.advancedMode = false,
     this.stockEnabled = true,
+    this.projectsEnabled = true,
     this.posEnabled = true,
     this.manufacturingEnabled = true,
     this.deliveriesEnabled = true,
@@ -38,6 +39,7 @@ class HubSettings {
 
   final bool advancedMode;
   final bool stockEnabled;
+  final bool projectsEnabled;
   final bool posEnabled;
   final bool manufacturingEnabled;
   final bool deliveriesEnabled;
@@ -66,6 +68,7 @@ class HubSettings {
   HubSettings applyingPreset(BusinessPreset preset) => copyWith(
         businessPresetId: preset.id,
         stockEnabled: preset.enablesStock,
+        projectsEnabled: preset.enablesProjects,
         posEnabled: preset.enablesPos,
         manufacturingEnabled: preset.enablesManufacturing,
         deliveriesEnabled: preset.enablesDeliveries,
@@ -74,6 +77,7 @@ class HubSettings {
   HubSettings copyWith({
     bool? advancedMode,
     bool? stockEnabled,
+    bool? projectsEnabled,
     bool? posEnabled,
     bool? manufacturingEnabled,
     bool? deliveriesEnabled,
@@ -84,6 +88,7 @@ class HubSettings {
       HubSettings(
         advancedMode: advancedMode ?? this.advancedMode,
         stockEnabled: stockEnabled ?? this.stockEnabled,
+        projectsEnabled: projectsEnabled ?? this.projectsEnabled,
         posEnabled: posEnabled ?? this.posEnabled,
         manufacturingEnabled: manufacturingEnabled ?? this.manufacturingEnabled,
         deliveriesEnabled: deliveriesEnabled ?? this.deliveriesEnabled,
@@ -95,6 +100,7 @@ class HubSettings {
   Map<String, dynamic> toPayload() => {
         'advanced_mode': advancedMode,
         'stock_enabled': stockEnabled,
+        'projects_enabled': projectsEnabled,
         'pos_enabled': posEnabled,
         'manufacturing_enabled': manufacturingEnabled,
         'deliveries_enabled': deliveriesEnabled,
@@ -119,6 +125,7 @@ class HubSettings {
     return HubSettings(
       advancedMode: flag(p['advanced_mode'], d.advancedMode),
       stockEnabled: flag(p['stock_enabled'], d.stockEnabled),
+      projectsEnabled: flag(p['projects_enabled'], d.projectsEnabled),
       posEnabled: flag(p['pos_enabled'], d.posEnabled),
       manufacturingEnabled: flag(p['manufacturing_enabled'], d.manufacturingEnabled),
       deliveriesEnabled: flag(p['deliveries_enabled'], d.deliveriesEnabled),

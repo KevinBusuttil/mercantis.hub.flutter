@@ -12,6 +12,7 @@ import '../modules/fulfilment/fulfilment_module.dart';
 import '../modules/manufacturing/manufacturing_module.dart';
 import '../modules/pos/pos_module.dart';
 import '../modules/setup/setup_module.dart';
+import '../modules/projects/projects_module.dart';
 import '../modules/tax/tax_module.dart';
 import '../workflows/hub_workflows.dart';
 import 'hub_dashboards.dart';
@@ -34,6 +35,7 @@ abstract final class HubManifest {
       ...ManufacturingModule.docTypes(),
       ...DeliveriesModule.docTypes(),
       ...CaptureModule.docTypes(),
+      ...ProjectsModule.docTypes(),
     ];
 
     return AppManifest(

@@ -11,6 +11,7 @@ class BusinessPreset {
     required this.label,
     required this.description,
     this.enablesStock = false,
+    this.enablesProjects = false,
     this.enablesPos = false,
     this.enablesDeliveries = false,
     this.enablesManufacturing = false,
@@ -20,6 +21,7 @@ class BusinessPreset {
   final String label;
   final String description;
   final bool enablesStock;
+  final bool enablesProjects;
   final bool enablesPos;
   final bool enablesDeliveries;
   final bool enablesManufacturing;
@@ -27,7 +29,9 @@ class BusinessPreset {
   static const services = BusinessPreset(
     id: 'services',
     label: 'Services',
-    description: 'Quotes, invoices, and payments. No stock-heavy extras.',
+    description: 'Quotes, invoices, projects and time tracking. No '
+        'stock-heavy extras.',
+    enablesProjects: true,
   );
 
   static const trade = BusinessPreset(
@@ -60,9 +64,11 @@ class BusinessPreset {
   static const mixed = BusinessPreset(
     id: 'mixed',
     label: 'Mixed Small Business',
-    description: 'A bit of everything — starts with stock control; enable '
-        'POS, manufacturing or deliveries from Settings as you need them.',
+    description: 'A bit of everything — starts with stock control and '
+        'projects; enable POS, manufacturing or deliveries from Settings as '
+        'you need them.',
     enablesStock: true,
+    enablesProjects: true,
   );
 
   static const all = [services, trade, retail, manufacturing, mixed];

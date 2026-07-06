@@ -3,6 +3,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import '../dashboards/hub_dashboard_cards.dart';
 import '../modules/accounting/hub_account_actions.dart';
 import '../modules/accounting/hub_history_actions.dart';
+import '../modules/projects/hub_project_actions.dart';
 import '../modules/accounting/hub_compliance_actions.dart';
 import '../modules/selling/hub_conversion_actions.dart';
 import '../modules/selling/hub_quotation_actions.dart';
@@ -75,6 +76,8 @@ void wireHubNavigation(WidgetRef ref) {
     registerHubAccountActions(ref);
     // Phase 8: a "History" action on every saved record (audit trail).
     registerHubHistoryActions(ref);
+    // Phase 6: Quotation -> Project and Bill-project actions.
+    registerHubProjectActions(ref);
     // Workspace visibility follows the business preset / Settings toggles
     // (applies on next launch, mirroring the Swift visibility model).
     registerHubWorkspaces(registry, settings);

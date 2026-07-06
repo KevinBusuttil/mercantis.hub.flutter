@@ -86,6 +86,13 @@ final cashFlowProvider = FutureProvider<ReportResult>((ref) async {
   return reports.cashFlowOverview(userRoles: roles);
 });
 
+/// Per-project invoiced vs costs, hours, and unbilled time.
+final projectProfitabilityProvider = FutureProvider<ReportResult>((ref) async {
+  final reports = await ref.watch(aggregatingReportsProvider.future);
+  final roles = ref.watch(currentUserProvider).roles;
+  return reports.projectProfitability(userRoles: roles);
+});
+
 /// Stock ledger vs GL inventory balance — the perpetual-inventory trust check.
 final stockGlReconciliationProvider = FutureProvider<ReportResult>((ref) async {
   final reports = await ref.watch(aggregatingReportsProvider.future);
