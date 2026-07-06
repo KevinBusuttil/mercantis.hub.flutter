@@ -94,13 +94,13 @@ Track A of `docs/STOCK_COGS_IMPLEMENTATION_PLAN.md`: stock→GL, COGS, Inventory
 
 Rust backend skeleton (Axum/Tokio/SQLx) · PostgreSQL schema · company/user/device model · invitations & memberships · roles · sync API implementing the existing `CloudAdapter` contract (mutation log + blob store) · Flutter `HttpCloudAdapter` Team sync adapter · backend audit log · backup/restore tooling · Docker Compose deployment (hosted & self-hosted).
 
-**Outcome:** a Team company with multiple users/devices syncing masters and drafts through the backend. Acceptance criteria in §6.
+**Outcome:** a Team company with multiple users/devices syncing masters and drafts through the backend. Acceptance criteria: the **[P2]**-tagged items in §6 (1–4, 8–10, 12–13); the posting-authority items (**[P3]**: 5–7, 11) land with Phase 3 and do not gate this milestone.
 
 ### Phase 3 — Backend-authoritative postings
 
 Command API: submit sales invoice / purchase invoice / payment entry / stock entry; cancel-reverse; POS session close · backend COGS + Inventory Asset posting (Track B) · official gap-free numbering · stock availability + GL transaction safety under concurrency · client preview-vs-official flow · fixture suite green on Rust.
 
-**Outcome:** Team official postings are backend-confirmed; two devices cannot corrupt stock or numbering; the COGS acceptance test passes in backend-authoritative mode.
+**Outcome:** Team official postings are backend-confirmed; two devices cannot corrupt stock or numbering; the COGS acceptance test passes in backend-authoritative mode. Completes the **[P3]**-tagged items in §6 (5–7, 11).
 
 ### Phase 4 — Banking and payments
 
@@ -132,21 +132,23 @@ Accountant role + invite (Team) · accountant portal · audit trail UI · period
 
 **Outcome:** owner and accountant trust the books; filing-ready VAT.
 
-## 6. Atlas Team Rust Backend MVP acceptance criteria
+## 6. Atlas Team Rust Backend acceptance criteria (Phases 2–3)
 
-1. Owner can create a Team company.
-2. Owner can invite another user.
-3. The second user can join and register a device.
-4. Two devices sync customers, suppliers, items and draft documents through the backend.
-5. Official document submission is backend-confirmed (client draft → command → official result).
-6. Official document numbers are allocated safely (no duplicates, no races; gap-free where configured).
-7. Submitted documents cannot be destructively edited (immutability enforced server-side).
-8. The audit log records user, device, company, action and timestamp for every official action.
-9. Roles restrict access to sensitive accounting screens (server-enforced, not client-only).
-10. Backup and restore are possible and drilled (scripted, documented, tested on a copy).
-11. The mandatory stock/COGS posting test passes in backend-authoritative mode (fixture #1 on Rust).
-12. Payment link events can be received by the backend (webhook endpoint verified, logged, idempotent) — even before full provider UX ships.
-13. Online store webhook/polling events can be received and logged, even while the full connector is incomplete.
+Each criterion is tagged with the phase whose completion it gates: **[P2]** = Phase 2 coordination MVP, **[P3]** = Phase 3 backend-authoritative postings. Phase 2 is complete when all [P2] items pass; [P3] items must not be used to gate it.
+
+1. **[P2]** Owner can create a Team company.
+2. **[P2]** Owner can invite another user.
+3. **[P2]** The second user can join and register a device.
+4. **[P2]** Two devices sync customers, suppliers, items and draft documents through the backend.
+5. **[P3]** Official document submission is backend-confirmed (client draft → command → official result).
+6. **[P3]** Official document numbers are allocated safely (no duplicates, no races; gap-free where configured).
+7. **[P3]** Submitted documents cannot be destructively edited (immutability enforced server-side).
+8. **[P2]** The audit log records user, device, company, action and timestamp for every backend action (Phase 3 extends this to official postings).
+9. **[P2]** Roles restrict access to sensitive accounting screens (server-enforced, not client-only).
+10. **[P2]** Backup and restore are possible and drilled (scripted, documented, tested on a copy).
+11. **[P3]** The mandatory stock/COGS posting test passes in backend-authoritative mode (fixture #1 on Rust).
+12. **[P2]** Payment link events can be received by the backend (webhook endpoint verified, logged, idempotent) — even before full provider UX ships.
+13. **[P2]** Online store webhook/polling events can be received and logged, even while the full connector is incomplete.
 
 ## 7. Release gates (summary)
 

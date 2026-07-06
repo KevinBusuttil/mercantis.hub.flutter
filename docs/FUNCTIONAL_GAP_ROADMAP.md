@@ -360,7 +360,7 @@ Sequencing rationale: Phase 1 is entirely UI/wiring on proven logic (fast, low r
 
 ## 14. Questions / Decisions Needed
 
-1. **Cloud backend strategy** (the big one): stay serverless (folder sync, polling connectors, no invites) for how long? Options: (a) minimal sync/webhook relay service, (b) full hosted backend with identity, (c) serverless indefinitely with third-party relay for webhooks. Phases 3–4 and all multi-user stories hinge on this.
+1. ~~**Cloud backend strategy** (the big one): stay serverless (folder sync, polling connectors, no invites) for how long?~~ **DECIDED (2026-07-06):** two editions — Atlas Solo stays local-first/serverless; Atlas Team adds a Rust-first Linux coordination backend (PostgreSQL authority, local-first client retained). The serverless/relay alternatives listed here previously are superseded — see `docs/ATLAS_SOLO_TEAM_BACKEND_DECISION.md` and `docs/ROADMAP_V2_SOLO_TEAM.md`.
 2. **Target jurisdictions for launch** — determines VAT form mapping (Malta? UK MTD? Ireland?), gap-free numbering requirements, and e-invoicing roadmap (EU e-invoicing mandates are approaching — worth a position).
 3. **Email delivery mechanism:** on-device `mailto`/share (zero infra, poor tracking) vs SMTP per customer vs transactional email service (needs backend). Affects "Sent" status reliability and reminders.
 4. **Payment provider order:** Stripe first (recommended: links API, broad EU coverage) — confirm against target market (Revolut Business popular in Malta).
