@@ -36,6 +36,19 @@ const financeWorkspace = WorkspaceDescriptor(
       ],
     ),
     WorkspaceSection(
+      label: 'Banking',
+      description: 'Statements in, matches accepted, books agreeing',
+      items: [
+        DocTypeWorkspaceItem(docType: 'Bank Account',
+          icon: Icons.account_balance_outlined),
+        CustomWorkspaceItem(routeName: 'bank-reconcile',
+          label: 'Bank reconciliation', icon: Icons.rule_outlined,
+          description: 'Import statements, match payments, explain the rest'),
+        DocTypeWorkspaceItem(docType: 'Bank Statement Line',
+          icon: Icons.receipt_long_outlined),
+      ],
+    ),
+    WorkspaceSection(
       label: 'Guided payments',
       items: [
         CustomWorkspaceItem(routeName: 'receive-payment',

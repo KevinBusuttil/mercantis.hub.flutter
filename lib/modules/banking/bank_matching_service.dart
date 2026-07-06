@@ -109,6 +109,24 @@ class BankMatchingService {
       ));
     }
 
+    // Paid Expenses credit the bank/cash account directly (money out).
+    for (final e in await engine.list('Expense', userRoles: roles)) {
+      if (e.docStatus != 1) continue;
+      if (!isTrue(e.payload['is_paid'])) continue;
+      if (asNonEmpty(e.payload['paid_from']) != gl) continue;
+      final gross = asNum(e.payload['gross_amount']) != 0
+          ? asNum(e.payload['gross_amount'])
+          : asNum(e.payload['net_amount']) + asNum(e.payload['tax_amount']);
+      if (gross == 0) continue;
+      out.add(MatchCandidate(
+        id: e.id,
+        voucherType: 'Expense',
+        date: '${e.payload['posting_date']}',
+        amount: -gross,
+        reference: asNonEmpty(e.payload['description']),
+      ));
+    }
+
     // Journal Entries hold the account in a child table, which list() doesn't
     // hydrate — fetch each submitted JE to read its lines.
     for (final j in await engine.list('Journal Entry', userRoles: roles)) {
@@ -142,6 +160,20 @@ class BankMatchingService {
     line.payload['status'] = 'Reconciled';
     line.payload['matched_voucher_type'] = match.voucherType;
     line.payload['matched_voucher'] = match.voucherId;
+    await engine.save(line, roles);
+  }
+
+  /// Manually reconciles [lineId] (Phase 4 workbench): with a voucher when
+  /// the user knows what cleared it, or bare for lines that need no voucher
+  /// (bank fees already journalled, opening rows, ...). Same idempotent
+  /// semantics as [apply].
+  Future<void> markReconciled(String lineId,
+      {String? voucherType, String? voucherId}) async {
+    final line = await engine.fetch('Bank Statement Line', lineId);
+    if (line == null) return;
+    line.payload['status'] = 'Reconciled';
+    if (voucherType != null) line.payload['matched_voucher_type'] = voucherType;
+    if (voucherId != null) line.payload['matched_voucher'] = voucherId;
     await engine.save(line, roles);
   }
 }

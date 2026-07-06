@@ -12,6 +12,7 @@ import '../screens/account_ledger_screen.dart';
 import '../screens/accountant_export_screen.dart';
 import '../screens/dashboards_screen.dart';
 import '../screens/approvals_inbox_screen.dart';
+import '../screens/bank_reconcile_screen.dart';
 import '../screens/customer_account_screen.dart';
 import '../screens/customer_statement_screen.dart';
 import '../screens/delivery_route_screen.dart';
@@ -111,6 +112,8 @@ void wireHubNavigation(WidgetRef ref) {
         'opening-balances', (c, s) => const OpeningBalancesScreen());
     registry.registerRoute(
         'stock-count', (c, s) => const StockCountScreen());
+    registry.registerRoute(
+        'bank-reconcile', (c, s) => const BankReconcileScreen());
     // In-app notification inbox (ADR-048) and recently-opened records — shared
     // core-ui views surfaced from the Home workspace's quick actions.
     registry.registerRoute('notifications', (c, s) => const NotificationsScreen());
