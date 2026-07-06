@@ -97,6 +97,9 @@ abstract final class SellingModule {
           FieldDefinition(key: 'prices_include_tax', label: 'Prices Include Tax', type: FieldType.check),
           FieldDefinition(key: 'recurring_invoice', label: 'Recurring Template', type: FieldType.link, linkDocType: 'Recurring Invoice', options: 'Recurring Invoice', readOnly: true),
           FieldDefinition(key: 'project', label: 'Project', type: FieldType.link, linkDocType: 'Project', options: 'Project'),
+          // Which online channel the sale came through (Phase 5), for
+          // channel-level reporting.
+          FieldDefinition(key: 'sales_channel', label: 'Sales Channel', type: FieldType.link, linkDocType: 'Sales Channel', options: 'Sales Channel', readOnly: true),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Sales Invoice Item', options: 'Sales Invoice Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           // Computed VAT rows (output tax) — one per distinct tax code on submit.
