@@ -4,6 +4,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'auth/auth_gate.dart';
 import 'auth/auth_store.dart';
 import 'manifest/hub_manifest.dart';
+import 'printing/hub_print_formats.dart';
 import 'navigation/hub_navigation.dart';
 import 'deliveries/delivery_route_service.dart';
 import 'ledger/ledger_derivation_service.dart';
@@ -128,6 +129,15 @@ final _bootProvider = FutureProvider<void>((ref) async {
   await ref.watch(deliveryRouteServiceProvider.future);
   // Load persisted preferences (module visibility) and operator profiles.
   final engine = await ref.watch(documentEngineProvider.future);
+  // Brand printed documents: register the company letterhead so every PDF
+  // carries the business identity (changes apply on next launch, like
+  // module visibility).
+  final companies = await engine.list('Company', userRoles: const {'System Manager'});
+  if (companies.isNotEmpty) {
+    ref
+        .read(printServiceProvider)
+        .registerLetterHead(companyLetterHead(companies.first.payload));
+  }
   await ref.read(hubSettingsProvider.notifier).hydrate(engine);
   await ref.read(authProvider.notifier).hydrate(engine);
   // Load the persisted theme mode (light/dark/system).
