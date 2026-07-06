@@ -23,6 +23,7 @@ final hubInterceptorsOverride =
   NegativeStockGuardInterceptor(),
   GroupAccountPostingGuardInterceptor(),
   JournalBalanceGuardInterceptor(),
+  DuplicateSupplierBillGuardInterceptor(),
 ]);
 
 const _systemRoles = {'System Manager'};
@@ -565,6 +566,46 @@ class JournalBalanceGuardInterceptor extends DocumentInterceptor {
       credit += asNum(row.payload['credit']);
     }
     return (debit, credit);
+  }
+}
+
+/// Warns about double-entering (and so double-paying) a supplier bill: saving
+/// a Purchase Invoice whose supplier + supplier's-invoice-number pair already
+/// exists on another live document is rejected. Blank numbers are never
+/// checked (micro-businesses won't always have one), cancelled documents
+/// don't count, and re-saving the same draft passes.
+class DuplicateSupplierBillGuardInterceptor extends DocumentInterceptor {
+  const DuplicateSupplierBillGuardInterceptor();
+
+  @override
+  Future<void> beforeSave(
+      DocumentEngine engine, Document doc, DocType docType,
+      {required bool isNew}) async {
+    if (docType.id != 'Purchase Invoice') return;
+    final supplier = asNonEmpty(doc.payload['supplier']);
+    final number = asNonEmpty(doc.payload['supplier_invoice_no']);
+    if (supplier == null || number == null) return;
+
+    final others = await engine.list('Purchase Invoice',
+        filters: {'supplier': supplier}, userRoles: _systemRoles);
+    final normalized = number.trim().toLowerCase();
+    for (final other in others) {
+      if (other.id == doc.id) continue; // re-saving the same document
+      if (other.docStatus == 2) continue; // cancelled bills don't count
+      final otherNo = asNonEmpty(other.payload['supplier_invoice_no']);
+      if (otherNo != null && otherNo.trim().toLowerCase() == normalized) {
+        throw DocumentEngineError.validationFailed([
+          ValidationError(
+            stage: 'duplicate_supplier_bill',
+            fieldKey: 'supplier_invoice_no',
+            message: "Supplier invoice '$number' from $supplier already "
+                'exists (${other.id}). Entering it again would risk paying '
+                'the bill twice — open the existing document instead, or '
+                'change the number if this is genuinely a different bill.',
+          ),
+        ]);
+      }
+    }
   }
 }
 
