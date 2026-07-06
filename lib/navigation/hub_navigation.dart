@@ -41,19 +41,6 @@ final metadataApprovalInboxSourceOverride =
   ),
 );
 
-/// Optional modules can be hidden via Settings; gate their workspaces here.
-/// (Takes effect on next launch, mirroring the Swift visibility model.)
-bool _workspaceEnabled(String id, HubSettings s) {
-  switch (id) {
-    case 'manufacturing':
-      return s.manufacturingEnabled;
-    case 'delivery':
-      return s.deliveriesEnabled;
-    default:
-      return true;
-  }
-}
-
 /// Called once on boot to register workspaces, custom routes, and card
 /// builders.
 void wireHubNavigation(WidgetRef ref) {
@@ -73,10 +60,9 @@ void wireHubNavigation(WidgetRef ref) {
     registerHubPrintActions(ref);
     // Accounting: a "Ledger" action on an Account, opening its ledger.
     registerHubAccountActions(ref);
-    registry.registerAll([
-      for (final w in hubWorkspaces)
-        if (_workspaceEnabled(w.id, settings)) w,
-    ]);
+    // Workspace visibility follows the business preset / Settings toggles
+    // (applies on next launch, mirroring the Swift visibility model).
+    registerHubWorkspaces(registry, settings);
 
     // Workspace-level custom routes — addressed as /w/<workspaceId>/<name>.
     registry.registerRoute('inbox', (c, s) => const ApprovalsInboxScreen());

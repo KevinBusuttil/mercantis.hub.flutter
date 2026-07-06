@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 
+import '../onboarding/business_preset.dart';
+
 /// Owner / Accountant persona (HU6 — the Swift `HubUserMode`). A user-facing
 /// name for the advanced-surface toggle rather than a new setting: Owner is the
 /// simple view (advanced off), Accountant unlocks the ledger/journal surfaces
@@ -25,17 +27,24 @@ enum HubUserMode {
 class HubSettings {
   const HubSettings({
     this.advancedMode = false,
+    this.stockEnabled = true,
     this.posEnabled = true,
     this.manufacturingEnabled = true,
     this.deliveriesEnabled = true,
+    this.businessPresetId = '',
     this.operatorName = 'Kevin Busuttil',
     this.operatorEmail = 'kevin@mercantis.local',
   });
 
   final bool advancedMode;
+  final bool stockEnabled;
   final bool posEnabled;
   final bool manufacturingEnabled;
   final bool deliveriesEnabled;
+
+  /// The [BusinessPreset] id chosen at onboarding ('' before onboarding or on
+  /// installs that predate presets — those keep every module visible).
+  final String businessPresetId;
   final String operatorName;
   final String operatorEmail;
 
@@ -51,28 +60,45 @@ class HubSettings {
   HubSettings withUserMode(HubUserMode mode) =>
       copyWith(advancedMode: mode == HubUserMode.accountant);
 
+  /// Returns a copy with the module toggles set from [preset] — the moment a
+  /// preset stops being a cosmetic label. The user can still flip individual
+  /// modules in Settings afterwards.
+  HubSettings applyingPreset(BusinessPreset preset) => copyWith(
+        businessPresetId: preset.id,
+        stockEnabled: preset.enablesStock,
+        posEnabled: preset.enablesPos,
+        manufacturingEnabled: preset.enablesManufacturing,
+        deliveriesEnabled: preset.enablesDeliveries,
+      );
+
   HubSettings copyWith({
     bool? advancedMode,
+    bool? stockEnabled,
     bool? posEnabled,
     bool? manufacturingEnabled,
     bool? deliveriesEnabled,
+    String? businessPresetId,
     String? operatorName,
     String? operatorEmail,
   }) =>
       HubSettings(
         advancedMode: advancedMode ?? this.advancedMode,
+        stockEnabled: stockEnabled ?? this.stockEnabled,
         posEnabled: posEnabled ?? this.posEnabled,
         manufacturingEnabled: manufacturingEnabled ?? this.manufacturingEnabled,
         deliveriesEnabled: deliveriesEnabled ?? this.deliveriesEnabled,
+        businessPresetId: businessPresetId ?? this.businessPresetId,
         operatorName: operatorName ?? this.operatorName,
         operatorEmail: operatorEmail ?? this.operatorEmail,
       );
 
   Map<String, dynamic> toPayload() => {
         'advanced_mode': advancedMode,
+        'stock_enabled': stockEnabled,
         'pos_enabled': posEnabled,
         'manufacturing_enabled': manufacturingEnabled,
         'deliveries_enabled': deliveriesEnabled,
+        'business_preset': businessPresetId,
         'operator_name': operatorName,
         'operator_email': operatorEmail,
       };
@@ -92,9 +118,12 @@ class HubSettings {
     const d = HubSettings();
     return HubSettings(
       advancedMode: flag(p['advanced_mode'], d.advancedMode),
+      stockEnabled: flag(p['stock_enabled'], d.stockEnabled),
       posEnabled: flag(p['pos_enabled'], d.posEnabled),
       manufacturingEnabled: flag(p['manufacturing_enabled'], d.manufacturingEnabled),
       deliveriesEnabled: flag(p['deliveries_enabled'], d.deliveriesEnabled),
+      businessPresetId:
+          (p['business_preset'] is String) ? p['business_preset'] as String : d.businessPresetId,
       operatorName: str(p['operator_name'], d.operatorName),
       operatorEmail: str(p['operator_email'], d.operatorEmail),
     );
