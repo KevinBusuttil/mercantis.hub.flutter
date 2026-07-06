@@ -32,6 +32,7 @@ abstract final class PosModule {
           FieldDefinition(key: 'cash_account', label: 'Cash / Bank Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'income_account', label: 'Income Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
+          FieldDefinition(key: 'prices_include_tax', label: 'Prices Include Tax', type: FieldType.check, defaultValue: '1'),
           FieldDefinition(key: 'enabled', label: 'Enabled', type: FieldType.check, defaultValue: '1'),
         ],
       );
@@ -71,6 +72,7 @@ abstract final class PosModule {
           // `set_warehouse` so the shared stock derivation issues stock from it.
           FieldDefinition(key: 'set_warehouse', label: 'Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
           FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
+          FieldDefinition(key: 'prices_include_tax', label: 'Prices Include Tax', type: FieldType.check),
           // Posting accounts (resolved from POS Profile / Company defaults).
           FieldDefinition(key: 'cash_account', label: 'Cash / Bank Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'income_account', label: 'Income Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),

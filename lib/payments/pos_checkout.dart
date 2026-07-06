@@ -53,6 +53,7 @@ abstract final class PosCheckout {
     String? incomeAccount,
     String? taxCode,
     String? company,
+    bool pricesIncludeTax = false,
     required List<PosCartLine> lines,
     required List<PosTender> tenders,
   }) {
@@ -63,6 +64,7 @@ abstract final class PosCheckout {
       payload: {
         'posting_date': postingDate,
         if (asNonEmpty(posProfile) != null) 'pos_profile': posProfile,
+        if (pricesIncludeTax) 'prices_include_tax': 1,
         if (asNonEmpty(posSession) != null) 'pos_session': posSession,
         if (asNonEmpty(customer) != null) 'customer': customer,
         if (asNonEmpty(currency) != null) 'currency': currency,

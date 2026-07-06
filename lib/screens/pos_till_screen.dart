@@ -21,6 +21,7 @@ class _TillContext {
     required this.rateByCode,
     this.defaultWarehouse,
     this.profileTaxCode,
+    this.pricesIncludeTax = false,
     this.company,
     this.sessionId,
     this.openingFloat = 0,
@@ -33,6 +34,7 @@ class _TillContext {
   final Map<String, TaxRateInfo> rateByCode;
   final String? defaultWarehouse;
   final String? profileTaxCode;
+  final bool pricesIncludeTax;
   final String? company;
 
   /// The open POS Session this till posts sales into (null when no POS Profile
@@ -98,6 +100,7 @@ final _tillContextProvider = FutureProvider<_TillContext>((ref) async {
     defaultWarehouse: asNonEmpty(profile?.payload['warehouse']) ??
         (warehouses.isEmpty ? null : warehouses.first.id),
     profileTaxCode: asNonEmpty(profile?.payload['tax_code']),
+    pricesIncludeTax: isTrue(profile?.payload['prices_include_tax']),
     company: company?.id,
     sessionId: session?.id,
     openingFloat: asNum(session?.payload['opening_amount']),
@@ -175,6 +178,7 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         customer: _customer,
         warehouse: _warehouse ?? ctx.defaultWarehouse,
         taxCode: ctx.profileTaxCode,
+        pricesIncludeTax: ctx.pricesIncludeTax,
         company: ctx.company,
         posSession: ctx.sessionId,
         lines: [

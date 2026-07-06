@@ -90,6 +90,9 @@ abstract final class SellingModule {
           // straight from the invoice instead of raising a Delivery Note.
           FieldDefinition(key: 'update_stock', label: 'Update Stock', type: FieldType.check),
           FieldDefinition(key: 'set_warehouse', label: 'From Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
+          // Retail pricing: line rates already contain VAT; the tax
+          // interceptor extracts it so grand_total == the entered amounts.
+          FieldDefinition(key: 'prices_include_tax', label: 'Prices Include Tax', type: FieldType.check),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Sales Invoice Item', options: 'Sales Invoice Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           // Computed VAT rows (output tax) — one per distinct tax code on submit.
