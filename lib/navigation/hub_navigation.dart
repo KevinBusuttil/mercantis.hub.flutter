@@ -30,6 +30,7 @@ import '../screens/pos_till_screen.dart';
 import '../screens/report_builder_screen.dart';
 import '../screens/reports_screen.dart';
 import '../screens/sales_orders_screen.dart';
+import '../screens/stock_count_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/setup_checklist_screen.dart';
 import '../screens/work_order_complete_screen.dart';
@@ -108,6 +109,8 @@ void wireHubNavigation(WidgetRef ref) {
         'setup-checklist', (c, s) => const SetupChecklistScreen());
     registry.registerRoute(
         'opening-balances', (c, s) => const OpeningBalancesScreen());
+    registry.registerRoute(
+        'stock-count', (c, s) => const StockCountScreen());
     // In-app notification inbox (ADR-048) and recently-opened records — shared
     // core-ui views surfaced from the Home workspace's quick actions.
     registry.registerRoute('notifications', (c, s) => const NotificationsScreen());

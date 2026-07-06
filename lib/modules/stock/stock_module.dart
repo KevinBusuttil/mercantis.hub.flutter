@@ -148,7 +148,7 @@ abstract final class StockModule {
             key: 'stock_entry_type',
             label: 'Stock Entry Type',
             type: FieldType.select,
-            options: 'Material Issue\nMaterial Receipt\nMaterial Transfer\nManufacture\nRepack',
+            options: 'Material Issue\nMaterial Receipt\nMaterial Transfer\nManufacture\nRepack\nStock Count',
             required: true,
           ),
           FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),

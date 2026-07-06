@@ -648,6 +648,7 @@ abstract final class LedgerDerivation {
       case 'Material Transfer':
         return 'Transfer';
       case 'Repack':
+      case 'Stock Count':
         return 'Adjustment';
       case 'Manufacture':
       case 'Manufacturing':
