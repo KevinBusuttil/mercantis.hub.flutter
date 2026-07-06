@@ -22,6 +22,9 @@ const financeWorkspace = WorkspaceDescriptor(
           icon: Icons.donut_small_outlined),
         DocTypeWorkspaceItem(docType: 'Journal Entry',
           icon: Icons.menu_book_outlined),
+        CustomWorkspaceItem(routeName: 'audit-trail',
+          label: 'Audit trail', icon: Icons.history,
+          description: 'Who changed what, when — across the whole book'),
       ],
     ),
     WorkspaceSection(
