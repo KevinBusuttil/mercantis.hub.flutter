@@ -272,4 +272,73 @@ void main() {
           ['Net cash movement', '536.00', '118.00', '418.00']);
     });
   });
+
+  group('General Ledger journal (accountant export)', () {
+    Document entry(String id, String date, String voucher, String account,
+            num debit, num credit) =>
+        Document(id: id, docType: 'GL Entry', payload: {
+          'posting_date': date,
+          'voucher_type': 'Sales Invoice',
+          'voucher_no': voucher,
+          'account': account,
+          'debit': debit,
+          'credit': credit,
+          if (account == 'Debtors') ...{
+            'party_type': 'Customer',
+            'party': 'CUST-1',
+          },
+        });
+
+    test('one row per GL entry, ordered by date then voucher, balanced total',
+        () async {
+      final reports = build({
+        'Account': [
+          Document(id: 'Sales', docType: 'Account', payload: {
+            'account_name': 'Sales Revenue', 'root_type': 'Income',
+          }),
+          Document(id: 'Debtors', docType: 'Account', payload: {
+            'account_name': 'Accounts Receivable', 'root_type': 'Asset',
+          }),
+        ],
+        'GL Entry': [
+          // Deliberately out of order — the report must sort.
+          entry('g3', '2026-02-01', 'SINV-2', 'Debtors', 10, 0),
+          entry('g4', '2026-02-01', 'SINV-2', 'Sales', 0, 10),
+          entry('g1', '2026-01-15', 'SINV-1', 'Debtors', 36, 0),
+          entry('g2', '2026-01-15', 'SINV-1', 'Sales', 0, 36),
+        ],
+      });
+
+      final r = await reports.generalLedgerJournal();
+      expect(r.rows.length, 5); // 4 entries + total
+      expect(r.rows.first, [
+        '2026-01-15', 'Sales Invoice', 'SINV-1', 'Debtors',
+        'Accounts Receivable', '36.00', '0.00', 'Customer', 'CUST-1', '',
+      ]);
+      expect(r.rows[1][3], 'Sales');
+      expect(r.rows[1][4], 'Sales Revenue');
+      expect(r.rows[2][2], 'SINV-2'); // later date after earlier
+      // The export balances: total debit == total credit.
+      expect(r.rows.last[2], 'Total');
+      expect(r.rows.last[5], '46.00');
+      expect(r.rows.last[6], '46.00');
+    });
+
+    test('the date window is inclusive and drops entries outside it',
+        () async {
+      final reports = build({
+        'Account': const [],
+        'GL Entry': [
+          entry('g1', '2026-01-15', 'SINV-1', 'Sales', 0, 36),
+          entry('g2', '2026-02-01', 'SINV-2', 'Sales', 0, 10),
+          entry('g3', '2026-03-09', 'SINV-3', 'Sales', 0, 7),
+        ],
+      });
+
+      final r = await reports.generalLedgerJournal(
+          fromDate: '2026-02-01', toDate: '2026-02-28');
+      expect(r.rows.length, 2); // one entry + total
+      expect(r.rows.first[2], 'SINV-2');
+    });
+  });
 }

@@ -162,6 +162,84 @@ class HubAggregatingReports {
     );
   }
 
+  /// The full General Ledger journal — one row per GL Entry, the file an
+  /// accountant (or their software) actually imports. Optionally windowed to
+  /// [fromDate]/[toDate] (inclusive, ISO dates); ordered by posting date,
+  /// then voucher, so a voucher's legs sit together. A closing row proves
+  /// the export balances (total debit == total credit).
+  Future<ReportResult> generalLedgerJournal({
+    String? fromDate,
+    String? toDate,
+    Set<String>? userRoles,
+  }) async {
+    final entries = await _list('GL Entry', userRoles: userRoles);
+    final accounts = await _list('Account', userRoles: userRoles);
+    final nameByAccount = {
+      for (final a in accounts)
+        a.id: asNonEmpty(a.payload['account_name']) ?? a.id,
+    };
+
+    final window = entries.where((e) {
+      final date = asNonEmpty(e.payload['posting_date']);
+      if (date == null) return false;
+      final day = date.split('T').first;
+      if (fromDate != null && day.compareTo(fromDate) < 0) return false;
+      if (toDate != null && day.compareTo(toDate) > 0) return false;
+      return true;
+    }).toList()
+      ..sort((l, r) {
+        final byDate = '${l.payload['posting_date']}'
+            .compareTo('${r.payload['posting_date']}');
+        if (byDate != 0) return byDate;
+        final byVoucher = '${l.payload['voucher_no']}'
+            .compareTo('${r.payload['voucher_no']}');
+        return byVoucher != 0 ? byVoucher : l.id.compareTo(r.id);
+      });
+
+    num totalDebit = 0, totalCredit = 0;
+    final rows = <List<String?>>[];
+    for (final e in window) {
+      final p = e.payload;
+      final account = asNonEmpty(p['account']) ?? '';
+      totalDebit += asNum(p['debit']);
+      totalCredit += asNum(p['credit']);
+      rows.add([
+        asNonEmpty(p['posting_date'])?.split('T').first ?? '',
+        asNonEmpty(p['voucher_type']) ?? '',
+        asNonEmpty(p['voucher_no']) ?? '',
+        account,
+        nameByAccount[account] ?? account,
+        _money(asNum(p['debit'])),
+        _money(asNum(p['credit'])),
+        asNonEmpty(p['party_type']) ?? '',
+        asNonEmpty(p['party']) ?? '',
+        isTrue(p['is_reversal']) ? 'Yes' : '',
+      ]);
+    }
+    rows.add([
+      '', '', 'Total', '', '',
+      _money(totalDebit), _money(totalCredit), '', '', '',
+    ]);
+
+    return ReportResult(
+      reportId: 'gl_journal',
+      name: 'General Ledger',
+      columns: const [
+        ReportColumn(fieldKey: 'posting_date', label: 'Posting Date'),
+        ReportColumn(fieldKey: 'voucher_type', label: 'Voucher Type'),
+        ReportColumn(fieldKey: 'voucher_no', label: 'Voucher No'),
+        ReportColumn(fieldKey: 'account', label: 'Account'),
+        ReportColumn(fieldKey: 'account_name', label: 'Account Name'),
+        ReportColumn(fieldKey: 'debit', label: 'Debit', type: 'currency'),
+        ReportColumn(fieldKey: 'credit', label: 'Credit', type: 'currency'),
+        ReportColumn(fieldKey: 'party_type', label: 'Party Type'),
+        ReportColumn(fieldKey: 'party', label: 'Party'),
+        ReportColumn(fieldKey: 'is_reversal', label: 'Reversal'),
+      ],
+      rows: rows,
+    );
+  }
+
   /// Profit & Loss: every Income and Expense account's GL balance (all time —
   /// year-end close zeroes a finished year into Retained Earnings, so the
   /// open period is what remains). Income reads credit−debit, expenses
