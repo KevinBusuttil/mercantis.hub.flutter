@@ -81,6 +81,10 @@ abstract final class SellingModule {
           // automatically from the negative amounts.
           FieldDefinition(key: 'is_return', label: 'Is Return (Credit Note)', type: FieldType.check),
           FieldDefinition(key: 'return_against', label: 'Return Against', type: FieldType.link, linkDocType: 'Sales Invoice', options: 'Sales Invoice'),
+          // Phase 1B: an invoice-only business can issue stock (and post COGS)
+          // straight from the invoice instead of raising a Delivery Note.
+          FieldDefinition(key: 'update_stock', label: 'Update Stock', type: FieldType.check),
+          FieldDefinition(key: 'set_warehouse', label: 'From Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Sales Invoice Item', options: 'Sales Invoice Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           // Computed VAT rows (output tax) — one per distinct tax code on submit.

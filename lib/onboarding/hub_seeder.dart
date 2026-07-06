@@ -159,9 +159,13 @@ abstract final class HubChart {
     SeedAccount('Debtors', 'Debtors', 'Asset', 'Receivable', parent: 'Assets'),
     SeedAccount('Stock', 'Stock In Hand', 'Asset', 'Stock', parent: 'Assets'),
     SeedAccount('Creditors', 'Creditors', 'Liability', 'Payable', parent: 'Liabilities'),
+    // Perpetual inventory (Phase 1B): receipts credit GRNI until the supplier
+    // bill clears it; counts/adjustments post to Stock Adjustment.
+    SeedAccount('GRNI', 'Stock Received But Not Billed', 'Liability', 'Stock Received But Not Billed', parent: 'Liabilities'),
     SeedAccount('VAT', 'VAT', 'Liability', 'Tax', parent: 'Liabilities'),
     SeedAccount('Sales', 'Sales', 'Income', 'Income Account', parent: 'Income'),
     SeedAccount('COGS', 'Cost of Goods Sold', 'Expense', 'Cost of Goods Sold', parent: 'Expenses'),
+    SeedAccount('Stock Adjustment', 'Stock Adjustment', 'Expense', 'Stock Adjustment', parent: 'Expenses'),
     // The contra the OpeningBalanceBuilder balances an opening entry against.
     SeedAccount('Opening Balance Equity', 'Opening Balance Equity', 'Equity', 'Equity', parent: 'Equity'),
     // Where the YearEndCloseBuilder posts the period's profit or loss.
@@ -176,6 +180,10 @@ abstract final class HubChart {
     'default_expense_account': 'COGS',
     'default_cash_account': 'Bank',
     'default_vat_account': 'VAT',
+    'default_inventory_account': 'Stock',
+    'default_cogs_account': 'COGS',
+    'default_stock_adjustment_account': 'Stock Adjustment',
+    'default_grni_account': 'GRNI',
   };
 
   /// Starter hierarchies for the other tree masters, kept deliberately small and

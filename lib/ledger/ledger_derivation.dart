@@ -42,9 +42,9 @@ abstract final class LedgerDerivation {
   /// (GL `base_debit`/`base_credit`, customer/supplier `base_amount`). Stock
   /// vouchers (POS / Delivery / Receipt / Stock Entry) carry their cost on
   /// Stock Ledger Entries at moving-average/FIFO cost — already in base
-  /// currency — so they're excluded. NOTE: stock movements currently post to
-  /// the stock subledger only; they do NOT yet emit GL COGS / Inventory Asset
-  /// legs (see docs/STOCK_COGS_IMPLEMENTATION_PLAN.md, Track A).
+  /// currency — so they're excluded. The GL COGS / Inventory / GRNI legs for
+  /// stock movements are emitted by the runtime service after costing
+  /// (`LedgerDerivationService._stockGlLegs`), also in base currency.
   /// Mirrors the Swift `baseStampDocTypes`.
   static const _baseStampDocTypes = {
     'Sales Invoice',
@@ -138,6 +138,10 @@ abstract final class LedgerDerivation {
     final customer = asNonEmpty(p['customer']);
     final sfx = reversalSuffix(reversal);
     return [
+      // update_stock: the invoice itself issues stock (Phase 1B) — the runtime
+      // costs these rows and posts the matching Dr COGS / Cr Inventory legs.
+      if (isTrue(p['update_stock']))
+        ..._stockDocument(doc, reversal, incoming: false, transType: 'Issue'),
       // Dr Accounts Receivable (gross — customer owes net + VAT)
       _gl(
         id: 'GL-$id-debit$sfx',
@@ -189,6 +193,12 @@ abstract final class LedgerDerivation {
     final supplier = asNonEmpty(p['supplier']);
     final sfx = reversalSuffix(reversal);
     return [
+      // update_stock: the bill itself receives stock (Phase 1B) — the runtime
+      // posts Dr Inventory / Cr GRNI from these rows, and the GRNI split below
+      // moves the stock lines' financial debit from expense to GRNI so the
+      // clearing account nets to zero within this one document.
+      if (isTrue(p['update_stock']))
+        ..._stockDocument(doc, reversal, incoming: true, transType: 'Receipt'),
       // Cr Accounts Payable (gross — we owe net + VAT)
       _gl(
         id: 'GL-$id-credit$sfx',

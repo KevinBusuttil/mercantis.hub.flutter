@@ -109,6 +109,10 @@ abstract final class BuyingModule {
           // negative amounts.
           FieldDefinition(key: 'is_return', label: 'Is Return (Debit Note)', type: FieldType.check),
           FieldDefinition(key: 'return_against', label: 'Return Against', type: FieldType.link, linkDocType: 'Purchase Invoice', options: 'Purchase Invoice'),
+          // Phase 1B: a one-document business can receive stock (Dr Inventory /
+          // Cr GRNI) straight from the bill instead of raising a Purchase Receipt.
+          FieldDefinition(key: 'update_stock', label: 'Update Stock', type: FieldType.check),
+          FieldDefinition(key: 'set_warehouse', label: 'To Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Purchase Invoice Item', options: 'Purchase Invoice Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           // Computed VAT rows (input tax) — one per distinct tax code on submit.

@@ -425,7 +425,10 @@ class NegativeStockGuardInterceptor extends DocumentInterceptor {
   @override
   Future<void> beforeSubmit(
       DocumentEngine engine, Document doc, DocType docType) async {
-    if (!_issueDocTypes.contains(doc.docType)) return;
+    // A Sales Invoice only issues stock when update_stock is set (Phase 1B).
+    final issues = _issueDocTypes.contains(doc.docType) ||
+        (doc.docType == 'Sales Invoice' && isTrue(doc.payload['update_stock']));
+    if (!issues) return;
     if (isTrue(doc.payload['is_return'])) return; // a return adds stock back
     final company = await _companyFor(engine, doc.company);
     if (isTrue(company?.payload['allow_negative_stock'])) return;
