@@ -37,6 +37,7 @@ import '../screens/reports_screen.dart';
 import '../screens/sales_orders_screen.dart';
 import '../screens/stock_count_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/setup_packs_screen.dart';
 import '../screens/team_screen.dart';
 import '../screens/setup_checklist_screen.dart';
 import '../screens/work_order_complete_screen.dart';
@@ -118,6 +119,7 @@ void wireHubNavigation(WidgetRef ref) {
         'work-order-complete', (c, s) => const WorkOrderCompleteScreen());
     registry.registerRoute('settings', (c, s) => const SettingsScreen());
     registry.registerRoute('team', (c, s) => const TeamScreen());
+    registry.registerRoute('setup-packs', (c, s) => const SetupPacksScreen());
     registry.registerRoute(
         'setup-checklist', (c, s) => const SetupChecklistScreen());
     registry.registerRoute(

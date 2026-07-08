@@ -15,6 +15,10 @@ const setupWorkspace = WorkspaceDescriptor(
         label: 'Setup checklist', icon: Icons.checklist_outlined,
         description: 'What still needs doing — and whether you can '
             'safely start invoicing'),
+      CustomWorkspaceItem(routeName: 'setup-packs',
+        label: 'Setup packs', icon: Icons.inventory_2_outlined,
+        description: 'Add business shapes: accounts, modules and rules, '
+            'safely and recorded'),
     ]),
     WorkspaceSection(label: 'Preferences', items: [
       CustomWorkspaceItem(routeName: 'settings',
