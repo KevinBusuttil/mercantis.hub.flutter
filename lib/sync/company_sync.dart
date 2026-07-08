@@ -10,6 +10,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../ledger/ledger_derivation_service.dart';
 import '../numbering/numbering_series.dart';
 import '../screens/screen_providers.dart';
+import '../team/team_account_client.dart';
+import '../team/team_session.dart';
+import '../team/team_sync_runner.dart';
 
 /// Device-local prefs keys (each device mounts the shared folder at its own
 /// path, so neither lives in a synced document).
@@ -22,6 +25,7 @@ enum SyncPhase { idle, syncing, error }
 class SyncStatus {
   const SyncStatus({
     this.folder,
+    this.teamCompany,
     required this.deviceId,
     this.autoEnabled = true,
     this.phase = SyncPhase.idle,
@@ -34,6 +38,11 @@ class SyncStatus {
 
   /// The connected shared folder, or null when not joined to a company.
   final String? folder;
+
+  /// The Atlas Team company this device syncs with, or null (Team milestone
+  /// 3). When set, the Team backend is the transport and the folder — the
+  /// Solo transport — is ignored.
+  final String? teamCompany;
   final String deviceId;
 
   /// Whether background sync (timer + on-change + on-resume) is on.
@@ -47,10 +56,13 @@ class SyncStatus {
   final int lastPulled;
   final String? message;
 
-  bool get connected => folder != null && folder!.isNotEmpty;
+  bool get teamConnected => teamCompany != null && teamCompany!.isNotEmpty;
+  bool get connected =>
+      teamConnected || (folder != null && folder!.isNotEmpty);
 
   SyncStatus copyWith({
     String? folder,
+    String? teamCompany,
     bool? autoEnabled,
     SyncPhase? phase,
     int? pending,
@@ -61,6 +73,7 @@ class SyncStatus {
   }) =>
       SyncStatus(
         folder: folder ?? this.folder,
+        teamCompany: teamCompany ?? this.teamCompany,
         deviceId: deviceId,
         autoEnabled: autoEnabled ?? this.autoEnabled,
         phase: phase ?? this.phase,
@@ -87,7 +100,11 @@ class CompanySyncNotifier extends AsyncNotifier<SyncStatus> {
   // Mirrors of the persisted state, kept so the background machinery doesn't
   // race the async `state`.
   String? _folder;
+  TeamSession? _team;
   bool _autoEnabled = true;
+
+  bool get _transportConnected =>
+      _team != null || (_folder != null && _folder!.isNotEmpty);
 
   Timer? _timer;
   Timer? _debounce;
@@ -98,12 +115,19 @@ class CompanySyncNotifier extends AsyncNotifier<SyncStatus> {
   @override
   Future<SyncStatus> build() async {
     ref.onDispose(_stopAuto);
+    // Rebuilds when the device joins/leaves an Atlas Team company, so the
+    // transport and the background machinery follow the session.
+    _team = ref.watch(teamSessionProvider);
     final deviceId = await ref.read(deviceIdProvider.future);
     final prefs = await SharedPreferences.getInstance();
     _folder = prefs.getString(_folderKey);
     _autoEnabled = prefs.getBool(_autoKey) ?? true;
+    final team = _team;
     final status = SyncStatus(
       folder: _folder,
+      teamCompany: team == null
+          ? null
+          : (team.companyName.isEmpty ? team.companyId : team.companyName),
       deviceId: deviceId,
       autoEnabled: _autoEnabled,
       pending: await _pendingCount(),
@@ -167,32 +191,59 @@ class CompanySyncNotifier extends AsyncNotifier<SyncStatus> {
     try {
       final db = (await ref.read(mercantisDatabaseProvider.future)).db;
       final registry = await ref.read(metadataRegistryProvider.future);
-      final adapter = await FileSystemCloudAdapter.create(
-        root: Directory(current.folder!),
-        localDeviceId: current.deviceId,
-      );
-      final sync = SyncEngine(
-        database: db,
-        registry: registry,
-        cloudAdapter: adapter,
-      );
 
       int pushed = 0;
       int pulled = 0;
-      try {
-        pushed = await _pendingCount();
-        await sync.pushPendingMutations();
-        final remote = await adapter.pull(null);
-        pulled = remote.length;
-        await sync.applyRemoteMutations(remote);
-        if (remote.isNotEmpty) {
-          final ledger = await ref.read(ledgerDerivationServiceProvider.future);
-          await ledger.recomputeAllDerived();
-          _refreshData();
+      int applied = 0;
+      final team = _team;
+      if (team != null) {
+        // Team transport: the backend is the log; the runner filters our own
+        // echoes and keeps the pull cursor.
+        final adapter = TeamAccountClient.adapterFor(team);
+        try {
+          final result = await TeamSyncRunner(
+            database: db,
+            registry: registry,
+            adapter: adapter,
+            localDeviceId: current.deviceId,
+            companyId: team.companyId,
+          ).run();
+          pushed = result.pushed;
+          pulled = result.pulled;
+          applied = result.applied;
+        } finally {
+          adapter.close();
         }
-        await adapter.acknowledge([for (final m in remote) m.id]);
-      } finally {
-        sync.dispose();
+      } else {
+        // Solo transport: the shared folder is the log; the adapter itself
+        // skips our own subdirectory on pull.
+        final adapter = await FileSystemCloudAdapter.create(
+          root: Directory(current.folder!),
+          localDeviceId: current.deviceId,
+        );
+        final sync = SyncEngine(
+          database: db,
+          registry: registry,
+          cloudAdapter: adapter,
+        );
+        try {
+          pushed = await _pendingCount();
+          await sync.pushPendingMutations();
+          final remote = await adapter.pull(null);
+          pulled = remote.length;
+          applied = remote.length;
+          await sync.applyRemoteMutations(remote);
+          await adapter.acknowledge([for (final m in remote) m.id]);
+        } finally {
+          sync.dispose();
+        }
+      }
+
+      if (applied > 0) {
+        // Re-derive balances locally rather than trusting them from the wire.
+        final ledger = await ref.read(ledgerDerivationServiceProvider.future);
+        await ledger.recomputeAllDerived();
+        _refreshData();
       }
 
       state = AsyncData(current.copyWith(
@@ -204,7 +255,9 @@ class CompanySyncNotifier extends AsyncNotifier<SyncStatus> {
       ));
     } catch (e) {
       final base = state.valueOrNull ?? current;
-      state = AsyncData(base.copyWith(phase: SyncPhase.error, message: '$e'));
+      state = AsyncData(base.copyWith(
+          phase: SyncPhase.error,
+          message: e is CloudHttpException ? e.message : '$e'));
     } finally {
       _busy = false;
     }
@@ -216,7 +269,7 @@ class CompanySyncNotifier extends AsyncNotifier<SyncStatus> {
   /// the current folder + auto-enabled state. Idempotent.
   void _startAuto() {
     _stopAuto();
-    if (_folder == null || _folder!.isEmpty || !_autoEnabled) return;
+    if (!_transportConnected || !_autoEnabled) return;
 
     _timer = Timer.periodic(_interval, (_) => _autoSync());
 
@@ -250,13 +303,13 @@ class CompanySyncNotifier extends AsyncNotifier<SyncStatus> {
   /// Coalesce a burst of local changes (a submit fans out into many ledger
   /// saves) into a single sync shortly after activity settles.
   void _scheduleAuto() {
-    if (!_autoEnabled || _folder == null) return;
+    if (!_autoEnabled || !_transportConnected) return;
     _debounce?.cancel();
     _debounce = Timer(_debounceDelay, _autoSync);
   }
 
   void _autoSync() {
-    if (!_autoEnabled || _folder == null || _folder!.isEmpty || _busy) return;
+    if (!_autoEnabled || !_transportConnected || _busy) return;
     // Fire-and-forget; syncNow owns its own error handling and busy guard.
     unawaited(syncNow());
   }
