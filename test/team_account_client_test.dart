@@ -155,6 +155,31 @@ void main() {
       expect(link.expiresAt, startsWith('2026-10-06'));
     });
 
+    test('createPayLink posts the invoice id under the user token', () async {
+      http.Request? seen;
+      final client = MockClient((req) async {
+        seen = req;
+        return http.Response(
+            jsonEncode({
+              'id': 'pl-1',
+              'token': 'pay-tok-1',
+              'url_path': '/pay/pay-tok-1',
+              'expiresAt': '2026-09-06T00:00:00Z',
+            }),
+            201);
+      });
+      final link = await TeamAccountClient(baseUrl: base, client: client)
+          .createPayLink(
+        companyId: 'comp-1',
+        authToken: 'user-token-1',
+        invoiceId: 'SINV-7',
+      );
+      expect(seen!.url.path, '/companies/comp-1/pay-links');
+      expect(seen!.headers['Authorization'], 'Bearer user-token-1');
+      expect(jsonDecode(seen!.body), {'invoice_id': 'SINV-7'});
+      expect(link.urlPath, '/pay/pay-tok-1');
+    });
+
     test('server errors surface as CloudHttpException with the reason',
         () async {
       final client = MockClient((_) async => http.Response(

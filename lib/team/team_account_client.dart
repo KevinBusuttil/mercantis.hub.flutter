@@ -123,6 +123,31 @@ class TeamAccountClient {
     );
   }
 
+  /// Mints a payment link for a SUBMITTED Sales Invoice: a public, expiring
+  /// pay page showing the live outstanding amount (card handoff when the
+  /// company has a Stripe Payment Link configured; manual instructions
+  /// otherwise).
+  Future<({String token, String urlPath, String expiresAt})> createPayLink({
+    required String companyId,
+    required String authToken,
+    required String invoiceId,
+    int? expiresDays,
+  }) async {
+    final body = await _post(
+      '/companies/$companyId/pay-links',
+      {
+        'invoice_id': invoiceId,
+        if (expiresDays != null) 'expires_days': expiresDays,
+      },
+      authToken: authToken,
+    );
+    return (
+      token: '${body['token']}',
+      urlPath: '${body['url_path']}',
+      expiresAt: '${body['expiresAt']}',
+    );
+  }
+
   // Composed flows — each ends with a device registration so the result is
   // a complete, sync-ready TeamSession.
 

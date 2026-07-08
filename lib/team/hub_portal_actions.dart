@@ -14,19 +14,88 @@ void registerHubPortalActions(WidgetRef ref) {
   ref.read(documentActionRegistryProvider).register(hubPortalActionsFor);
 }
 
-/// Pure and synchronous — exposed for tests. The action shows on every
-/// saved Customer; invoking it without a Team session explains instead of
-/// failing (portal links are a Team capability).
+/// Pure and synchronous — exposed for tests. Portal links show on every
+/// saved Customer; payment links on every SUBMITTED Sales Invoice.
+/// Invoking either without a Team session explains instead of failing
+/// (both are Team capabilities).
 List<DocumentAction> hubPortalActionsFor(Document doc, DocType docType) {
-  if (docType.id != 'Customer' || doc.id.isEmpty) return const [];
-  return const [
-    DocumentAction(
-      id: 'customer-portal-link',
-      label: 'Portal link',
-      icon: Icons.link_outlined,
-      invoke: _createPortalLink,
-    ),
-  ];
+  switch (docType.id) {
+    case 'Customer':
+      if (doc.id.isEmpty) return const [];
+      return const [
+        DocumentAction(
+          id: 'customer-portal-link',
+          label: 'Portal link',
+          icon: Icons.link_outlined,
+          invoke: _createPortalLink,
+        ),
+      ];
+    case 'Sales Invoice':
+      if (doc.id.isEmpty || doc.docStatus != 1) return const [];
+      return const [
+        DocumentAction(
+          id: 'invoice-pay-link',
+          label: 'Payment link',
+          icon: Icons.payments_outlined,
+          invoke: _createPayLink,
+        ),
+      ];
+    default:
+      return const [];
+  }
+}
+
+Future<void> _createPayLink(
+    BuildContext context, WidgetRef ref, Document doc) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final session = ref.read(teamSessionProvider);
+  if (session == null) {
+    messenger.showSnackBar(const SnackBar(
+        content: Text('Payment links need Atlas Team — connect under '
+            'Setup → Atlas Team first.')));
+    return;
+  }
+  try {
+    final client = TeamAccountClient(baseUrl: session.baseUrl);
+    final link = await client.createPayLink(
+      companyId: session.companyId,
+      authToken: session.userToken,
+      invoiceId: doc.id,
+    );
+    final url = '${session.baseUrl}${link.urlPath}';
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Payment link'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Anyone with this link can view and pay ${doc.id}. It '
+                'always shows the live outstanding amount, and expires '
+                '${link.expiresAt.split('T').first}. Card payments post '
+                'back automatically as official Payment Entries.'),
+            const SizedBox(height: 12),
+            SelectableText(url,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: url));
+              Navigator.pop(c);
+            },
+            child: const Text('Copy & close'),
+          ),
+        ],
+      ),
+    );
+  } catch (e) {
+    messenger.showSnackBar(SnackBar(
+        content: Text(e is CloudHttpException ? e.message : '$e')));
+  }
 }
 
 Future<void> _createPortalLink(
