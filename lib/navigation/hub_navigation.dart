@@ -4,6 +4,7 @@ import '../dashboards/hub_dashboard_cards.dart';
 import '../modules/accounting/hub_account_actions.dart';
 import '../modules/accounting/hub_history_actions.dart';
 import '../modules/channels/hub_channel_actions.dart';
+import '../team/hub_portal_actions.dart';
 import '../modules/projects/hub_project_actions.dart';
 import '../modules/accounting/hub_compliance_actions.dart';
 import '../modules/selling/hub_conversion_actions.dart';
@@ -83,6 +84,8 @@ void wireHubNavigation(WidgetRef ref) {
     registerHubProjectActions(ref);
     // Phase 5: CSV order import + posting on Sales Channel / Channel Order.
     registerHubChannelActions(ref);
+    // Team: customer portal links minted from the Customer record.
+    registerHubPortalActions(ref);
     // Workspace visibility follows the business preset / Settings toggles
     // (applies on next launch, mirroring the Swift visibility model).
     registerHubWorkspaces(registry, settings);

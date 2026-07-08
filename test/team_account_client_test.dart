@@ -123,6 +123,38 @@ void main() {
       expect(invitation.token, 'inv-tok-1');
     });
 
+    test('createPortalLink posts kind + party under the user token',
+        () async {
+      http.Request? seen;
+      final client = MockClient((req) async {
+        seen = req;
+        return http.Response(
+            jsonEncode({
+              'token': 'portal-tok-1',
+              'url_path': '/portal/portal-tok-1',
+              'expiresAt': '2026-10-06T00:00:00Z',
+            }),
+            201);
+      });
+      final link = await TeamAccountClient(baseUrl: base, client: client)
+          .createPortalLink(
+        companyId: 'comp-1',
+        authToken: 'user-token-1',
+        kind: 'customer',
+        party: 'CUST-1',
+        label: 'Portal for Jane',
+      );
+      expect(seen!.url.path, '/companies/comp-1/portal-links');
+      expect(seen!.headers['Authorization'], 'Bearer user-token-1');
+      expect(jsonDecode(seen!.body), {
+        'kind': 'customer',
+        'party': 'CUST-1',
+        'label': 'Portal for Jane',
+      });
+      expect(link.urlPath, '/portal/portal-tok-1');
+      expect(link.expiresAt, startsWith('2026-10-06'));
+    });
+
     test('server errors surface as CloudHttpException with the reason',
         () async {
       final client = MockClient((_) async => http.Response(
