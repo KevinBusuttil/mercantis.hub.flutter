@@ -14,6 +14,7 @@ import 'onboarding/onboarding_providers.dart';
 import 'screens/onboarding_screen.dart';
 import 'settings/hub_settings.dart';
 import 'sync/company_sync.dart';
+import 'team/team_session.dart';
 
 class MercantisHubApp extends ConsumerWidget {
   const MercantisHubApp({super.key});
@@ -143,6 +144,9 @@ final _bootProvider = FutureProvider<void>((ref) async {
   await ref.read(authProvider.notifier).hydrate(engine);
   // Load the persisted theme mode (light/dark/system).
   await ref.read(themeModeProvider.notifier).hydrate();
+  // Restore this device's Atlas Team connection, if it has one (Team
+  // milestone 2). Lives in preferences, never in the synced store.
+  await ref.read(teamSessionProvider.notifier).hydrate();
   // Draft whatever recurring invoices are due (retainers). Failures are
   // stamped on each template's last_error rather than blocking boot.
   await ref.read(recurringInvoiceRunProvider.future);
