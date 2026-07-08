@@ -7,6 +7,9 @@ import '../onboarding/business_preset.dart';
 import '../onboarding/hub_seeder.dart';
 import '../onboarding/onboarding_providers.dart';
 import '../settings/hub_settings.dart';
+import '../team/team_account_client.dart';
+import '../team/team_session.dart';
+import '../team/team_sync_runner.dart';
 
 /// First-run wizard: name the business, pick a currency + a business preset,
 /// then seed the chart of accounts, fiscal year, VAT bands, and a wired Company
@@ -60,6 +63,106 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       setState(() {
         _seeding = false;
         _error = e is DocumentEngineError ? e.humanMessage : '$e';
+      });
+    }
+  }
+
+  /// The second-device path (adopt the remote company): join by invitation,
+  /// then pull the company's full history — the TEAM's seed and books —
+  /// instead of seeding a duplicate local company. On success the boot gate
+  /// re-evaluates and finds the adopted Company.
+  Future<void> _joinTeam() async {
+    final serverCtrl =
+        TextEditingController(text: 'https://team.neuradix.app');
+    final tokenCtrl = TextEditingController();
+    final nameCtrl = TextEditingController();
+    final deviceCtrl = TextEditingController(text: 'My device');
+    final join = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Join an Atlas Team company'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                  controller: serverCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Team server', border: OutlineInputBorder())),
+              const SizedBox(height: 12),
+              TextField(
+                  controller: tokenCtrl,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                      labelText: 'Invitation token',
+                      border: OutlineInputBorder())),
+              const SizedBox(height: 12),
+              TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Your name', border: OutlineInputBorder())),
+              const SizedBox(height: 12),
+              TextField(
+                  controller: deviceCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Name this device',
+                      border: OutlineInputBorder())),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Join & download')),
+        ],
+      ),
+    );
+    if (join != true || !mounted) return;
+
+    setState(() {
+      _seeding = true;
+      _error = null;
+    });
+    try {
+      final session =
+          await TeamAccountClient(baseUrl: serverCtrl.text.trim())
+              .joinAndConnect(
+        invitationToken: tokenCtrl.text.trim(),
+        displayName: nameCtrl.text.trim(),
+        deviceName: deviceCtrl.text.trim(),
+      );
+      await ref.read(teamSessionProvider.notifier).connect(session);
+
+      // Cursor-0 pull: the whole company history — manifest, seed, books —
+      // applies locally. This replaces seeding entirely.
+      final db = (await ref.read(mercantisDatabaseProvider.future)).db;
+      final registry = await ref.read(metadataRegistryProvider.future);
+      final deviceId = await ref.read(deviceIdProvider.future);
+      final adapter = TeamAccountClient.adapterFor(session);
+      try {
+        await TeamSyncRunner(
+          database: db,
+          registry: registry,
+          adapter: adapter,
+          localDeviceId: deviceId,
+          companyId: session.companyId,
+        ).run();
+      } finally {
+        adapter.close();
+      }
+      ref.invalidate(companyExistsProvider);
+      // The boot gate rebuilds; the adopted Company is now local.
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _seeding = false;
+        _error = e is CloudHttpException
+            ? e.message
+            : (e is DocumentEngineError ? e.humanMessage : '$e');
       });
     }
   }
@@ -163,6 +266,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.rocket_launch_outlined),
                 label: const Text('Get started'),
+              ),
+              const SizedBox(height: 24),
+              const Divider(),
+              const SizedBox(height: 8),
+              Text(
+                'Joining an existing team? Skip the setup above — connect '
+                'with your invitation and this device adopts the team\'s '
+                'company, accounts and data.',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _seeding ? null : _joinTeam,
+                icon: const Icon(Icons.group_add_outlined),
+                label: const Text('Join an Atlas Team company instead'),
               ),
               if (_error != null)
                 Padding(
