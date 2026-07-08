@@ -6,6 +6,7 @@ import 'hub_app.dart';
 import 'ledger/hub_interceptors.dart';
 import 'navigation/hub_navigation.dart';
 import 'printing/hub_print_formats.dart';
+import 'team/team_posting_service.dart';
 
 void main() {
   runApp(
@@ -18,6 +19,9 @@ void main() {
         metadataApprovalInboxSourceOverride,
         // Record-button PDFs use the company letterhead registered at boot.
         defaultLetterHeadIdProvider.overrideWithValue(hubLetterHeadId),
+        // Team mode: official submits/cancels of the five posted doctypes
+        // route to the backend posting authority (null while disconnected).
+        teamOfficialPostingOverride,
       ],
       child: const MercantisHubApp(),
     ),
