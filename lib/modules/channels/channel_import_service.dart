@@ -3,6 +3,7 @@ import 'package:mercantis_core/mercantis_core.dart';
 
 import '../../ledger/ledger_values.dart';
 import 'channel_order_csv_importer.dart';
+import 'shopify_client.dart';
 import 'woocommerce_client.dart';
 
 /// The outcome of one CSV import run.
@@ -102,6 +103,47 @@ class ChannelImportService {
       channelId: channelId,
       orders: orders,
       runType: 'WooCommerce Poll',
+    );
+    channel.payload['last_polled_at'] =
+        DateTime.now().toUtc().toIso8601String();
+    await engine.save(channel, roles);
+    return result;
+  }
+
+  /// Polls a Shopify channel for paid orders created since the last poll
+  /// and stages them through the same pipeline. The channel's `store_url` +
+  /// `consumer_secret` (holding the Admin API access token) drive the call;
+  /// `last_polled_at` advances only on success.
+  Future<ChannelImportResult> pollShopify({
+    required String channelId,
+    http.Client? httpClient,
+  }) async {
+    final channel = await engine.fetch('Sales Channel', channelId);
+    if (channel == null) {
+      throw StateError('Sales Channel $channelId does not exist.');
+    }
+    if (channel.payload['channel_type'] != 'Shopify') {
+      throw StateError('${channel.id} is not a Shopify channel.');
+    }
+    final storeUrl = asNonEmpty(channel.payload['store_url']);
+    final token = asNonEmpty(channel.payload['consumer_secret']);
+    if (storeUrl == null || token == null) {
+      throw StateError('Fill in the store URL and the Admin API access '
+          'token on ${channel.id} first (Shopify → Settings → Apps → '
+          'Develop apps, scope read_orders; token goes in the API Consumer '
+          'Secret field).');
+    }
+    final client = ShopifyChannelClient(
+      storeUrl: storeUrl,
+      accessToken: token,
+      client: httpClient,
+    );
+    final orders = await client.fetchOrders(
+        after: asNonEmpty(channel.payload['last_polled_at']));
+    final result = await stageOrders(
+      channelId: channelId,
+      orders: orders,
+      runType: 'Shopify Poll',
     );
     channel.payload['last_polled_at'] =
         DateTime.now().toUtc().toIso8601String();
