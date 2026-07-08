@@ -94,6 +94,60 @@ class TeamAccountClient {
     return (token: '${body['token']}', expiresAt: '${body['expiresAt']}');
   }
 
+  /// Owner/admin mints a token-scoped portal link (customer: that party's
+  /// quotes/invoices + quote accept/reject; accountant: company-wide
+  /// read-only). The token is shown once — hand out the full URL.
+  Future<({String token, String urlPath, String expiresAt})>
+      createPortalLink({
+    required String companyId,
+    required String authToken,
+    required String kind,
+    String? party,
+    String? label,
+    int? expiresDays,
+  }) async {
+    final body = await _post(
+      '/companies/$companyId/portal-links',
+      {
+        'kind': kind,
+        if (party != null) 'party': party,
+        if (label != null) 'label': label,
+        if (expiresDays != null) 'expires_days': expiresDays,
+      },
+      authToken: authToken,
+    );
+    return (
+      token: '${body['token']}',
+      urlPath: '${body['url_path']}',
+      expiresAt: '${body['expiresAt']}',
+    );
+  }
+
+  /// Mints a payment link for a SUBMITTED Sales Invoice: a public, expiring
+  /// pay page showing the live outstanding amount (card handoff when the
+  /// company has a Stripe Payment Link configured; manual instructions
+  /// otherwise).
+  Future<({String token, String urlPath, String expiresAt})> createPayLink({
+    required String companyId,
+    required String authToken,
+    required String invoiceId,
+    int? expiresDays,
+  }) async {
+    final body = await _post(
+      '/companies/$companyId/pay-links',
+      {
+        'invoice_id': invoiceId,
+        if (expiresDays != null) 'expires_days': expiresDays,
+      },
+      authToken: authToken,
+    );
+    return (
+      token: '${body['token']}',
+      urlPath: '${body['url_path']}',
+      expiresAt: '${body['expiresAt']}',
+    );
+  }
+
   // Composed flows — each ends with a device registration so the result is
   // a complete, sync-ready TeamSession.
 

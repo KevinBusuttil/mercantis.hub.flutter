@@ -4,6 +4,7 @@ import '../dashboards/hub_dashboard_cards.dart';
 import '../modules/accounting/hub_account_actions.dart';
 import '../modules/accounting/hub_history_actions.dart';
 import '../modules/channels/hub_channel_actions.dart';
+import '../team/hub_portal_actions.dart';
 import '../modules/projects/hub_project_actions.dart';
 import '../modules/accounting/hub_compliance_actions.dart';
 import '../modules/selling/hub_conversion_actions.dart';
@@ -37,6 +38,7 @@ import '../screens/reports_screen.dart';
 import '../screens/sales_orders_screen.dart';
 import '../screens/stock_count_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/setup_packs_screen.dart';
 import '../screens/team_screen.dart';
 import '../screens/setup_checklist_screen.dart';
 import '../screens/work_order_complete_screen.dart';
@@ -82,6 +84,8 @@ void wireHubNavigation(WidgetRef ref) {
     registerHubProjectActions(ref);
     // Phase 5: CSV order import + posting on Sales Channel / Channel Order.
     registerHubChannelActions(ref);
+    // Team: customer portal links minted from the Customer record.
+    registerHubPortalActions(ref);
     // Workspace visibility follows the business preset / Settings toggles
     // (applies on next launch, mirroring the Swift visibility model).
     registerHubWorkspaces(registry, settings);
@@ -118,6 +122,7 @@ void wireHubNavigation(WidgetRef ref) {
         'work-order-complete', (c, s) => const WorkOrderCompleteScreen());
     registry.registerRoute('settings', (c, s) => const SettingsScreen());
     registry.registerRoute('team', (c, s) => const TeamScreen());
+    registry.registerRoute('setup-packs', (c, s) => const SetupPacksScreen());
     registry.registerRoute(
         'setup-checklist', (c, s) => const SetupChecklistScreen());
     registry.registerRoute(

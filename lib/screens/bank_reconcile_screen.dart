@@ -9,6 +9,7 @@ import '../modules/banking/bank_import_service.dart';
 import '../modules/banking/bank_matcher.dart';
 import '../modules/banking/bank_matching_service.dart';
 import '../modules/banking/payout_import.dart';
+import '../setup_library/setup_rule_engine.dart';
 
 const _systemRoles = {'System Manager'};
 
@@ -229,6 +230,19 @@ class _BankReconcileScreenState extends ConsumerState<BankReconcileScreen> {
     try {
       final engine = await ref.read(documentEngineProvider.future);
       final account = await engine.fetch('Bank Account', _account!);
+
+      // Setup Library rules (deterministic, never AI): a matching
+      // categorisation rule prefills the expense account — and says why.
+      // The draft still opens for review; rules suggest, people post.
+      final rules = await engine.list('Setup Rule', userRoles: _systemRoles);
+      final match = SetupRuleEngine.categoriseBankLine(
+        rules: rules,
+        description: asNonEmpty(line.payload['description']),
+        reference: asNonEmpty(line.payload['reference_number']),
+        amount: asNum(line.payload['deposit']) -
+            asNum(line.payload['withdrawal']),
+      );
+
       final draft = Document(id: '', docType: 'Expense', payload: {
         'posting_date': line.payload['posting_date'],
         'description': asNonEmpty(line.payload['description']) ??
@@ -237,9 +251,14 @@ class _BankReconcileScreenState extends ConsumerState<BankReconcileScreen> {
         'is_paid': 1,
         if (asNonEmpty(account?.payload['gl_account']) != null)
           'paid_from': account!.payload['gl_account'],
+        if (match?.account != null) 'expense_account': match!.account,
       });
       final saved = await engine.save(draft, _systemRoles);
       if (!mounted) return;
+      if (match != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(match.explanation)));
+      }
       context.go('/form/Expense/${saved.id}');
     } catch (e) {
       if (!mounted) return;

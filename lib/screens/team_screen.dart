@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
+import '../sync/company_sync.dart';
 import '../team/team_account_client.dart';
 import '../team/team_session.dart';
 
@@ -196,6 +197,8 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
         ),
       ),
       const SizedBox(height: MercantisSpacing.md),
+      _syncCard(),
+      const SizedBox(height: MercantisSpacing.md),
       FilledButton.icon(
         onPressed: () => _invite(session),
         icon: const Icon(Icons.person_add_outlined),
@@ -230,6 +233,73 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
         label: const Text('Disconnect'),
       ),
     ];
+  }
+
+  /// Live sync state (Team milestone 3): the same background machinery as
+  /// folder sync, now running against the Team backend.
+  Widget _syncCard() {
+    final theme = Theme.of(context);
+    final async = ref.watch(companySyncProvider);
+    final status = async.valueOrNull;
+    return AtlasSectionCard(
+      name: 'Sync',
+      child: Padding(
+        padding: const EdgeInsets.all(MercantisSpacing.md),
+        child: status == null
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(switch (status.phase) {
+                    SyncPhase.syncing => 'Syncing…',
+                    SyncPhase.error => 'Sync problem',
+                    SyncPhase.idle => status.lastSyncedAt == null
+                        ? 'Not synced yet'
+                        : 'Up to date',
+                  }, style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 4),
+                  Text('${status.pending} change(s) waiting to upload'),
+                  if (status.lastSyncedAt != null)
+                    Text('Last synced: ${status.lastSyncedAt}'
+                        ' — sent ${status.lastPushed}, '
+                        'received ${status.lastPulled}'),
+                  if (status.message != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(status.message!,
+                          style:
+                              TextStyle(color: theme.colorScheme.error)),
+                    ),
+                  const SizedBox(height: MercantisSpacing.sm),
+                  Row(
+                    children: [
+                      FilledButton.tonalIcon(
+                        onPressed: status.phase == SyncPhase.syncing
+                            ? null
+                            : () => ref
+                                .read(companySyncProvider.notifier)
+                                .syncNow(),
+                        icon: const Icon(Icons.sync_outlined),
+                        label: const Text('Sync now'),
+                      ),
+                      const SizedBox(width: MercantisSpacing.md),
+                      Expanded(
+                        child: SwitchListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Sync automatically'),
+                          value: status.autoEnabled,
+                          onChanged: (on) => ref
+                              .read(companySyncProvider.notifier)
+                              .setAutoEnabled(on),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+      ),
+    );
   }
 
   List<Widget> _disconnected() {

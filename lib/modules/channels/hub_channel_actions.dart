@@ -31,6 +31,13 @@ List<DocumentAction> hubChannelActionsFor(Document doc, DocType docType) {
             icon: Icons.cloud_download_outlined,
             invoke: _pollWoo,
           ),
+        if (doc.payload['channel_type'] == 'Shopify')
+          const DocumentAction(
+            id: 'channel-poll-shopify',
+            label: 'Fetch orders (Shopify)',
+            icon: Icons.cloud_download_outlined,
+            invoke: _pollShopify,
+          ),
         const DocumentAction(
           id: 'channel-post-orders',
           label: 'Post imported orders',
@@ -115,6 +122,21 @@ Future<void> _pollWoo(
   try {
     final result = await ChannelImportService(engine: engine)
         .pollWooCommerce(channelId: doc.id);
+    messenger.showSnackBar(SnackBar(
+        content: Text('${result.imported} order(s) staged, '
+            '${result.duplicates} already imported.')));
+  } catch (e) {
+    messenger.showSnackBar(SnackBar(content: Text('$e')));
+  }
+}
+
+Future<void> _pollShopify(
+    BuildContext context, WidgetRef ref, Document doc) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final engine = await ref.read(documentEngineProvider.future);
+  try {
+    final result = await ChannelImportService(engine: engine)
+        .pollShopify(channelId: doc.id);
     messenger.showSnackBar(SnackBar(
         content: Text('${result.imported} order(s) staged, '
             '${result.duplicates} already imported.')));

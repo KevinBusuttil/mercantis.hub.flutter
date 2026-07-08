@@ -127,7 +127,7 @@ abstract final class ChannelsModule {
             key: 'run_type',
             label: 'Run',
             type: FieldType.select,
-            options: 'CSV Import\nWooCommerce Poll\nPost Orders',
+            options: 'CSV Import\nWooCommerce Poll\nShopify Poll\nPost Orders',
             required: true,
           ),
           FieldDefinition(key: 'run_on', label: 'Run At', type: FieldType.data, readOnly: true),
