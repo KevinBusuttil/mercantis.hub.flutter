@@ -20,6 +20,10 @@ const setupWorkspace = WorkspaceDescriptor(
       CustomWorkspaceItem(routeName: 'settings',
         label: 'Settings', icon: Icons.tune_outlined,
         description: 'Operator, modules and advanced mode'),
+      CustomWorkspaceItem(routeName: 'team',
+        label: 'Atlas Team', icon: Icons.cloud_outlined,
+        description: 'Connect this device to a Team backend and invite '
+            'teammates'),
     ]),
     WorkspaceSection(label: 'Organisation', items: [
       CustomWorkspaceItem(routeName: 'opening-balances',
