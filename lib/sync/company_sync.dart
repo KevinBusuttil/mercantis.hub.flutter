@@ -30,6 +30,7 @@ class SyncStatus {
     this.autoEnabled = true,
     this.phase = SyncPhase.idle,
     this.pending = 0,
+    this.failed = 0,
     this.lastSyncedAt,
     this.lastPushed = 0,
     this.lastPulled = 0,
@@ -51,6 +52,10 @@ class SyncStatus {
 
   /// Local changes still waiting to be pushed.
   final int pending;
+
+  /// Changes the server permanently rejected (quarantined until the user
+  /// retries them — e.g. an edit to an officially posted document).
+  final int failed;
   final DateTime? lastSyncedAt;
   final int lastPushed;
   final int lastPulled;
@@ -66,6 +71,7 @@ class SyncStatus {
     bool? autoEnabled,
     SyncPhase? phase,
     int? pending,
+    int? failed,
     DateTime? lastSyncedAt,
     int? lastPushed,
     int? lastPulled,
@@ -78,6 +84,7 @@ class SyncStatus {
         autoEnabled: autoEnabled ?? this.autoEnabled,
         phase: phase ?? this.phase,
         pending: pending ?? this.pending,
+        failed: failed ?? this.failed,
         lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
         lastPushed: lastPushed ?? this.lastPushed,
         lastPulled: lastPulled ?? this.lastPulled,
@@ -131,6 +138,7 @@ class CompanySyncNotifier extends AsyncNotifier<SyncStatus> {
       deviceId: deviceId,
       autoEnabled: _autoEnabled,
       pending: await _pendingCount(),
+      failed: await _failedCount(),
     );
     _startAuto();
     return status;
@@ -143,6 +151,28 @@ class CompanySyncNotifier extends AsyncNotifier<SyncStatus> {
       [MutationStatus.pending.name],
     );
     return (rows.first['c'] as int?) ?? 0;
+  }
+
+  Future<int> _failedCount() async {
+    final db = (await ref.read(mercantisDatabaseProvider.future)).db;
+    final rows = await db.rawQuery(
+      'SELECT COUNT(*) AS c FROM sync_queue WHERE status = ?',
+      [MutationStatus.failed.name],
+    );
+    return (rows.first['c'] as int?) ?? 0;
+  }
+
+  /// The explicit user action after a permanent server rejection: requeue
+  /// the quarantined changes and try again immediately.
+  Future<void> retryFailed() async {
+    final db = (await ref.read(mercantisDatabaseProvider.future)).db;
+    await db.update(
+      'sync_queue',
+      {'status': MutationStatus.pending.name},
+      where: 'status = ?',
+      whereArgs: [MutationStatus.failed.name],
+    );
+    await syncNow();
   }
 
   /// Connect (or switch) the company folder and run an initial exchange.
@@ -249,6 +279,7 @@ class CompanySyncNotifier extends AsyncNotifier<SyncStatus> {
       state = AsyncData(current.copyWith(
         phase: SyncPhase.idle,
         pending: await _pendingCount(),
+        failed: await _failedCount(),
         lastSyncedAt: DateTime.now(),
         lastPushed: pushed,
         lastPulled: pulled,

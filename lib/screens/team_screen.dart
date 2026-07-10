@@ -259,6 +259,11 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                   }, style: theme.textTheme.titleSmall),
                   const SizedBox(height: 4),
                   Text('${status.pending} change(s) waiting to upload'),
+                  if (status.failed > 0)
+                    Text(
+                        '${status.failed} change(s) were rejected by the '
+                        'server and are on hold',
+                        style: TextStyle(color: theme.colorScheme.error)),
                   if (status.lastSyncedAt != null)
                     Text('Last synced: ${status.lastSyncedAt}'
                         ' — sent ${status.lastPushed}, '
@@ -282,6 +287,17 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                         icon: const Icon(Icons.sync_outlined),
                         label: const Text('Sync now'),
                       ),
+                      if (status.failed > 0) ...[
+                        const SizedBox(width: MercantisSpacing.sm),
+                        TextButton(
+                          onPressed: status.phase == SyncPhase.syncing
+                              ? null
+                              : () => ref
+                                  .read(companySyncProvider.notifier)
+                                  .retryFailed(),
+                          child: const Text('Retry rejected'),
+                        ),
+                      ],
                       const SizedBox(width: MercantisSpacing.md),
                       Expanded(
                         child: SwitchListTile(
