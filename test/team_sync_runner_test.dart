@@ -190,6 +190,125 @@ void main() {
     expect(result.applied, 0);
   });
 
+  // Phase 0.6 (gap analysis §8-C9): the backend pages pull responses; the
+  // runner walks the pages, committing the cursor and acknowledging after
+  // EVERY page, so an interrupted bootstrap resumes mid-way.
+  group('paginated pull', () {
+    Map<String, dynamic> foreignDoc(String n, String version) =>
+        MutationRecord(
+          id: 'mut-devB-$n',
+          type: MutationType.createDocument,
+          docType: 'Customer',
+          documentId: 'CUST-$n',
+          payload: {
+            'id': 'CUST-$n',
+            'doctype': 'Customer',
+            'company': null,
+            'docstatus': 0,
+            'payload': jsonEncode({
+              'customer_name': 'Customer $n',
+              'customer_type': 'Individual',
+            }),
+            'created_at': 1751800000000,
+            'modified_at': 1751800000000,
+            'sync_version': null,
+            'sync_state': 'local',
+            'amended_from': null,
+          },
+          deviceId: 'devB',
+          userId: 'maria',
+          localTimestamp:
+              DateTime.fromMillisecondsSinceEpoch(1751800000000),
+          syncVersion: version,
+        ).toWireJson();
+
+    http.Response pushOk(http.Request req) {
+      final ids = [
+        for (final m in (jsonDecode(req.body) as Map)['mutations'] as List)
+          '${(m as Map)['id']}',
+      ];
+      var version = 100;
+      return http.Response(
+          jsonEncode({'versions': {for (final id in ids) id: ++version}}),
+          200);
+    }
+
+    test('walks all pages, committing cursor and acking per page', () async {
+      final pullAfters = <String>[];
+      var ackCalls = 0;
+      final client = MockClient((req) async {
+        if (req.url.path.endsWith('/sync/push')) return pushOk(req);
+        if (req.url.path.endsWith('/sync/pull')) {
+          final after = req.url.queryParameters['after'] ?? '0';
+          pullAfters.add(after);
+          return http.Response(
+              jsonEncode(switch (after) {
+                '0' => {'mutations': [foreignDoc('1', '1')], 'hasMore': true},
+                '1' => {'mutations': [foreignDoc('2', '2')], 'hasMore': true},
+                '2' => {'mutations': [foreignDoc('3', '3')], 'hasMore': false},
+                _ => {'mutations': [], 'hasMore': false},
+              }),
+              200);
+        }
+        if (req.url.path.endsWith('/sync/ack')) {
+          ackCalls++;
+          return http.Response(jsonEncode({'acknowledged': 1}), 200);
+        }
+        fail('unexpected request: ${req.url}');
+      });
+
+      final result = await runner(client).run();
+      expect(pullAfters, ['0', '1', '2']); // pages walked, cursor advancing
+      expect(result.pulled, 3);
+      expect(result.applied, 3);
+      expect(ackCalls, 3); // one ack per page, not one giant ack at the end
+      expect(await TeamSyncCursorStore().load(company), 3);
+      expect((await engine.fetch('Customer', 'CUST-3'))!
+          .payload['customer_name'], 'Customer 3');
+    });
+
+    test('a connection lost between pages resumes at the committed page',
+        () async {
+      var failSecondPull = true;
+      final client = MockClient((req) async {
+        if (req.url.path.endsWith('/sync/push')) return pushOk(req);
+        if (req.url.path.endsWith('/sync/pull')) {
+          final after = req.url.queryParameters['after'] ?? '0';
+          if (after == '1' && failSecondPull) {
+            failSecondPull = false;
+            return http.Response(jsonEncode({'error': 'gateway timeout'}),
+                504);
+          }
+          return http.Response(
+              jsonEncode(switch (after) {
+                '0' => {'mutations': [foreignDoc('1', '1')], 'hasMore': true},
+                '1' => {'mutations': [foreignDoc('2', '2')], 'hasMore': false},
+                _ => {'mutations': [], 'hasMore': false},
+              }),
+              200);
+        }
+        if (req.url.path.endsWith('/sync/ack')) {
+          return http.Response(jsonEncode({'acknowledged': 1}), 200);
+        }
+        fail('unexpected request: ${req.url}');
+      });
+
+      // First run dies fetching page 2 — but page 1 was already applied,
+      // cursor-committed and acknowledged.
+      await expectLater(runner(client).run(),
+          throwsA(isA<CloudHttpException>()));
+      expect(await TeamSyncCursorStore().load(company), 1);
+      expect((await engine.fetch('Customer', 'CUST-1'))!
+          .payload['customer_name'], 'Customer 1');
+
+      // The retry starts at page 2, not page 1.
+      final retry = await runner(client).run();
+      expect(retry.pulled, 1);
+      expect(retry.applied, 1);
+      expect(await TeamSyncCursorStore().load(company), 2);
+    });
+  });
+
   test('a failed push strands nothing: the batch retries next run',
       () async {
     await engine.save(
