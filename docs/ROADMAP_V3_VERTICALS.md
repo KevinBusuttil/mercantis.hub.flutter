@@ -26,13 +26,13 @@ nothing in the carve-out precludes it. Every other posted doctype
 | # | Increment | Repo(s) | Status |
 |---|---|---|---|
 | 0.1 | Team posting set → 6 doctypes (DN in); POS carve-out documented + pinned by test; per-till receipt series (field tokens in naming series) | core + hub | **done** |
-| 0.2 | Persist + display `official_number` (sync apply, form header, PDFs); local ids demoted to internal refs | core + hub | |
-| 0.3 | Skip local outstanding rewrites for officially-numbered documents (409 poison loop) | hub | |
-| 0.4 | Server-side money validation: recompute totals + tax with tolerance, reject mismatch; settlement over-allocation guard; strict ISO posting-date validation | backend | |
-| 0.5 | Credential lifecycle: device revocation, member remove/role-change, token expiry, hashed invitation tokens; Team-screen device management; keychain storage for TeamSession | backend + hub | |
+| 0.2 | Persist + display `official_number` (sync apply, form header, PDFs); local ids demoted to internal refs | core + hub | **done** |
+| 0.3 | Skip local outstanding rewrites for officially-numbered documents (409 poison loop) | hub | **done** |
+| 0.4 | Server-side money validation: recompute totals + tax with tolerance, reject mismatch; settlement over-allocation guard; strict ISO posting-date validation | backend | **done** |
+| 0.5 | Credential lifecycle: device revocation, member remove/role-change, token expiry, hashed invitation tokens; Team-screen device management; keychain storage for TeamSession | backend + hub | **done** |
 | 0.6 | Paginated sync pull with per-page cursor commit; explicit body-size limits; blob size policy | backend + core | |
 | 0.7 | Postgres CI: full backend suite against real Postgres via the Store trait | backend | |
-| 0.8 | Audit rows for submit/cancel/amend/delete in the core engine | core | |
+| 0.8 | Audit rows for submit/cancel/amend/delete in the core engine | core | **done** |
 | 0.9 | Rate limiting; gated company creation; webhook intake caps | backend | |
 | 0.10 | Conflict visibility: list `sync_state=conflict` docs with keep-mine/take-theirs | core_ui + hub | |
 
