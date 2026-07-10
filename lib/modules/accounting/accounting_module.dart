@@ -108,6 +108,10 @@ abstract final class AccountingModule {
         namingRule: 'PAY-.YYYY.-.####',
         workflowId: 'wf-payment-entry',
         fields: [
+          // Allocated by the Team posting authority at official submit —
+          // gap-free per company, the document's real-world number on
+          // screens and PDFs. Blank in Solo (the local id serves there).
+          FieldDefinition(key: 'official_number', label: 'Official Number', type: FieldType.data, readOnly: true, allowOnSubmit: true),
           FieldDefinition(
             key: 'payment_type',
             label: 'Payment Type',
