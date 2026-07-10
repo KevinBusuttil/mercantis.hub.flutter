@@ -199,6 +199,8 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
       const SizedBox(height: MercantisSpacing.md),
       _syncCard(),
       const SizedBox(height: MercantisSpacing.md),
+      _PeopleAndDevicesCard(session: session),
+      const SizedBox(height: MercantisSpacing.md),
       FilledButton.icon(
         onPressed: () => _invite(session),
         icon: const Icon(Icons.person_add_outlined),
@@ -454,5 +456,233 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
               style: TextStyle(color: theme.colorScheme.error)),
         ),
     ];
+  }
+}
+
+/// Members and devices of the connected company (Phase 0.5 credential
+/// lifecycle): who's in, what role they hold, which devices carry live
+/// tokens — and the revoke switch for a lost or retired device. Permission
+/// checks live server-side; a plain member simply sees only their own
+/// devices and gets a clear error if they try an admin action.
+class _PeopleAndDevicesCard extends StatefulWidget {
+  const _PeopleAndDevicesCard({required this.session});
+
+  final TeamSession session;
+
+  @override
+  State<_PeopleAndDevicesCard> createState() => _PeopleAndDevicesCardState();
+}
+
+class _PeopleAndDevicesCardState extends State<_PeopleAndDevicesCard> {
+  List<TeamMember>? _members;
+  List<TeamDevice>? _devices;
+  bool _loading = false;
+  String? _error;
+
+  static const _roles = [
+    'owner', 'admin', 'sales', 'purchasing', 'stock', 'pos',
+    'accountant', 'advisor',
+  ];
+
+  TeamAccountClient get _client =>
+      TeamAccountClient(baseUrl: widget.session.baseUrl);
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final members = await _client.listMembers(
+          companyId: widget.session.companyId,
+          authToken: widget.session.userToken);
+      final devices = await _client.listDevices(
+          companyId: widget.session.companyId,
+          authToken: widget.session.userToken);
+      if (!mounted) return;
+      setState(() {
+        _members = members;
+        _devices = devices;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e is CloudHttpException ? e.message : '$e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _act(Future<void> Function() action) async {
+    try {
+      await action();
+      await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e is CloudHttpException ? e.message : '$e')));
+    }
+  }
+
+  Future<bool> _confirm(String title, String body) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: Text(title),
+          content: Text(body),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(c, true),
+                child: const Text('Confirm')),
+          ],
+        ),
+      ) ==
+      true;
+
+  Future<void> _revokeDevice(TeamDevice device) async {
+    final isThisDevice = device.id == widget.session.deviceId;
+    final sure = await _confirm(
+      'Revoke "${device.name}"?',
+      isThisDevice
+          ? 'This is THE DEVICE YOU ARE USING. Revoking it stops sync on '
+              'this device immediately; you would need to disconnect and '
+              'rejoin. Usually you want to revoke a different device.'
+          : 'Its token stops working at its next request. The device keeps '
+              'its local data but can no longer sync or post.',
+    );
+    if (!sure) return;
+    await _act(() => _client.revokeDevice(
+          companyId: widget.session.companyId,
+          deviceId: device.id,
+          authToken: widget.session.userToken,
+        ));
+  }
+
+  Future<void> _removeMember(TeamMember member) async {
+    final sure = await _confirm(
+      'Remove ${member.displayName.isEmpty ? member.email : member.displayName}?',
+      'They lose access to the company and all their devices here are '
+      'revoked. Documents they created stay.',
+    );
+    if (!sure) return;
+    await _act(() => _client.removeMember(
+          companyId: widget.session.companyId,
+          userId: member.userId,
+          authToken: widget.session.userToken,
+        ));
+  }
+
+  Future<void> _changeRole(TeamMember member, String role) async {
+    if (role == member.role) return;
+    await _act(() => _client.changeMemberRole(
+          companyId: widget.session.companyId,
+          userId: member.userId,
+          role: role,
+          authToken: widget.session.userToken,
+        ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AtlasSectionCard(
+      name: 'People & devices',
+      child: Padding(
+        padding: const EdgeInsets.all(MercantisSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Members', style: theme.textTheme.titleSmall),
+                ),
+                IconButton(
+                  tooltip: 'Refresh',
+                  onPressed: _loading ? null : _refresh,
+                  icon: const Icon(Icons.refresh_outlined),
+                ),
+              ],
+            ),
+            if (_loading && _members == null)
+              const Center(
+                  child: Padding(
+                padding: EdgeInsets.all(MercantisSpacing.md),
+                child: CircularProgressIndicator(),
+              ))
+            else if (_error != null)
+              Text(_error!, style: TextStyle(color: theme.colorScheme.error))
+            else ...[
+              for (final m in _members ?? const <TeamMember>[])
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.person_outline),
+                  title: Text(
+                      m.displayName.isEmpty ? m.email : m.displayName),
+                  subtitle: Text(m.email),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      PopupMenuButton<String>(
+                        tooltip: 'Change role',
+                        onSelected: (r) => _changeRole(m, r),
+                        itemBuilder: (_) => [
+                          for (final r in _roles)
+                            PopupMenuItem(
+                              value: r,
+                              child: Text(r == m.role ? '$r ✓' : r),
+                            ),
+                        ],
+                        child: Chip(
+                          label: Text(m.role),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Remove from company',
+                        onPressed: () => _removeMember(m),
+                        icon: const Icon(Icons.person_remove_outlined),
+                      ),
+                    ],
+                  ),
+                ),
+              const Divider(),
+              Text('Devices', style: theme.textTheme.titleSmall),
+              for (final d in _devices ?? const <TeamDevice>[])
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(d.revoked
+                      ? Icons.block_outlined
+                      : Icons.devices_outlined),
+                  title: Text(d.id == widget.session.deviceId
+                      ? '${d.name} (this device)'
+                      : d.name),
+                  subtitle: Text(d.revoked
+                      ? 'Revoked ${d.revokedAt}'
+                      : d.lastSeenAt == null
+                          ? 'Never seen'
+                          : 'Last seen ${d.lastSeenAt}'),
+                  trailing: d.revoked
+                      ? null
+                      : TextButton(
+                          onPressed: () => _revokeDevice(d),
+                          child: const Text('Revoke'),
+                        ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -5,6 +5,64 @@ import 'package:mercantis_core/mercantis_core.dart';
 
 import 'team_session.dart';
 
+/// A device registered to the Team company, as listed by the backend
+/// (Phase 0.5 credential lifecycle). `revokedAt` non-null means its token
+/// no longer authenticates anywhere.
+class TeamDevice {
+  const TeamDevice({
+    required this.id,
+    required this.userId,
+    required this.name,
+    required this.createdAt,
+    this.revokedAt,
+    this.lastSeenAt,
+  });
+
+  final String id;
+  final String userId;
+  final String name;
+  final String createdAt;
+  final String? revokedAt;
+  final String? lastSeenAt;
+
+  bool get revoked => revokedAt != null;
+
+  factory TeamDevice.fromJson(Map<String, dynamic> json) => TeamDevice(
+        id: '${json['id']}',
+        userId: '${json['userId']}',
+        name: '${json['name']}',
+        createdAt: '${json['createdAt']}',
+        revokedAt: json['revokedAt'] == null ? null : '${json['revokedAt']}',
+        lastSeenAt:
+            json['lastSeenAt'] == null ? null : '${json['lastSeenAt']}',
+      );
+}
+
+/// A member of the Team company with their role.
+class TeamMember {
+  const TeamMember({
+    required this.userId,
+    required this.email,
+    required this.displayName,
+    required this.role,
+    required this.createdAt,
+  });
+
+  final String userId;
+  final String email;
+  final String displayName;
+  final String role;
+  final String createdAt;
+
+  factory TeamMember.fromJson(Map<String, dynamic> json) => TeamMember(
+        userId: '${json['userId']}',
+        email: '${json['email']}',
+        displayName: '${json['displayName']}',
+        role: '${json['role']}',
+        createdAt: '${json['createdAt']}',
+      );
+}
+
 /// Client for the Atlas Team backend's **account plane**: company bootstrap,
 /// invitations, and device registration. (The sync plane is
 /// [HttpCloudAdapter] in core; commands come later with backend-authoritative
@@ -148,6 +206,69 @@ class TeamAccountClient {
     );
   }
 
+  // Credential lifecycle (Phase 0.5) — visibility and the kill switch for
+  // every device token in the company.
+
+  /// Devices visible to the caller: their own, or the whole company for
+  /// owner/admin.
+  Future<List<TeamDevice>> listDevices({
+    required String companyId,
+    required String authToken,
+  }) async {
+    final body =
+        await _get('/companies/$companyId/devices', authToken: authToken);
+    return [
+      for (final d in body['devices'] as List? ?? const [])
+        TeamDevice.fromJson((d as Map).cast<String, dynamic>()),
+    ];
+  }
+
+  /// Revoke a device's token (idempotent). Own devices always; anyone's
+  /// for owner/admin. The device stops syncing at its next request.
+  Future<void> revokeDevice({
+    required String companyId,
+    required String deviceId,
+    required String authToken,
+  }) async {
+    await _post('/companies/$companyId/devices/$deviceId/revoke', const {},
+        authToken: authToken);
+  }
+
+  /// Everyone in the company and their role.
+  Future<List<TeamMember>> listMembers({
+    required String companyId,
+    required String authToken,
+  }) async {
+    final body =
+        await _get('/companies/$companyId/members', authToken: authToken);
+    return [
+      for (final m in body['members'] as List? ?? const [])
+        TeamMember.fromJson((m as Map).cast<String, dynamic>()),
+    ];
+  }
+
+  /// Remove a member (owner/admin, server enforces the role matrix). The
+  /// server also revokes all their devices in this company.
+  Future<void> removeMember({
+    required String companyId,
+    required String userId,
+    required String authToken,
+  }) async {
+    await _delete('/companies/$companyId/members/$userId',
+        authToken: authToken);
+  }
+
+  /// Change a member's role (owner only; the last owner cannot be demoted).
+  Future<void> changeMemberRole({
+    required String companyId,
+    required String userId,
+    required String role,
+    required String authToken,
+  }) async {
+    await _post('/companies/$companyId/members/$userId/role', {'role': role},
+        authToken: authToken);
+  }
+
   // Composed flows — each ends with a device registration so the result is
   // a complete, sync-ready TeamSession.
 
@@ -226,6 +347,28 @@ class TeamAccountClient {
       },
       body: jsonEncode(body),
     );
+    return _decodeResponse(response);
+  }
+
+  Future<Map<String, dynamic>> _get(String path,
+      {required String authToken}) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl$path'),
+      headers: {'Authorization': 'Bearer $authToken'},
+    );
+    return _decodeResponse(response);
+  }
+
+  Future<Map<String, dynamic>> _delete(String path,
+      {required String authToken}) async {
+    final response = await _client.delete(
+      Uri.parse('$baseUrl$path'),
+      headers: {'Authorization': 'Bearer $authToken'},
+    );
+    return _decodeResponse(response);
+  }
+
+  Map<String, dynamic> _decodeResponse(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       String message = 'HTTP ${response.statusCode}';
       try {
@@ -236,7 +379,12 @@ class TeamAccountClient {
       } catch (_) {}
       throw CloudHttpException(response.statusCode, message);
     }
-    final decoded = jsonDecode(response.body);
-    return decoded is Map<String, dynamic> ? decoded : const {};
+    if (response.body.isEmpty) return const {};
+    try {
+      final decoded = jsonDecode(response.body);
+      return decoded is Map<String, dynamic> ? decoded : const {};
+    } catch (_) {
+      return const {};
+    }
   }
 }
