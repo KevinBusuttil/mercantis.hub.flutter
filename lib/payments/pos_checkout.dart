@@ -53,6 +53,7 @@ abstract final class PosCheckout {
     String? incomeAccount,
     String? taxCode,
     String? company,
+    String? tillSeries,
     bool pricesIncludeTax = false,
     required List<PosCartLine> lines,
     required List<PosTender> tenders,
@@ -66,6 +67,8 @@ abstract final class PosCheckout {
         if (asNonEmpty(posProfile) != null) 'pos_profile': posProfile,
         if (pricesIncludeTax) 'prices_include_tax': 1,
         if (asNonEmpty(posSession) != null) 'pos_session': posSession,
+        // Drives the per-till receipt series naming rule (offline-safe ids).
+        if (asNonEmpty(tillSeries) != null) 'till_series': tillSeries,
         if (asNonEmpty(customer) != null) 'customer': customer,
         if (asNonEmpty(currency) != null) 'currency': currency,
         if (asNonEmpty(warehouse) != null) 'set_warehouse': warehouse,

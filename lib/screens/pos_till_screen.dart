@@ -29,6 +29,7 @@ class _TillContext {
     this.company,
     this.companyName,
     this.profileId,
+    this.receiptSeries,
     this.sessionId,
     this.openingFloat = 0,
   });
@@ -48,6 +49,10 @@ class _TillContext {
 
   /// The configured POS Profile (null until one exists).
   final String? profileId;
+
+  /// This till's receipt series (POS Profile.receipt_series) — makes ids
+  /// collision-proof across registers, including offline.
+  final String? receiptSeries;
 
   /// The open POS Session this till posts sales into (null until the operator
   /// opens the till with a counted float). Drives the shift reports.
@@ -109,6 +114,7 @@ final _tillContextProvider = FutureProvider<_TillContext>((ref) async {
     company: company?.id,
     companyName: asNonEmpty(company?.payload['company_name']) ?? company?.id,
     profileId: profile?.id,
+    receiptSeries: asNonEmpty(profile?.payload['receipt_series']),
     sessionId: session?.id,
     openingFloat: asNum(session?.payload['opening_amount']),
   );
@@ -327,6 +333,7 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         pricesIncludeTax: ctx.pricesIncludeTax,
         company: ctx.company,
         posSession: ctx.sessionId,
+        tillSeries: ctx.receiptSeries,
         lines: [
           for (final l in _cart)
             PosCartLine(item: l.item, qty: l.qty, rate: l.lineRate, taxCode: l.taxCode),

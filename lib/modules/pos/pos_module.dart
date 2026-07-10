@@ -35,6 +35,10 @@ abstract final class PosModule {
           FieldDefinition(key: 'income_account', label: 'Income Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
           FieldDefinition(key: 'prices_include_tax', label: 'Prices Include Tax', type: FieldType.check, defaultValue: '1'),
+          // Per-till receipt series (e.g. TILL1): sales from this profile
+          // number independently (POS-.TILL1.-0001), so two registers can
+          // never mint the same receipt id — even both offline.
+          FieldDefinition(key: 'receipt_series', label: 'Receipt Series', type: FieldType.data),
           FieldDefinition(key: 'enabled', label: 'Enabled', type: FieldType.check, defaultValue: '1'),
         ],
       );
@@ -63,11 +67,22 @@ abstract final class PosModule {
         name: 'POS Invoice',
         module: _module,
         isSubmittable: true,
+        // Per-till series when the profile names one; the shared yearly
+        // series otherwise.
+        namingRules: [
+          DocumentNamingRule(
+            condition: 'len(till_series) > 0',
+            series: 'POS-.{till_series}.-.####',
+          ),
+        ],
         namingRule: 'POS-.YYYY.-.####',
         workflowId: 'wf-pos-invoice',
         fields: [
           FieldDefinition(key: 'pos_profile', label: 'POS Profile', type: FieldType.link, linkDocType: 'POS Profile', options: 'POS Profile'),
           FieldDefinition(key: 'pos_session', label: 'POS Session', type: FieldType.link, linkDocType: 'POS Session', options: 'POS Session'),
+          // Stamped from the profile's receipt_series at checkout; drives the
+          // per-till naming rule above.
+          FieldDefinition(key: 'till_series', label: 'Till Series', type: FieldType.data, readOnly: true),
           FieldDefinition(key: 'customer', label: 'Customer', type: FieldType.link, linkDocType: 'Customer', options: 'Customer'),
           FieldDefinition(key: 'posting_date', label: 'Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
