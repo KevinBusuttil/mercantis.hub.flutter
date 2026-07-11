@@ -45,6 +45,9 @@ nothing in the carve-out precludes it. Every other posted doctype
    discounts folded into rates from a captured base (S8b).
 2. **S4 Deposits & prepayments** — request/receipt doctype, liability
    posting, application via settlements, liability report. *(1–2)*
+   **done** — Customer Deposit doctype; application = Receive Payment
+   Entry with paid_to = deposit liability; computed applied/outstanding;
+   report screen.
 3. **S1 Scheduling core** — Schedulable Resource + Appointment doctypes,
    conflict checking, reusable calendar widget (day/week, resource lanes),
    booking→invoice hook. *(2–3)*
