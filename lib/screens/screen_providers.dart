@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
+import '../deliveries/driver_today_logic.dart';
 import '../ledger/ledger_values.dart';
 
 /// Real data sources for the Hub's bespoke custom screens. Each provider
@@ -156,16 +157,25 @@ class DeliveryRouteView {
 
 /// The most recent Delivery Route (by `route_date`), with its stops resolved to
 /// customer/driver names. Returns null when no routes exist.
+/// The driver working this device (S12) — null shows every driver's
+/// routes. Persisted per device by the Driver Today screen.
+final selectedDriverProvider = StateProvider<String?>((ref) => null);
+
 final latestDeliveryRouteProvider =
     FutureProvider<DeliveryRouteView?>((ref) async {
   final engine = await ref.watch(documentEngineProvider.future);
+  final driver = ref.watch(selectedDriverProvider);
   final routes = await engine.list('Delivery Route');
   if (routes.isEmpty) return null;
 
-  routes.sort((a, b) => (asNonEmpty(b.payload['route_date']) ?? '')
-      .compareTo(asNonEmpty(a.payload['route_date']) ?? ''));
-  final route = await engine.fetch('Delivery Route', routes.first.id) ??
-      routes.first;
+  final chosen = selectTodayRoute(
+    routes,
+    driver: driver,
+    today: DateTime.now().toIso8601String().split('T').first,
+  );
+  if (chosen == null) return null;
+  final route =
+      await engine.fetch('Delivery Route', chosen.id) ?? chosen;
 
   String? driverName;
   final driverId = asNonEmpty(route.payload['driver']);

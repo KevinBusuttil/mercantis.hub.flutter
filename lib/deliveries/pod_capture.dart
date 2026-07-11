@@ -64,6 +64,13 @@ Future<void> markStopStatus(
     }
     stop.payload['pod_time'] = DateTime.now().toIso8601String();
   }
+
+  // The last stop resolving finishes the run: no separate "end route" chore.
+  const terminal = {'Delivered', 'Failed', 'Rescheduled'};
+  final allDone = stops.every(
+      (s) => terminal.contains('${s.payload['status']}'));
+  if (allDone) route.payload['status'] = 'Completed';
+
   await engine.save(route, roles);
 }
 
