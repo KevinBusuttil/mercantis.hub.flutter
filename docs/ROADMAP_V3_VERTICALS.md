@@ -70,7 +70,11 @@ nothing in the carve-out precludes it. Every other posted doctype
 Service Request + Job (materials/labour/checklist/photos/signature) →
 dispatch board (S1 over technicians) → technician mobile day flow
 (offline-first) → job→invoice conversion (stock/COGS via update_stock) →
-Maintenance Contract + recurring job generation → KPIs. Ships as an
+Maintenance Contract + recurring job generation → KPIs.
+
+Status: V1-1 **done** (module + request→job + dispatch booking S1
+appointments); V1-2 **done** (invoiceForJob: van-stock issue + COGS via
+update_stock, S8-priced materials, labour via service item). Ships as an
 AppManifest package + Setup Pack — first proof of the composable
 architecture; close manifest-versioning and UI-override-registry gaps here.
 
