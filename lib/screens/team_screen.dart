@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../sync/company_sync.dart';
+import '../sync/conflict_providers.dart';
 import '../team/team_account_client.dart';
 import '../team/team_session.dart';
 
@@ -243,6 +245,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
     final theme = Theme.of(context);
     final async = ref.watch(companySyncProvider);
     final status = async.valueOrNull;
+    final conflicts = ref.watch(conflictCountProvider).valueOrNull ?? 0;
     return AtlasSectionCard(
       name: 'Sync',
       child: Padding(
@@ -266,6 +269,21 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                         '${status.failed} change(s) were rejected by the '
                         'server and are on hold',
                         style: TextStyle(color: theme.colorScheme.error)),
+                  if (conflicts > 0)
+                    Row(
+                      children: [
+                        Text(
+                            '$conflicts document(s) need a conflict '
+                            'decision',
+                            style:
+                                TextStyle(color: theme.colorScheme.error)),
+                        TextButton(
+                          onPressed: () =>
+                              context.go('/w/setup/sync-conflicts'),
+                          child: const Text('Resolve'),
+                        ),
+                      ],
+                    ),
                   if (status.lastSyncedAt != null)
                     Text('Last synced: ${status.lastSyncedAt}'
                         ' — sent ${status.lastPushed}, '
