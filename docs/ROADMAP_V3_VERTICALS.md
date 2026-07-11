@@ -61,6 +61,10 @@ nothing in the carve-out precludes it. Every other posted doctype
    Deliver/Failed actions.
 5. **S12 Driver UX completion** — real Driver Today (status transitions,
    POD, per-driver filter). *(1)*
+   **done** — today-first per-driver route selection, one-tap Start
+   route, self-completing runs.
+
+**Phase 1 complete.**
 
 ## Phase 2 — V1 Field Service & Trades (~6 increments)
 Service Request + Job (materials/labour/checklist/photos/signature) →
