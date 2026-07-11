@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'deposits_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
@@ -46,6 +47,16 @@ class ReportsScreen extends ConsumerWidget {
             name: 'Financial statements',
             child: Column(
               children: [
+                ListTile(
+                  leading: const Icon(Icons.savings_outlined),
+                  title: const Text('Customer deposits'),
+                  subtitle:
+                      const Text('Prepayments held, applied and outstanding'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const DepositsScreen()),
+                  ),
+                ),
                 for (final s in _statements)
                   ListTile(
                     leading: const Icon(Icons.account_balance_outlined),

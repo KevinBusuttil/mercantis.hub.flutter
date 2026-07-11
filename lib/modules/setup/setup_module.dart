@@ -161,6 +161,7 @@ abstract final class SetupModule {
           FieldDefinition(key: 'default_cogs_account', label: 'Default COGS Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'default_stock_adjustment_account', label: 'Default Stock Adjustment Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'default_grni_account', label: 'Default Stock Received But Not Billed Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
+          FieldDefinition(key: 'default_customer_deposit_account', label: 'Default Customer Deposit Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           // Posting guards (H5): postings dated on/before books_lock_date are
           // blocked; stock issues that would drive a bin negative are rejected
           // unless allow_negative_stock is set.

@@ -80,6 +80,11 @@ abstract final class LedgerDerivation {
           'cash_account': 'default_cash_account',
           'income_account': 'default_income_account',
         };
+      case 'Customer Deposit':
+        return const {
+          'cash_account': 'default_cash_account',
+          'deposit_account': 'default_customer_deposit_account',
+        };
       case 'Payment Entry':
         if (paymentType == 'Receive') {
           return const {
@@ -121,6 +126,8 @@ abstract final class LedgerDerivation {
         return _posInvoice(doc, reversal);
       case 'Payment Entry':
         return _paymentEntry(doc, reversal);
+      case 'Customer Deposit':
+        return _customerDeposit(doc, reversal);
       case 'Journal Entry':
         return _journalEntry(doc, reversal);
       case 'Stock Entry':
@@ -429,6 +436,39 @@ abstract final class LedgerDerivation {
   }
 
   // ---- payment entry ------------------------------------------------------
+
+  /// Customer Deposit (S4): a prepayment. Dr cash, Cr the deposit
+  /// liability -- receivable and income stay untouched until a Payment
+  /// Entry applies the deposit to an invoice (that entry's paid_to IS the
+  /// liability account, so application needs no special GL here).
+  static List<DerivedDoc> _customerDeposit(Document doc, bool reversal) {
+    final id = doc.id;
+    final p = doc.payload;
+    final amount = asNum(p['amount']);
+    final sfx = reversalSuffix(reversal);
+    return [
+      _gl(
+        id: 'GL-$id-cash$sfx',
+        account: asNonEmpty(p['cash_account']),
+        debit: reversal ? 0 : amount,
+        credit: reversal ? amount : 0,
+        voucherType: doc.docType,
+        voucherNo: id,
+        postingDate: p['posting_date'],
+        reversal: reversal,
+      ),
+      _gl(
+        id: 'GL-$id-liability$sfx',
+        account: asNonEmpty(p['deposit_account']),
+        debit: reversal ? amount : 0,
+        credit: reversal ? 0 : amount,
+        voucherType: doc.docType,
+        voucherNo: id,
+        postingDate: p['posting_date'],
+        reversal: reversal,
+      ),
+    ];
+  }
 
   static List<DerivedDoc> _paymentEntry(Document doc, bool reversal) {
     final id = doc.id;

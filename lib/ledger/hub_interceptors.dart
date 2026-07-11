@@ -2,6 +2,7 @@ import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../pricing/price_resolver.dart';
+import 'deposit_service.dart';
 import 'hub_tax_engine.dart';
 import 'ledger_derivation.dart';
 import 'ledger_values.dart';
@@ -30,6 +31,7 @@ final hubInterceptorsOverride =
   JournalBalanceGuardInterceptor(),
   DuplicateSupplierBillGuardInterceptor(),
   ExpenseDefaultsInterceptor(),
+  DepositApplicationInterceptor(),
 ]);
 
 const _systemRoles = {'System Manager'};
