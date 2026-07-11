@@ -51,6 +51,9 @@ nothing in the carve-out precludes it. Every other posted doctype
 3. **S1 Scheduling core** — Schedulable Resource + Appointment doctypes,
    conflict checking, reusable calendar widget (day/week, resource lanes),
    booking→invoice hook. *(2–3)*
+   **done** — doctypes + half-open-interval conflict guard + S8-priced
+   invoice hook (S1a); ResourceCalendar widget + day/week Schedule board
+   with slot booking and status actions (S1b).
 4. **S3 Capture primitives** — signature widget for `FieldType.signature`,
    camera-photo attach anywhere; wire deliveries POD. *(1)*
 5. **S12 Driver UX completion** — real Driver Today (status transitions,
