@@ -34,7 +34,7 @@ nothing in the carve-out precludes it. Every other posted doctype
 | 0.7 | Postgres CI: full backend suite against real Postgres via the Store trait | backend | **done** |
 | 0.8 | Audit rows for submit/cancel/amend/delete in the core engine | core | **done** |
 | 0.9 | Rate limiting; gated company creation; webhook intake caps | backend | |
-| 0.10 | Conflict visibility: list `sync_state=conflict` docs with keep-mine/take-theirs | core_ui + hub | |
+| 0.10 | Conflict visibility: list `sync_state=conflict` docs with keep-mine/take-theirs | core_ui + hub | **done** |
 
 ## Phase 1 — Gateway capabilities
 
