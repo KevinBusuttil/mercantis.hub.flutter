@@ -19,6 +19,7 @@ final hubInterceptorsOverride =
   // Before totals: resolution fills blank rates, totals turns rates into
   // amounts (S8).
   PriceResolutionInterceptor(),
+  DiscountInterceptor(),
   LineItemTotalsInterceptor(),
   TaxCalculationInterceptor(),
   BomRollupInterceptor(),

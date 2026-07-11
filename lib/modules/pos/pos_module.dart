@@ -103,6 +103,8 @@ abstract final class PosModule {
           FieldDefinition(key: 'is_return', label: 'Is Return', type: FieldType.check),
           FieldDefinition(key: 'return_against', label: 'Return Against', type: FieldType.link, linkDocType: 'POS Invoice', options: 'POS Invoice'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'POS Invoice Item', options: 'POS Invoice Item'),
+          FieldDefinition(key: 'discount_percent', label: 'Discount %', type: FieldType.percent),
+          FieldDefinition(key: 'discount_amount', label: 'Discount Amount', type: FieldType.currency),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'taxes', label: 'Taxes', type: FieldType.table, tableDocType: 'Tax Charge', options: 'Tax Charge'),
           FieldDefinition(key: 'tax_total', label: 'Tax Total', type: FieldType.currency, readOnly: true),

@@ -174,6 +174,10 @@ class _CartLine {
 
 class _PosTillScreenState extends ConsumerState<PosTillScreen> {
   final List<_CartLine> _cart = [];
+
+  /// Whole-sale discount percent (S8b) — applied to every line at save.
+  num _discountPercent = 0;
+  final _discountController = TextEditingController();
   final _scanController = TextEditingController();
   final _scanFocus = FocusNode();
   String? _customer;
@@ -185,6 +189,7 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
   @override
   void dispose() {
     _scanController.dispose();
+    _discountController.dispose();
     _scanFocus.dispose();
     super.dispose();
   }
@@ -192,7 +197,8 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
   TaxComputation _totals(_TillContext ctx) => HubTaxEngine.compute(
         [
           for (final l in _cart)
-            TaxLine(l.amount, l.taxCode ?? ctx.profileTaxCode),
+            TaxLine(l.amount * (1 - _discountPercent / 100),
+                l.taxCode ?? ctx.profileTaxCode),
         ],
         ctx.rateByCode,
       );
@@ -357,6 +363,7 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         posSession: ctx.sessionId,
         tillSeries: ctx.receiptSeries,
         priceList: ctx.priceList,
+        discountPercent: _discountPercent,
         lines: [
           for (final l in _cart)
             PosCartLine(item: l.item, qty: l.qty, rate: l.lineRate, taxCode: l.taxCode),
@@ -370,6 +377,8 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         _posting = false;
         _result = '${posted.id} — total ${asNum(posted.payload['grand_total']).toStringAsFixed(2)}';
         _cart.clear();
+        _discountPercent = 0;
+        _discountController.clear();
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sale ${posted.id} completed')));
       await _showReceipt(ctx, posted);
@@ -754,6 +763,28 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Discount %',
+                          style: Theme.of(context).textTheme.bodyMedium),
+                    ),
+                    SizedBox(
+                      width: 72,
+                      child: TextField(
+                        controller: _discountController,
+                        enabled: !_posting,
+                        textAlign: TextAlign.right,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration:
+                            const InputDecoration(isDense: true, hintText: '0'),
+                        onChanged: (v) => setState(() => _discountPercent =
+                            (num.tryParse(v.trim()) ?? 0).clamp(0, 100)),
+                      ),
+                    ),
+                  ],
+                ),
                 AtlasTotalRow(label: 'Net', value: totals.netTotal.toStringAsFixed(2)),
                 AtlasTotalRow(label: 'VAT', value: totals.totalTax.toStringAsFixed(2)),
                 AtlasTotalRow(

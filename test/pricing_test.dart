@@ -55,6 +55,7 @@ void main() {
       userId: 'u',
       interceptors: const [
         PriceResolutionInterceptor(),
+        DiscountInterceptor(),
         LineItemTotalsInterceptor(),
         TaxCalculationInterceptor(),
       ],
@@ -177,6 +178,100 @@ void main() {
       final saved = await engine.fetch('Sales Invoice', invoice.id);
       expect(asNum(saved!.children['items']![0].payload['rate']), 100);
       expect(saved.payload['price_list'], isNull); // no list involved
+    });
+  });
+
+  group('DiscountInterceptor', () {
+    test('line percent derives rate from the captured base, idempotently',
+        () async {
+      final invoice = await save('Sales Invoice', '', {
+        'customer': 'CUST-1',
+        'posting_date': '2026-07-11',
+      }, children: {
+        'items': [
+          {'item': 'WIDGET', 'qty': 2, 'rate': 100, 'discount_percent': 10},
+        ],
+      });
+      var saved = await engine.fetch('Sales Invoice', invoice.id);
+      var line = saved!.children['items']![0];
+      expect(asNum(line.payload['price_list_rate']), 100); // base captured
+      expect(asNum(line.payload['rate']), 90);
+      expect(asNum(line.payload['amount']), 180);
+      expect(asNum(saved.payload['grand_total']), 180);
+
+      // Re-saving must not compound the discount.
+      await engine.save(saved, roles);
+      saved = await engine.fetch('Sales Invoice', invoice.id);
+      expect(asNum(saved!.children['items']![0].payload['rate']), 90);
+
+      // Zeroing the discount restores the base exactly.
+      saved.children['items']![0].payload['discount_percent'] = 0;
+      await engine.save(saved, roles);
+      saved = await engine.fetch('Sales Invoice', invoice.id);
+      expect(asNum(saved!.children['items']![0].payload['rate']), 100);
+    });
+
+    test('document percent compounds with line percents', () async {
+      final invoice = await save('Sales Invoice', '', {
+        'customer': 'CUST-1',
+        'posting_date': '2026-07-11',
+        'discount_percent': 50,
+      }, children: {
+        'items': [
+          {'item': 'WIDGET', 'qty': 1, 'rate': 100, 'discount_percent': 10},
+          {'item': 'WIDGET', 'qty': 1, 'rate': 200},
+        ],
+      });
+      final saved = await engine.fetch('Sales Invoice', invoice.id);
+      final lines = saved!.children['items']!;
+      expect(asNum(lines[0].payload['rate']), 45); // 100 x .9 x .5
+      expect(asNum(lines[1].payload['rate']), 100); // 200 x .5
+      expect(asNum(saved.payload['total']), 145);
+    });
+
+    test('document amount-off scales lines so totals stay consistent',
+        () async {
+      final invoice = await save('Sales Invoice', '', {
+        'customer': 'CUST-1',
+        'posting_date': '2026-07-11',
+        'discount_amount': 30,
+      }, children: {
+        'items': [
+          {'item': 'WIDGET', 'qty': 1, 'rate': 100},
+          {'item': 'WIDGET', 'qty': 1, 'rate': 200},
+        ],
+      });
+      final saved = await engine.fetch('Sales Invoice', invoice.id);
+      final lines = saved!.children['items']!;
+      // 300 net − 30 → scale 0.9 on every line.
+      expect(asNum(lines[0].payload['rate']), closeTo(90, 1e-9));
+      expect(asNum(lines[1].payload['rate']), closeTo(180, 1e-9));
+      expect(asNum(saved.payload['total']), closeTo(270, 1e-9));
+      // The invariant the Team backend enforces: total == sum of amounts.
+      num sum = 0;
+      for (final l in lines) {
+        sum += asNum(l.payload['amount']);
+      }
+      expect(asNum(saved.payload['total']), closeTo(sum, 1e-9));
+    });
+
+    test('discount applies before VAT: the taxable base shrinks', () async {
+      await save('Tax Code', 'VAT18', {
+        'tax_code_name': 'VAT 18', 'tax_type': 'VAT', 'rate': 18, 'enabled': 1,
+      });
+      final invoice = await save('Sales Invoice', '', {
+        'customer': 'CUST-1',
+        'posting_date': '2026-07-11',
+        'discount_percent': 10,
+      }, children: {
+        'items': [
+          {'item': 'WIDGET', 'qty': 1, 'rate': 100, 'tax_code': 'VAT18'},
+        ],
+      });
+      final saved = await engine.fetch('Sales Invoice', invoice.id);
+      expect(asNum(saved!.payload['total']), 90);
+      expect(asNum(saved.payload['tax_total']), closeTo(16.2, 1e-9));
+      expect(asNum(saved.payload['grand_total']), closeTo(106.2, 1e-9));
     });
   });
 }

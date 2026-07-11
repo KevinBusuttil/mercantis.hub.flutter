@@ -36,6 +36,8 @@ abstract final class SellingModule {
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
           FieldDefinition(key: 'price_list', label: 'Price List', type: FieldType.link, linkDocType: 'Price List', options: 'Price List'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Quotation Item', options: 'Quotation Item'),
+          FieldDefinition(key: 'discount_percent', label: 'Discount %', type: FieldType.percent),
+          FieldDefinition(key: 'discount_amount', label: 'Discount Amount', type: FieldType.currency),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'grand_total', label: 'Grand Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'terms', label: 'Terms and Conditions', type: FieldType.longText),
@@ -57,6 +59,8 @@ abstract final class SellingModule {
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
           FieldDefinition(key: 'price_list', label: 'Price List', type: FieldType.link, linkDocType: 'Price List', options: 'Price List'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Sales Order Item', options: 'Sales Order Item'),
+          FieldDefinition(key: 'discount_percent', label: 'Discount %', type: FieldType.percent),
+          FieldDefinition(key: 'discount_amount', label: 'Discount Amount', type: FieldType.currency),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'grand_total', label: 'Grand Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'terms', label: 'Terms and Conditions', type: FieldType.longText),
@@ -106,6 +110,8 @@ abstract final class SellingModule {
           // channel-level reporting.
           FieldDefinition(key: 'sales_channel', label: 'Sales Channel', type: FieldType.link, linkDocType: 'Sales Channel', options: 'Sales Channel', readOnly: true),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Sales Invoice Item', options: 'Sales Invoice Item'),
+          FieldDefinition(key: 'discount_percent', label: 'Discount %', type: FieldType.percent),
+          FieldDefinition(key: 'discount_amount', label: 'Discount Amount', type: FieldType.currency),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           // Computed VAT rows (output tax) — one per distinct tax code on submit.
           FieldDefinition(key: 'taxes', label: 'Taxes', type: FieldType.table, tableDocType: 'Tax Charge', options: 'Tax Charge'),

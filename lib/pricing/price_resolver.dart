@@ -223,3 +223,72 @@ class PriceResolutionInterceptor extends DocumentInterceptor {
     }
   }
 }
+
+/// S8 discounts, folded into line rates so every downstream consumer — the
+/// totals interceptor, the tax engine, the ledger spine, and the Team
+/// backend's money validation (`amount == qty x rate`, `total == sum of
+/// lines`) — sees ordinary rates and stays correct without special cases.
+/// The discount reduces the taxable base (a trade discount), which is the
+/// EU-VAT-correct treatment; income posts net of discount.
+///
+/// Mechanics: the first time a discount touches a line, the current rate is
+/// captured as `price_list_rate` (the base). From then on the line's `rate`
+/// is DERIVED on every save: base x (1 − line %) x (1 − document %), then a
+/// document-level amount-off scales all rates proportionally. Because the
+/// derivation always restarts from the captured base, re-saving never
+/// compounds, and zeroing the discounts restores the base rate exactly.
+class DiscountInterceptor extends DocumentInterceptor {
+  const DiscountInterceptor();
+
+  @override
+  Future<void> beforeSave(
+      DocumentEngine engine, Document doc, DocType docType,
+      {required bool isNew}) async {
+    final rows = doc.children['items'];
+    if (rows == null || rows.isEmpty) return;
+    final keys = {for (final f in docType.fields) f.key};
+    final docPct =
+        keys.contains('discount_percent') ? asNum(doc.payload['discount_percent']) : 0;
+    final docAmount =
+        keys.contains('discount_amount') ? asNum(doc.payload['discount_amount']) : 0;
+
+    final anyDiscount = docPct > 0 ||
+        docAmount > 0 ||
+        rows.any((r) => asNum(r.payload['discount_percent']) > 0);
+    final anyManaged =
+        rows.any((r) => asNum(r.payload['price_list_rate']) > 0);
+    if (!anyDiscount && !anyManaged) return;
+
+    // Pass 1: percent discounts, always recomputed from the captured base.
+    for (final row in rows) {
+      final linePct = asNum(row.payload['discount_percent']);
+      var base = asNum(row.payload['price_list_rate']);
+      if (base <= 0) {
+        // A discount is arriving for the first time: capture the base.
+        if (linePct <= 0 && docPct <= 0 && docAmount <= 0) continue;
+        base = asNum(row.payload['rate']);
+        if (base <= 0) continue;
+        row.payload['price_list_rate'] = base;
+      }
+      row.payload['rate'] =
+          base * (1 - linePct / 100) * (1 - docPct / 100);
+    }
+
+    // Pass 2: a document amount-off scales every rate proportionally, so
+    // the sum of line amounts lands on (net − amount) and the backend's
+    // totals cross-check holds without a separate discount leg.
+    if (docAmount > 0) {
+      num net = 0;
+      for (final row in rows) {
+        net += asNum(row.payload['qty']) * asNum(row.payload['rate']);
+      }
+      if (net > 0) {
+        final scale =
+            ((net - docAmount) / net).clamp(0, 1).toDouble();
+        for (final row in rows) {
+          row.payload['rate'] = asNum(row.payload['rate']) * scale;
+        }
+      }
+    }
+  }
+}

@@ -55,6 +55,7 @@ abstract final class PosCheckout {
     String? company,
     String? tillSeries,
     String? priceList,
+    num discountPercent = 0,
     bool pricesIncludeTax = false,
     required List<PosCartLine> lines,
     required List<PosTender> tenders,
@@ -72,6 +73,7 @@ abstract final class PosCheckout {
         if (asNonEmpty(tillSeries) != null) 'till_series': tillSeries,
         // Provenance: which price list the till's rates came from (S8).
         if (asNonEmpty(priceList) != null) 'price_list': priceList,
+        if (discountPercent > 0) 'discount_percent': discountPercent,
         if (asNonEmpty(customer) != null) 'customer': customer,
         if (asNonEmpty(currency) != null) 'currency': currency,
         if (asNonEmpty(warehouse) != null) 'set_warehouse': warehouse,
