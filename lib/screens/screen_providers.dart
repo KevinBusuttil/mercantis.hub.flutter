@@ -119,6 +119,7 @@ class RouteStopView {
     required this.customer,
     required this.address,
     required this.status,
+    this.hasPod = false,
   });
 
   final int sequence;
@@ -126,7 +127,11 @@ class RouteStopView {
   final String address;
   final String status;
 
+  /// Signature or photo captured at the door (S3).
+  final bool hasPod;
+
   bool get isDone => status.toLowerCase() == 'delivered';
+  bool get isFailed => status.toLowerCase() == 'failed';
 }
 
 class DeliveryRouteView {
@@ -183,6 +188,8 @@ final latestDeliveryRouteProvider =
             '—',
         address: asNonEmpty(s.payload['address']) ?? '',
         status: asNonEmpty(s.payload['status']) ?? 'Pending',
+        hasPod: asNonEmpty(s.payload['pod_signature']) != null ||
+            asNonEmpty(s.payload['pod_image']) != null,
       ),
   ]..sort((a, b) => a.sequence.compareTo(b.sequence));
 
