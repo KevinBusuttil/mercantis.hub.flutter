@@ -19,6 +19,9 @@ const fieldServiceWorkspace = WorkspaceDescriptor(
         label: 'Dispatch board', icon: Icons.space_dashboard_outlined,
         description: 'The request queue, jobs waiting for a slot, and '
             'every technician\'s day'),
+      CustomWorkspaceItem(routeName: 'tech-today',
+        label: 'My day (technician)', icon: Icons.engineering_outlined,
+        description: 'Your jobs today: checklist, parts, hours, sign-off'),
       CustomWorkspaceItem(routeName: 'schedule',
         label: 'Schedule', icon: Icons.calendar_month_outlined,
         description: 'All bookings by resource — day and week boards'),

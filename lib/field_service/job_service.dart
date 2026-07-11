@@ -4,6 +4,25 @@ import '../ledger/ledger_values.dart';
 
 const _systemRoles = {'System Manager'};
 
+/// The technician's day (V1-4): [technician]'s jobs touching [today]
+/// (ISO date), soonest first. Cancelled jobs never show; completed ones do
+/// — the tech sees what's done. Pure, so the rules are unit-testable.
+List<Document> techTodayJobs(
+  List<Document> jobs, {
+  required String technician,
+  required String today,
+}) {
+  final mine = [
+    for (final j in jobs)
+      if ('${j.payload['status']}' != 'Cancelled' &&
+          asNonEmpty(j.payload['technician']) == technician &&
+          ('${j.payload['starts_at']}').startsWith(today))
+        j,
+  ]..sort((a, b) =>
+      '${a.payload['starts_at']}'.compareTo('${b.payload['starts_at']}'));
+  return mine;
+}
+
 /// V1 Field Service: intake→job conversion and dispatch (Phase 2,
 /// increment 1). Dispatching books a real S1 Appointment on the
 /// technician, so double-booking is impossible by construction and jobs
@@ -187,6 +206,41 @@ class JobService {
     // Completed via the status helper so the calendar booking follows.
     await setJobStatus(jobId, 'Completed');
     return draft;
+  }
+
+  /// V1-4 — the on-site finish: store the customer sign-off (S3 proof)
+  /// and invoice the job. A job with nothing billable still completes —
+  /// proof recorded, no invoice. Returns the draft invoice, or null when
+  /// there was nothing to bill.
+  Future<Document?> completeJob(
+    String jobId, {
+    String? signature,
+    String? photoPath,
+    String? note,
+  }) async {
+    final job = await _engine.fetch('Job', jobId);
+    if (job == null) throw StateError('Job $jobId not found.');
+    if (signature != null && signature.isNotEmpty) {
+      job.payload['completion_signature'] = signature;
+    }
+    if (photoPath != null && photoPath.isNotEmpty) {
+      job.payload['completion_photo'] = photoPath;
+    }
+    if (note != null && note.isNotEmpty) {
+      job.payload['completion_note'] = note;
+    }
+    await _engine.save(job, _roles);
+
+    try {
+      return await invoiceForJob(jobId);
+    } on StateError catch (e) {
+      if ('$e'.contains('nothing to bill') ||
+          '$e'.contains('no billable lines')) {
+        await setJobStatus(jobId, 'Completed');
+        return null;
+      }
+      rethrow;
+    }
   }
 
   /// Status transitions that keep the calendar honest: cancelling a job

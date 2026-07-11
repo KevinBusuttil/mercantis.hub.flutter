@@ -252,4 +252,53 @@ void main() {
     await expectLater(
         jobs.invoiceForJob(saved.id), throwsA(isA<StateError>()));
   });
+
+  test('techTodayJobs picks the technician\'s day, soonest first', () {
+    Document j(String id, String tech, String start,
+            {String status = 'Scheduled'}) =>
+        Document(id: id, docType: 'Job', payload: {
+          'subject': id,
+          'technician': tech,
+          'starts_at': start,
+          'status': status,
+        });
+    final picked = techTodayJobs([
+      j('J-LATE', 'TECH-A', '2026-07-14T15:00:00'),
+      j('J-EARLY', 'TECH-A', '2026-07-14T08:00:00'),
+      j('J-OTHER-TECH', 'TECH-B', '2026-07-14T09:00:00'),
+      j('J-OTHER-DAY', 'TECH-A', '2026-07-15T09:00:00'),
+      j('J-CXL', 'TECH-A', '2026-07-14T10:00:00', status: 'Cancelled'),
+      j('J-DONE', 'TECH-A', '2026-07-14T07:00:00', status: 'Completed'),
+    ], technician: 'TECH-A', today: '2026-07-14');
+    expect([for (final x in picked) x.id], ['J-DONE', 'J-EARLY', 'J-LATE']);
+  });
+
+  test('completeJob stores the sign-off and invoices; billable-less jobs '
+      'still complete', () async {
+    final job = await jobWithWork();
+    final draft = await jobs.completeJob(
+      job.id,
+      signature: '{"strokes":[[[0.1,0.1],[0.9,0.9]]]}',
+      note: 'Customer happy',
+    );
+    expect(draft, isNotNull);
+    final done = await engine.fetch('Job', job.id);
+    expect(done!.payload['completion_signature'], contains('strokes'));
+    expect(done.payload['completion_note'], 'Customer happy');
+    expect(done.payload['status'], 'Completed');
+    expect(done.payload['sales_invoice'], draft!.id);
+
+    // A job with no materials or labour completes without an invoice.
+    final empty = await engine.save(
+        Document(id: '', docType: 'Job', payload: {
+          'subject': 'Quick look',
+          'customer': 'CUST-1',
+        }),
+        roles);
+    final none = await jobs.completeJob(empty.id, note: 'No work needed');
+    expect(none, isNull);
+    final finished = await engine.fetch('Job', empty.id);
+    expect(finished!.payload['status'], 'Completed');
+    expect(finished.payload['sales_invoice'], isNull);
+  });
 }
