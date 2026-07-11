@@ -95,6 +95,100 @@ class JobService {
     return _engine.save(job, _roles);
   }
 
+  /// V1-2 — the job makes money: drafts a Sales Invoice from the job's
+  /// materials and labour. Material lines keep their van warehouse and set
+  /// `update_stock`, so submitting the invoice issues the parts from stock
+  /// and posts COGS through the existing perpetual-inventory derivation.
+  /// Blank rates are left blank on purpose: S8 pricing resolves them
+  /// (customer price list → company list → standard rate) on save. The job
+  /// is stamped with the invoice and completed — its calendar booking too.
+  Future<Document> invoiceForJob(String jobId, {String? postingDate}) async {
+    final job = await _engine.fetch('Job', jobId);
+    if (job == null) throw StateError('Job $jobId not found.');
+    if ('${job.payload['status']}' == 'Cancelled') {
+      throw StateError('Job $jobId is cancelled — nothing to bill.');
+    }
+    final existing = asNonEmpty(job.payload['sales_invoice']);
+    if (existing != null) {
+      throw StateError('Job $jobId is already invoiced as $existing.');
+    }
+    final customer = asNonEmpty(job.payload['customer']);
+    if (customer == null) {
+      throw StateError('Job $jobId has no customer to invoice.');
+    }
+    final materials = job.children['materials'] ?? const <ChildRow>[];
+    final labour = job.children['labour'] ?? const <ChildRow>[];
+    if (materials.isEmpty && labour.isEmpty) {
+      throw StateError(
+          'Job $jobId has no materials or labour — nothing to bill.');
+    }
+
+    final lines = <Map<String, dynamic>>[];
+    var updateStock = false;
+    String? setWarehouse;
+    for (final m in materials) {
+      final item = asNonEmpty(m.payload['item']);
+      if (item == null) continue;
+      final itemDoc = await _engine.fetch('Item', item);
+      final isStock = '${itemDoc?.payload['item_type']}' == 'Stock';
+      final warehouse = asNonEmpty(m.payload['warehouse']);
+      if (isStock) {
+        updateStock = true;
+        setWarehouse ??= warehouse;
+      }
+      lines.add({
+        'item': item,
+        'qty': asNum(m.payload['qty']) == 0 ? 1 : m.payload['qty'],
+        if (asNum(m.payload['rate']) > 0) 'rate': m.payload['rate'],
+        if (warehouse != null) 'warehouse': warehouse,
+        if (asNonEmpty(m.payload['note']) != null)
+          'description': m.payload['note'],
+      });
+    }
+    for (final l in labour) {
+      final hours = asNum(l.payload['hours']);
+      if (hours <= 0) continue;
+      final item = asNonEmpty(l.payload['labour_item']);
+      if (item == null) {
+        throw StateError(
+            'Labour line "${l.payload['description'] ?? ''}" has no labour '
+            'item — billing needs one (a service Item such as "Labour").');
+      }
+      lines.add({
+        'item': item,
+        'qty': hours,
+        if (asNum(l.payload['rate']) > 0) 'rate': l.payload['rate'],
+        'description': asNonEmpty(l.payload['description']) ??
+            '${job.id}: labour',
+      });
+    }
+    if (lines.isEmpty) {
+      throw StateError('Job $jobId has no billable lines.');
+    }
+
+    final invoice = Document(id: '', docType: 'Sales Invoice', payload: {
+      'customer': customer,
+      'posting_date': asNonEmpty(postingDate) ??
+          DateTime.now().toIso8601String().split('T').first,
+      if (updateStock) 'update_stock': 1,
+      if (updateStock && setWarehouse != null) 'set_warehouse': setWarehouse,
+    });
+    invoice.children['items'] = [
+      for (var i = 0; i < lines.length; i++)
+        ChildRow(
+          id: '', parentId: '', parentDocType: 'Sales Invoice',
+          tableName: 'items', rowIndex: i, payload: lines[i],
+        ),
+    ];
+    final draft = await _engine.save(invoice, _roles);
+
+    job.payload['sales_invoice'] = draft.id;
+    await _engine.save(job, _roles);
+    // Completed via the status helper so the calendar booking follows.
+    await setJobStatus(jobId, 'Completed');
+    return draft;
+  }
+
   /// Status transitions that keep the calendar honest: cancelling a job
   /// cancels its booking (freeing the technician's slot); starting work
   /// confirms it.
