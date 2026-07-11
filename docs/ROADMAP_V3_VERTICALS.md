@@ -75,7 +75,9 @@ Maintenance Contract + recurring job generation → KPIs.
 Status: V1-1 **done** (module + request→job + dispatch booking S1
 appointments); V1-2 **done** (invoiceForJob: van-stock issue + COGS via
 update_stock, S8-priced materials, labour via service item); V1-3
-**done** (dispatch board + Field Service workspace + module toggle). Ships as an
+**done** (dispatch board + Field Service workspace + module toggle);
+V1-4 **done** (My Day tech screen: checklist, parts, hours, S3 sign-off
+→ completeJob). Ships as an
 AppManifest package + Setup Pack — first proof of the composable
 architecture; close manifest-versioning and UI-override-registry gaps here.
 
