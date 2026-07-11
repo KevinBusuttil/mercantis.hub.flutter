@@ -15,6 +15,7 @@ class BusinessPreset {
     this.enablesPos = false,
     this.enablesDeliveries = false,
     this.enablesManufacturing = false,
+    this.enablesFieldService = false,
   });
 
   final String id;
@@ -25,6 +26,7 @@ class BusinessPreset {
   final bool enablesPos;
   final bool enablesDeliveries;
   final bool enablesManufacturing;
+  final bool enablesFieldService;
 
   static const services = BusinessPreset(
     id: 'services',
@@ -32,6 +34,7 @@ class BusinessPreset {
     description: 'Quotes, invoices, projects and time tracking. No '
         'stock-heavy extras.',
     enablesProjects: true,
+    enablesFieldService: true,
   );
 
   static const trade = BusinessPreset(
@@ -41,6 +44,7 @@ class BusinessPreset {
         'delivery routes.',
     enablesStock: true,
     enablesDeliveries: true,
+    enablesFieldService: true,
   );
 
   static const retail = BusinessPreset(

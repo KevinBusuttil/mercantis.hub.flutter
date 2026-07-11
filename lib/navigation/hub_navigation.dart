@@ -40,6 +40,7 @@ import '../screens/stock_count_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/setup_packs_screen.dart';
 import '../screens/conflicts_screen.dart';
+import '../screens/dispatch_screen.dart';
 import '../screens/schedule_screen.dart';
 import '../screens/team_screen.dart';
 import '../screens/setup_checklist_screen.dart';
@@ -111,6 +112,7 @@ void wireHubNavigation(WidgetRef ref) {
         (c, s) => const SalesOrdersScreen());
     registry.registerRoute('reports', (c, s) => const ReportsScreen());
     registry.registerRoute('schedule', (c, s) => const ScheduleScreen());
+    registry.registerRoute('dispatch', (c, s) => const DispatchScreen());
     registry.registerRoute(
         'accountant-export', (c, s) => const AccountantExportScreen());
     registry.registerRoute(
