@@ -41,6 +41,8 @@ nothing in the carve-out precludes it. Every other posted doctype
 1. **S8 Pricing & discounts** — price-resolution interceptor (customer
    price list → item price/qty breaks → standard rate) into invoices, POS,
    channels; line + invoice discounts with correct GL. *(2 increments)*
+   **done** — resolver + interceptor + POS till (S8a); line/document
+   discounts folded into rates from a captured base (S8b).
 2. **S4 Deposits & prepayments** — request/receipt doctype, liability
    posting, application via settlements, liability report. *(1–2)*
 3. **S1 Scheduling core** — Schedulable Resource + Appointment doctypes,
