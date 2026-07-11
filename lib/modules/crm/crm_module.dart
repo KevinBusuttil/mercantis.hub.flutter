@@ -145,6 +145,9 @@ abstract final class CrmModule {
           FieldDefinition(key: 'tax_id', label: 'Tax ID', type: FieldType.data),
           FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
           FieldDefinition(key: 'default_currency', label: 'Default Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          // S8 pricing: this customer's negotiated rates. Second in the
+          // resolution order, after a document's explicit price list.
+          FieldDefinition(key: 'default_price_list', label: 'Default Price List', type: FieldType.link, linkDocType: 'Price List', options: 'Price List'),
           FieldDefinition(key: 'website', label: 'Website', type: FieldType.data),
         ],
       );

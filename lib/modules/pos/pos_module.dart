@@ -39,6 +39,9 @@ abstract final class PosModule {
           // number independently (POS-.TILL1.-0001), so two registers can
           // never mint the same receipt id — even both offline.
           FieldDefinition(key: 'receipt_series', label: 'Receipt Series', type: FieldType.data),
+          // S8 pricing: the till's product-button prices come from this list
+          // (falling back to each item's standard rate when absent).
+          FieldDefinition(key: 'price_list', label: 'Price List', type: FieldType.link, linkDocType: 'Price List', options: 'Price List'),
           FieldDefinition(key: 'enabled', label: 'Enabled', type: FieldType.check, defaultValue: '1'),
         ],
       );
@@ -90,6 +93,7 @@ abstract final class PosModule {
           FieldDefinition(key: 'set_warehouse', label: 'Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
           FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
           FieldDefinition(key: 'prices_include_tax', label: 'Prices Include Tax', type: FieldType.check),
+          FieldDefinition(key: 'price_list', label: 'Price List', type: FieldType.link, linkDocType: 'Price List', options: 'Price List', readOnly: true),
           // Posting accounts (resolved from POS Profile / Company defaults).
           FieldDefinition(key: 'cash_account', label: 'Cash / Bank Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'income_account', label: 'Income Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),

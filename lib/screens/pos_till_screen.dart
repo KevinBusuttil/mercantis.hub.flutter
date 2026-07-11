@@ -11,6 +11,7 @@ import '../modules/pos/pos_receipt.dart';
 import '../modules/pos/pos_shift_report.dart' as shift;
 import '../modules/pos/pos_till_logic.dart';
 import '../payments/pos_checkout.dart';
+import '../pricing/price_resolver.dart';
 
 const _systemRoles = {'System Manager'};
 
@@ -30,6 +31,8 @@ class _TillContext {
     this.companyName,
     this.profileId,
     this.receiptSeries,
+    this.priceList,
+    this.listRates = const {},
     this.sessionId,
     this.openingFloat = 0,
   });
@@ -49,6 +52,14 @@ class _TillContext {
 
   /// The configured POS Profile (null until one exists).
   final String? profileId;
+
+  /// The profile's price list and the rates it resolved at load time (S8);
+  /// items absent from the list fall back to their standard rate.
+  final String? priceList;
+  final Map<String, num> listRates;
+
+  num priceFor(Document item) =>
+      listRates[item.id] ?? asNum(item.payload['standard_rate']);
 
   /// This till's receipt series (POS Profile.receipt_series) — makes ids
   /// collision-proof across registers, including offline.
@@ -84,6 +95,15 @@ final _tillContextProvider = FutureProvider<_TillContext>((ref) async {
 
   final profile = profiles.isEmpty ? null : profiles.first;
 
+  // S8: the till's product prices come from the profile's price list.
+  final priceList = asNonEmpty(profile?.payload['price_list']);
+  final listRates = priceList == null
+      ? const <String, num>{}
+      : await PriceResolver(engine).sellingRates(
+          priceList: priceList,
+          currency: asNonEmpty(company?.payload['default_currency']),
+        );
+
   // Resolve the open POS Session for *this* profile (or open one) so sales are
   // attributed to the right shift and the X/Z reports aggregate the right
   // invoices. Sessions are scoped by `pos_profile`, so a session is only
@@ -115,6 +135,8 @@ final _tillContextProvider = FutureProvider<_TillContext>((ref) async {
     companyName: asNonEmpty(company?.payload['company_name']) ?? company?.id,
     profileId: profile?.id,
     receiptSeries: asNonEmpty(profile?.payload['receipt_series']),
+    priceList: priceList,
+    listRates: listRates,
     sessionId: session?.id,
     openingFloat: asNum(session?.payload['opening_amount']),
   );
@@ -181,7 +203,7 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         item: item.id,
         name: (item.payload['item_name'] as String?) ?? item.id,
         taxCode: asNonEmpty(item.payload['tax_code']),
-        rate: asNum(item.payload['standard_rate']),
+        rate: ctx.priceFor(item),
       ));
     });
   }
@@ -334,6 +356,7 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         company: ctx.company,
         posSession: ctx.sessionId,
         tillSeries: ctx.receiptSeries,
+        priceList: ctx.priceList,
         lines: [
           for (final l in _cart)
             PosCartLine(item: l.item, qty: l.qty, rate: l.lineRate, taxCode: l.taxCode),

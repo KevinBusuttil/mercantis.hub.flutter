@@ -34,6 +34,7 @@ abstract final class SellingModule {
           FieldDefinition(key: 'accepted_on', label: 'Accepted On', type: FieldType.date, readOnly: true, allowOnSubmit: true),
           FieldDefinition(key: 'rejected_on', label: 'Rejected On', type: FieldType.date, readOnly: true, allowOnSubmit: true),
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          FieldDefinition(key: 'price_list', label: 'Price List', type: FieldType.link, linkDocType: 'Price List', options: 'Price List'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Quotation Item', options: 'Quotation Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'grand_total', label: 'Grand Total', type: FieldType.currency, readOnly: true),
@@ -54,6 +55,7 @@ abstract final class SellingModule {
           FieldDefinition(key: 'transaction_date', label: 'Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'delivery_date', label: 'Delivery Date', type: FieldType.date),
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          FieldDefinition(key: 'price_list', label: 'Price List', type: FieldType.link, linkDocType: 'Price List', options: 'Price List'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Sales Order Item', options: 'Sales Order Item'),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'grand_total', label: 'Grand Total', type: FieldType.currency, readOnly: true),
@@ -73,6 +75,9 @@ abstract final class SellingModule {
           FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'due_date', label: 'Due Date', type: FieldType.date),
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          // S8 pricing: blank line rates resolve through this list first;
+          // stamped automatically when resolution used a fallback list.
+          FieldDefinition(key: 'price_list', label: 'Price List', type: FieldType.link, linkDocType: 'Price List', options: 'Price List'),
           FieldDefinition(key: 'conversion_rate', label: 'Exchange Rate', type: FieldType.float, defaultValue: '1'),
           // Posting account defaults (resolved by Hub's business-profile policy
           // in Phase 3); explicit here so the ledger spine has somewhere to read.
