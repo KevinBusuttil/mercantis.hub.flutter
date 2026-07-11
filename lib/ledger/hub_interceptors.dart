@@ -2,6 +2,7 @@ import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../pricing/price_resolver.dart';
+import '../scheduling/scheduling_service.dart';
 import 'deposit_service.dart';
 import 'hub_tax_engine.dart';
 import 'ledger_derivation.dart';
@@ -32,6 +33,7 @@ final hubInterceptorsOverride =
   DuplicateSupplierBillGuardInterceptor(),
   ExpenseDefaultsInterceptor(),
   DepositApplicationInterceptor(),
+  AppointmentConflictInterceptor(),
 ]);
 
 const _systemRoles = {'System Manager'};
