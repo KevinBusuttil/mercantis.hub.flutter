@@ -56,6 +56,9 @@ nothing in the carve-out precludes it. Every other posted doctype
    with slot booking and status actions (S1b).
 4. **S3 Capture primitives** — signature widget for `FieldType.signature`,
    camera-photo attach anywhere; wire deliveries POD. *(1)*
+   **done** — POD sheet (signature strokes + camera photo + note) on
+   Delivery Route Stop via markStopStatus; Driver Today gained
+   Deliver/Failed actions.
 5. **S12 Driver UX completion** — real Driver Today (status transitions,
    POD, per-driver filter). *(1)*
 
