@@ -114,6 +114,11 @@ Malta go-live still needs the EXO certification *process*
 S1 + S4 + S9 (commission rules) + booking screen + Setup Pack — the
 salon/tutor/studio offering without a vertical build.
 
+Status: P4-1 **done** (BookingService: book = conflict-checked slot +
+submitted S4 deposit in one move; completeBooking = S1 invoice hook +
+S8 pricing + auto-applied deposit; Commission Rule doctype +
+computeCommissions with per-service override).
+
 ## Phase 5 — Next wave (each gated on its capability)
 S10 Fixed assets → V4 Repair/Garage (V1 specialisation + S2 asset
 register) → V3 Rental (S2+S5+S10) → V5 Property/Landlords → V7
