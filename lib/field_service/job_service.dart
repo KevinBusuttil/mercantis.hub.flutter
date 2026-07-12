@@ -60,6 +60,10 @@ class JobService {
           'priority': request.payload['priority'],
           'address': request.payload['address'],
           'description': request.payload['description'],
+          if (asNonEmpty(request.payload['equipment']) != null)
+            'equipment': request.payload['equipment'],
+          if (asNum(request.payload['meter_reading']) != 0)
+            'meter_reading': request.payload['meter_reading'],
           'status': 'Draft',
         }),
         _roles);

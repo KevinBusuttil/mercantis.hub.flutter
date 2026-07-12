@@ -31,9 +31,15 @@ const fieldServiceWorkspace = WorkspaceDescriptor(
             'contract health'),
     ]),
     WorkspaceSection(label: 'Records', items: [
+      CustomWorkspaceItem(routeName: 'equipment',
+        label: 'Equipment & history', icon: Icons.directions_car_outlined,
+        description: 'The customer\'s cars, boilers and machines — every '
+            'visit on record per unit'),
       DocTypeWorkspaceItem(docType: 'Service Request',
         icon: Icons.call_received_outlined),
       DocTypeWorkspaceItem(docType: 'Job', icon: Icons.handyman_outlined),
+      DocTypeWorkspaceItem(docType: 'Customer Equipment',
+        icon: Icons.directions_car_outlined),
       DocTypeWorkspaceItem(docType: 'Maintenance Contract',
         icon: Icons.event_repeat_outlined),
       DocTypeWorkspaceItem(docType: 'Schedulable Resource',

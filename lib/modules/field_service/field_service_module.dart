@@ -41,6 +41,10 @@ abstract final class FieldServiceModule {
           ),
           FieldDefinition(key: 'description', label: 'Problem Description', type: FieldType.longText),
           FieldDefinition(key: 'requested_date', label: 'Requested Date', type: FieldType.date),
+          // V4: the unit being serviced (the car, the boiler) and its
+          // meter at intake — the service history hangs off this link.
+          FieldDefinition(key: 'equipment', label: 'Equipment', type: FieldType.link, linkDocType: 'Customer Equipment', options: 'Customer Equipment'),
+          FieldDefinition(key: 'meter_reading', label: 'Meter Reading', type: FieldType.float),
           FieldDefinition(
             key: 'status',
             label: 'Status',
@@ -85,6 +89,9 @@ abstract final class FieldServiceModule {
           ),
           FieldDefinition(key: 'address', label: 'Site Address', type: FieldType.smallText),
           FieldDefinition(key: 'description', label: 'Work Description', type: FieldType.longText),
+          // V4: which unit this work is on, and the meter when it arrived.
+          FieldDefinition(key: 'equipment', label: 'Equipment', type: FieldType.link, linkDocType: 'Customer Equipment', options: 'Customer Equipment'),
+          FieldDefinition(key: 'meter_reading', label: 'Meter Reading', type: FieldType.float),
           FieldDefinition(key: 'checklist', label: 'Checklist', type: FieldType.table, tableDocType: 'Job Checklist Item', options: 'Job Checklist Item'),
           // Billed AND consumed from stock when the job invoices (V1-2).
           FieldDefinition(key: 'materials', label: 'Materials', type: FieldType.table, tableDocType: 'Job Material', options: 'Job Material'),
@@ -124,6 +131,9 @@ abstract final class FieldServiceModule {
           FieldDefinition(key: 'next_job_date', label: 'Next Job Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'end_date', label: 'End Date', type: FieldType.date),
           FieldDefinition(key: 'active', label: 'Active', type: FieldType.check, defaultValue: '1'),
+          // V4: a contract on a specific unit — every generated job
+          // lands in that unit's service history.
+          FieldDefinition(key: 'equipment', label: 'Equipment', type: FieldType.link, linkDocType: 'Customer Equipment', options: 'Customer Equipment'),
           FieldDefinition(key: 'preferred_technician', label: 'Preferred Technician', type: FieldType.link, linkDocType: 'Schedulable Resource', options: 'Schedulable Resource'),
           FieldDefinition(
             key: 'priority',
