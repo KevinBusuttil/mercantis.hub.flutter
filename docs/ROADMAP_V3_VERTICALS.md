@@ -97,7 +97,10 @@ profile and receipt); V2-2 **done** (table-map till: floor screen with
 free/occupied cards and running totals, modifier-aware ordering, bar
 tabs, tender dialog settling onto the per-till fiscal series); V2-3
 **done** (kitchen tickets: per-round KOT snapshots, kitchen rail screen
-with wait-time triage and bump, void cascade to open tickets).
+with wait-time triage and bump, void cascade to open tickets); V2-4
+**done** (split settlement by lines with split_invoices trail, tab
+merge with kitchen-ticket re-pointing, service charge as a priced VAT
+line from the POS Profile).
 
 ## Phase 4 — Appointments composition pack (~2 increments)
 S1 + S4 + S9 (commission rules) + booking screen + Setup Pack — the
