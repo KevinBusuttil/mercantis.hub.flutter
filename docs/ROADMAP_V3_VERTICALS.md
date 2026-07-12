@@ -151,7 +151,10 @@ through the existing runner; rent roll screen with computed arrears and
 activate/end actions in Finance); V7 **done** (Membership Plan +
 Membership over the same Recurring Invoice engine; pause/resume never
 back-bills the gap; Members screen with arrears and per-status
-actions).
+actions); S13 **done** (EN 16931 / PEPPOL BIS 3.0 UBL 2.1 generator
+from submitted Sales Invoices with one-pass BT validation and an
+E-invoice command-bar action; Access Point transmission stays an
+integration).
 
 **Deferred:** S7 batch/serial/expiry (deepest ledger surgery — wait for a
 paying segment), multi-company, SaaS-billing depth, i18n scaffolding until
