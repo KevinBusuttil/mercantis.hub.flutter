@@ -4,6 +4,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'auth/auth_gate.dart';
 import 'auth/auth_store.dart';
 import 'manifest/hub_manifest.dart';
+import 'field_service/maintenance_contract_service.dart';
 import 'modules/selling/recurring_invoice_service.dart';
 import 'printing/hub_print_formats.dart';
 import 'navigation/hub_navigation.dart';
@@ -150,6 +151,7 @@ final _bootProvider = FutureProvider<void>((ref) async {
   // Draft whatever recurring invoices are due (retainers). Failures are
   // stamped on each template's last_error rather than blocking boot.
   await ref.read(recurringInvoiceRunProvider.future);
+  await ref.read(maintenanceContractRunProvider.future);
 });
 
 class _HubSplashScreen extends StatelessWidget {

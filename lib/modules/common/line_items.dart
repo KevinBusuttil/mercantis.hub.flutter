@@ -30,6 +30,11 @@ DocType lineItemDocType({
         const FieldDefinition(key: 'qty', label: 'Quantity', type: FieldType.float, required: true, defaultValue: '1'),
         const FieldDefinition(key: 'uom', label: 'UOM', type: FieldType.select, options: kUomOptions, defaultValue: 'Nos'),
         const FieldDefinition(key: 'rate', label: 'Rate', type: FieldType.currency, required: true),
+        // S8 discounts: the base the discount applies to. Captured once when
+        // a discount first touches the line; while set, `rate` is derived
+        // from it (base x line discount x document discount) on every save.
+        const FieldDefinition(key: 'price_list_rate', label: 'List Rate', type: FieldType.currency, readOnly: true),
+        const FieldDefinition(key: 'discount_percent', label: 'Discount %', type: FieldType.percent),
         const FieldDefinition(key: 'amount', label: 'Amount', type: FieldType.currency, readOnly: true, formulaExpression: 'qty * rate'),
         const FieldDefinition(key: 'tax_code', label: 'Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
         FieldDefinition(key: 'warehouse', label: warehouseLabel, type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),

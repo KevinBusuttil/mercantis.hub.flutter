@@ -17,6 +17,7 @@ abstract final class AccountingModule {
         _journalEntryAccount(),
         _payment(),
         _paymentEntryReference(),
+        _customerDeposit(),
         // Derived subledgers — written by the Phase 3 ledger derivation service.
         _glEntry(),
         _customerTransaction(),
@@ -108,6 +109,10 @@ abstract final class AccountingModule {
         namingRule: 'PAY-.YYYY.-.####',
         workflowId: 'wf-payment-entry',
         fields: [
+          // Allocated by the Team posting authority at official submit —
+          // gap-free per company, the document's real-world number on
+          // screens and PDFs. Blank in Solo (the local id serves there).
+          FieldDefinition(key: 'official_number', label: 'Official Number', type: FieldType.data, readOnly: true, allowOnSubmit: true),
           FieldDefinition(
             key: 'payment_type',
             label: 'Payment Type',
@@ -140,6 +145,10 @@ abstract final class AccountingModule {
             options: 'Cash\nBank Transfer\nCredit Card\nCheque\nWire Transfer\nOnline',
           ),
           FieldDefinition(key: 'reference_no', label: 'Reference No', type: FieldType.data),
+          // S4: set to apply a Customer Deposit instead of taking money —
+          // paid_to becomes the deposit's liability account, so the GL moves
+          // prepayment liability onto the invoice's receivable.
+          FieldDefinition(key: 'deposit', label: 'Apply Customer Deposit', type: FieldType.link, linkDocType: 'Customer Deposit', options: 'Customer Deposit'),
           FieldDefinition(key: 'remarks', label: 'Remarks', type: FieldType.smallText),
         ],
       );
@@ -162,6 +171,32 @@ abstract final class AccountingModule {
 
   /// The universal general ledger. One or more rows per submitted Invoice /
   /// Payment / Journal / Stock voucher; reversals append `is_reversal` rows.
+  /// S4 deposits: money a customer pays before any invoice exists. Posts
+  /// Dr cash / Cr the deposit liability on submit -- income and receivable
+  /// stay untouched until a Payment Entry applies it (see the `deposit`
+  /// field on Payment Entry). Applied/outstanding amounts are computed from
+  /// the applying Payment Entries, never stored, so Solo and Team replicas
+  /// can't drift.
+  static DocType _customerDeposit() => const DocType(
+        id: 'Customer Deposit',
+        name: 'Customer Deposit',
+        module: _module,
+        isSubmittable: true,
+        namingRule: 'DEP-.YYYY.-.####',
+        workflowId: 'wf-customer-deposit',
+        fields: [
+          FieldDefinition(key: 'customer', label: 'Customer', type: FieldType.link, linkDocType: 'Customer', options: 'Customer', required: true),
+          FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
+          FieldDefinition(key: 'amount', label: 'Deposit Amount', type: FieldType.currency, required: true),
+          FieldDefinition(key: 'cash_account', label: 'Deposited To (Cash/Bank)', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
+          FieldDefinition(key: 'deposit_account', label: 'Deposit Liability Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
+          FieldDefinition(key: 'sales_order', label: 'Against Sales Order', type: FieldType.link, linkDocType: 'Sales Order', options: 'Sales Order'),
+          FieldDefinition(key: 'mode_of_payment', label: 'Mode of Payment', type: FieldType.select, options: 'Cash\nBank Transfer\nCredit Card\nCheque\nWire Transfer\nOnline'),
+          FieldDefinition(key: 'reference_no', label: 'Reference No', type: FieldType.data),
+          FieldDefinition(key: 'remarks', label: 'Remarks', type: FieldType.smallText),
+        ],
+      );
+
   static DocType _glEntry() => const DocType(
         id: 'GL Entry',
         name: 'GL Entry',

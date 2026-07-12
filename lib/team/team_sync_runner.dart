@@ -50,6 +50,11 @@ class TeamSyncCursorStore {
 /// edits at worst), but the cursor still advances over them so they're never
 /// fetched again. A brand-new device starts at cursor 0 and receives the
 /// whole company history — that IS the second-device bootstrap.
+///
+/// The backend pages its pull responses (Phase 0.6, gap analysis §8-C9), so
+/// that bootstrap arrives as bounded pages, each applied, cursor-committed
+/// and acknowledged before the next is fetched — a dropped connection at
+/// page 40 of 60 resumes at page 40, not page 1.
 class TeamSyncRunner {
   TeamSyncRunner({
     required this.database,
@@ -82,27 +87,47 @@ class TeamSyncRunner {
       // pending, so nothing strands and the next run retries.
       await sync.pushPendingMutations();
 
-      final cursor = await cursorStore.load(companyId);
-      final remote = await adapter.pull(cursor == 0 ? null : '$cursor');
+      var cursor = await cursorStore.load(companyId);
+      var pulled = 0;
+      var applied = 0;
+      while (true) {
+        final after = cursor == 0 ? null : '$cursor';
+        final page = adapter is PagedCloudAdapter
+            ? await (adapter as PagedCloudAdapter).pullPage(after)
+            : PullPage(await adapter.pull(after), hasMore: false);
+        final remote = page.mutations;
+        pulled += remote.length;
 
-      final foreign =
-          remote.where((m) => m.deviceId != localDeviceId).toList();
-      await sync.applyRemoteMutations(foreign);
+        final foreign =
+            remote.where((m) => m.deviceId != localDeviceId).toList();
+        await sync.applyRemoteMutations(foreign);
+        applied += foreign.length;
 
-      var advanced = cursor;
-      for (final m in remote) {
-        final version = int.tryParse(m.syncVersion ?? '');
-        if (version != null) advanced = math.max(advanced, version);
-      }
-      if (advanced != cursor) await cursorStore.save(companyId, advanced);
+        // Commit the cursor BEFORE fetching the next page: if the loop dies
+        // here, this page is already applied and never re-fetched.
+        var advanced = cursor;
+        for (final m in remote) {
+          final version = int.tryParse(m.syncVersion ?? '');
+          if (version != null) advanced = math.max(advanced, version);
+        }
+        final progressed = advanced != cursor;
+        if (progressed) {
+          cursor = advanced;
+          await cursorStore.save(companyId, advanced);
+        }
 
-      if (remote.isNotEmpty) {
-        await adapter.acknowledge([for (final m in remote) m.id]);
+        if (remote.isNotEmpty) {
+          await adapter.acknowledge([for (final m in remote) m.id]);
+        }
+        if (!page.hasMore) break;
+        // A page that didn't move the cursor would just repeat itself —
+        // refuse to spin even if the server claims there's more.
+        if (!progressed) break;
       }
       return TeamSyncResult(
         pushed: pushed,
-        pulled: remote.length,
-        applied: foreign.length,
+        pulled: pulled,
+        applied: applied,
       );
     } finally {
       sync.dispose();

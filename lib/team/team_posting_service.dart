@@ -9,15 +9,25 @@ import 'team_account_client.dart';
 import 'team_session.dart';
 import 'team_sync_runner.dart';
 
-/// The doctypes whose OFFICIAL lifecycle the Team backend owns (the five
-/// posting-authority commands shipped in Phase 3). Everything else — and
-/// every draft — stays local.
+/// The doctypes whose OFFICIAL lifecycle the Team backend owns. Everything
+/// else — and every draft — stays local.
+///
+/// POS Invoice is a DELIBERATE carve-out (Phase-0 decision, gap analysis
+/// §8-C5): a till must complete a sale with zero network, and a server
+/// rejection hours after the customer left is unresolvable — so POS posts
+/// through the local engine even in Team mode, with per-till receipt series
+/// (`till_series` on the invoice) making cross-device id collisions
+/// structurally impossible. The Z-report/session reconciliation is the
+/// control point, matching retail practice. If a jurisdiction ever mandates
+/// centrally issued receipt numbers, the upgrade path is a durable offline
+/// submit queue — nothing here precludes it.
 const teamPostedDocTypes = {
   'Sales Invoice',
   'Purchase Invoice',
   'Purchase Receipt',
   'Payment Entry',
   'Stock Entry',
+  'Delivery Note',
 };
 
 /// The wire body for a submit-document command, built from a hydrated
@@ -104,8 +114,9 @@ class TeamPostingClient {
 }
 
 /// Team-mode official postings (the client half of Phase 3): Submit and
-/// Cancel on the five posted doctypes route to the backend's posting
-/// authority instead of the local engine.
+/// Cancel on the backend-posted doctypes route to the posting authority
+/// instead of the local engine (see [teamPostedDocTypes] for the set and
+/// the POS carve-out).
 ///
 /// Submit sequence — order matters:
 ///  1. **Sync first.** The draft's history must reach the mutation log

@@ -14,6 +14,8 @@ import '../modules/pos/pos_module.dart';
 import '../modules/setup/setup_module.dart';
 import '../modules/projects/projects_module.dart';
 import '../modules/channels/channels_module.dart';
+import '../modules/field_service/field_service_module.dart';
+import '../modules/scheduling/scheduling_module.dart';
 import '../setup_library/setup_library_module.dart';
 import '../modules/tax/tax_module.dart';
 import '../workflows/hub_workflows.dart';
@@ -39,6 +41,8 @@ abstract final class HubManifest {
       ...CaptureModule.docTypes(),
       ...ProjectsModule.docTypes(),
       ...ChannelsModule.docTypes(),
+      ...SchedulingModule.docTypes(),
+      ...FieldServiceModule.docTypes(),
       ...SetupLibraryModule.docTypes(),
     ];
 

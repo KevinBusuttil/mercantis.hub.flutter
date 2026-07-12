@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mercantis_core/mercantis_core.dart';
+import 'package:mercantis_hub_app/modules/selling/selling_module.dart';
 import 'package:mercantis_hub_app/printing/hub_print_formats.dart';
 import 'package:mercantis_hub_app/printing/hub_print_actions.dart';
 
@@ -74,6 +75,30 @@ void main() {
     test('hub default formats carry the letterhead id', () {
       const docType = DocType(id: 'X', name: 'X', module: 'm', fields: []);
       expect(hubDefaultPrintFormat(docType).letterHeadId, hubLetterHeadId);
+    });
+
+    test('the official number renders on printed documents (Phase 0.2)',
+        () async {
+      // The posted doctypes declare official_number, so the default format's
+      // fields block includes it — the legal number reaches the PDF.
+      final salesInvoice = SellingModule.docTypes()
+          .firstWhere((d) => d.id == 'Sales Invoice');
+      final format = hubDefaultPrintFormat(salesInvoice);
+      final fieldsSection =
+          format.sections.whereType<FieldsSection>().single;
+      expect(fieldsSection.keys, contains('official_number'));
+
+      final result = await const PlainTextPrintRenderer()
+          .render(PrintRenderContext(
+        format: format,
+        document:
+            Document(id: 'SINV-2026-0007', docType: 'Sales Invoice', payload: {
+          'customer': 'CUST-1',
+          'official_number': 'SINV-00012',
+        }),
+        letterHead: null,
+      ));
+      expect(String.fromCharCodes(result.bytes), contains('SINV-00012'));
     });
   });
 }

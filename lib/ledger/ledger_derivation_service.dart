@@ -508,6 +508,13 @@ class LedgerDerivationService {
     final invoice = await engine.fetch(invoiceDocType, invoiceId);
     // Only maintain submitted invoices; applyOnSubmitUpdate requires docStatus==1.
     if (invoice == null || invoice.docStatus != 1) return;
+    // An official_number marks a document posted by the Team backend, which
+    // maintains outstanding_amount itself and replicates it here. Writing a
+    // locally computed value would only enqueue a mutation the sync plane
+    // must 409 (posted documents are immutable on it) — a permanently
+    // quarantined failure manufactured out of thin air. Hands off.
+    final official = invoice.payload['official_number'];
+    if (official is String && official.isNotEmpty) return;
 
     final settlements = await engine.list(
       LedgerDerivation.settlement,

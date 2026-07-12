@@ -151,13 +151,18 @@ void main() {
     });
   });
 
-  test('the override claims exactly the five posted doctypes', () {
+  test('the override claims the backend-posted doctypes — and never POS', () {
     const posting = TeamOfficialPosting();
+    expect(teamPostedDocTypes, contains('Delivery Note'));
     for (final dt in teamPostedDocTypes) {
       expect(posting.handles(dt), isTrue, reason: dt);
     }
     expect(posting.handles('Quotation'), isFalse);
     expect(posting.handles('Journal Entry'), isFalse);
+    // The deliberate carve-out (gap analysis §8-C5): a till must complete a
+    // sale with zero network, so POS Invoice posts locally even in Team
+    // mode. Changing this requires the offline-submit-queue design — do not
+    // "fix" it by adding POS Invoice to the set.
     expect(posting.handles('POS Invoice'), isFalse);
   });
 }

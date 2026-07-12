@@ -34,7 +34,10 @@ abstract final class SellingModule {
           FieldDefinition(key: 'accepted_on', label: 'Accepted On', type: FieldType.date, readOnly: true, allowOnSubmit: true),
           FieldDefinition(key: 'rejected_on', label: 'Rejected On', type: FieldType.date, readOnly: true, allowOnSubmit: true),
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          FieldDefinition(key: 'price_list', label: 'Price List', type: FieldType.link, linkDocType: 'Price List', options: 'Price List'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Quotation Item', options: 'Quotation Item'),
+          FieldDefinition(key: 'discount_percent', label: 'Discount %', type: FieldType.percent),
+          FieldDefinition(key: 'discount_amount', label: 'Discount Amount', type: FieldType.currency),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'grand_total', label: 'Grand Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'terms', label: 'Terms and Conditions', type: FieldType.longText),
@@ -54,7 +57,10 @@ abstract final class SellingModule {
           FieldDefinition(key: 'transaction_date', label: 'Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'delivery_date', label: 'Delivery Date', type: FieldType.date),
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          FieldDefinition(key: 'price_list', label: 'Price List', type: FieldType.link, linkDocType: 'Price List', options: 'Price List'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Sales Order Item', options: 'Sales Order Item'),
+          FieldDefinition(key: 'discount_percent', label: 'Discount %', type: FieldType.percent),
+          FieldDefinition(key: 'discount_amount', label: 'Discount Amount', type: FieldType.currency),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'grand_total', label: 'Grand Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'terms', label: 'Terms and Conditions', type: FieldType.longText),
@@ -73,6 +79,9 @@ abstract final class SellingModule {
           FieldDefinition(key: 'posting_date', label: 'Posting Date', type: FieldType.date, required: true),
           FieldDefinition(key: 'due_date', label: 'Due Date', type: FieldType.date),
           FieldDefinition(key: 'currency', label: 'Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          // S8 pricing: blank line rates resolve through this list first;
+          // stamped automatically when resolution used a fallback list.
+          FieldDefinition(key: 'price_list', label: 'Price List', type: FieldType.link, linkDocType: 'Price List', options: 'Price List'),
           FieldDefinition(key: 'conversion_rate', label: 'Exchange Rate', type: FieldType.float, defaultValue: '1'),
           // Posting account defaults (resolved by Hub's business-profile policy
           // in Phase 3); explicit here so the ledger spine has somewhere to read.
@@ -101,12 +110,18 @@ abstract final class SellingModule {
           // channel-level reporting.
           FieldDefinition(key: 'sales_channel', label: 'Sales Channel', type: FieldType.link, linkDocType: 'Sales Channel', options: 'Sales Channel', readOnly: true),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Sales Invoice Item', options: 'Sales Invoice Item'),
+          FieldDefinition(key: 'discount_percent', label: 'Discount %', type: FieldType.percent),
+          FieldDefinition(key: 'discount_amount', label: 'Discount Amount', type: FieldType.currency),
           FieldDefinition(key: 'total', label: 'Total', type: FieldType.currency, readOnly: true),
           // Computed VAT rows (output tax) — one per distinct tax code on submit.
           FieldDefinition(key: 'taxes', label: 'Taxes', type: FieldType.table, tableDocType: 'Tax Charge', options: 'Tax Charge'),
           FieldDefinition(key: 'tax_total', label: 'Tax Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'grand_total', label: 'Grand Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'outstanding_amount', label: 'Outstanding', type: FieldType.currency, readOnly: true, allowOnSubmit: true),
+          // Allocated by the Team posting authority at official submit —
+          // gap-free per company, the document's real-world number on
+          // screens and PDFs. Blank in Solo (the local id serves there).
+          FieldDefinition(key: 'official_number', label: 'Official Number', type: FieldType.data, readOnly: true, allowOnSubmit: true),
           FieldDefinition(key: 'payment_terms', label: 'Payment Terms', type: FieldType.data),
         ],
       );

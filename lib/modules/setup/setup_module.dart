@@ -148,6 +148,9 @@ abstract final class SetupModule {
           FieldDefinition(key: 'abbr', label: 'Abbreviation', type: FieldType.data, required: true),
           FieldDefinition(key: 'country', label: 'Country', type: FieldType.data),
           FieldDefinition(key: 'default_currency', label: 'Default Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
+          // S8 pricing: company-wide selling rates, third in the resolution
+          // order (document's list, then customer's, then this).
+          FieldDefinition(key: 'default_selling_price_list', label: 'Default Selling Price List', type: FieldType.link, linkDocType: 'Price List', options: 'Price List'),
           FieldDefinition(key: 'default_receivable_account', label: 'Default Receivable Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'default_income_account', label: 'Default Income Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'default_payable_account', label: 'Default Payable Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
@@ -158,6 +161,7 @@ abstract final class SetupModule {
           FieldDefinition(key: 'default_cogs_account', label: 'Default COGS Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'default_stock_adjustment_account', label: 'Default Stock Adjustment Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'default_grni_account', label: 'Default Stock Received But Not Billed Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
+          FieldDefinition(key: 'default_customer_deposit_account', label: 'Default Customer Deposit Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           // Posting guards (H5): postings dated on/before books_lock_date are
           // blocked; stock issues that would drive a bin negative are rejected
           // unless allow_negative_stock is set.

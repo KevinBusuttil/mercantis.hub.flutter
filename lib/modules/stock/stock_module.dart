@@ -144,6 +144,10 @@ abstract final class StockModule {
         namingRule: 'STE-.YYYY.-.####',
         workflowId: 'wf-stock-entry',
         fields: [
+          // Allocated by the Team posting authority at official submit —
+          // gap-free per company, the document's real-world number on
+          // screens and PDFs. Blank in Solo (the local id serves there).
+          FieldDefinition(key: 'official_number', label: 'Official Number', type: FieldType.data, readOnly: true, allowOnSubmit: true),
           FieldDefinition(
             key: 'stock_entry_type',
             label: 'Stock Entry Type',

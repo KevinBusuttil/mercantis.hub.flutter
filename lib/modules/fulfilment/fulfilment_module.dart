@@ -26,6 +26,10 @@ abstract final class FulfilmentModule {
         // Delivery → Delivered/Failed). Mirrors the Swift wf-sales-delivery.
         workflowId: 'wf-sales-delivery',
         fields: [
+          // Allocated by the Team posting authority at official submit —
+          // gap-free per company, the document's real-world number on
+          // screens and PDFs. Blank in Solo (the local id serves there).
+          FieldDefinition(key: 'official_number', label: 'Official Number', type: FieldType.data, readOnly: true, allowOnSubmit: true),
           FieldDefinition(key: 'customer', label: 'Customer',
             type: FieldType.link, linkDocType: 'Customer',
             options: 'Customer', required: true),
@@ -74,6 +78,10 @@ abstract final class FulfilmentModule {
         namingRule: 'PR-.YYYY.-.####',
         workflowId: 'wf-purchase-receipt',
         fields: [
+          // Allocated by the Team posting authority at official submit —
+          // gap-free per company, the document's real-world number on
+          // screens and PDFs. Blank in Solo (the local id serves there).
+          FieldDefinition(key: 'official_number', label: 'Official Number', type: FieldType.data, readOnly: true, allowOnSubmit: true),
           FieldDefinition(key: 'supplier', label: 'Supplier',
             type: FieldType.link, linkDocType: 'Supplier',
             options: 'Supplier', required: true),

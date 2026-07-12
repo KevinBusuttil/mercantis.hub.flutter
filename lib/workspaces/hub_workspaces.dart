@@ -2,6 +2,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import '../settings/hub_settings.dart';
 import 'approvals_workspace.dart';
 import 'delivery_workspace.dart';
+import 'field_service_workspace.dart';
 import 'finance_workspace.dart';
 import 'home_workspace.dart';
 import 'inventory_workspace.dart';
@@ -19,6 +20,7 @@ import 'setup_workspace.dart';
 List<WorkspaceDescriptor> hubWorkspaces(HubSettings settings) => [
       homeWorkspace,
       salesFulfilmentWorkspace(posEnabled: settings.posEnabled),
+      if (settings.fieldServiceEnabled) fieldServiceWorkspace,
       if (settings.projectsEnabled) projectsWorkspace,
       purchasingWorkspace,
       if (settings.stockEnabled) inventoryWorkspace,

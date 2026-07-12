@@ -1,6 +1,9 @@
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
+import '../pricing/price_resolver.dart';
+import '../scheduling/scheduling_service.dart';
+import 'deposit_service.dart';
 import 'hub_tax_engine.dart';
 import 'ledger_derivation.dart';
 import 'ledger_values.dart';
@@ -15,6 +18,10 @@ final hubInterceptorsOverride =
     documentInterceptorsProvider.overrideWithValue(const [
   BusinessProfileDefaultsInterceptor(),
   ItemNameDefaultInterceptor(),
+  // Before totals: resolution fills blank rates, totals turns rates into
+  // amounts (S8).
+  PriceResolutionInterceptor(),
+  DiscountInterceptor(),
   LineItemTotalsInterceptor(),
   TaxCalculationInterceptor(),
   BomRollupInterceptor(),
@@ -25,6 +32,8 @@ final hubInterceptorsOverride =
   JournalBalanceGuardInterceptor(),
   DuplicateSupplierBillGuardInterceptor(),
   ExpenseDefaultsInterceptor(),
+  DepositApplicationInterceptor(),
+  AppointmentConflictInterceptor(),
 ]);
 
 const _systemRoles = {'System Manager'};

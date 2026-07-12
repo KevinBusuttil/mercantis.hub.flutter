@@ -73,6 +73,10 @@ abstract final class DeliveriesModule {
           FieldDefinition(key: 'status', label: 'Status', type: FieldType.select, options: _stopStatus, defaultValue: 'Pending'),
           FieldDefinition(key: 'pod_note', label: 'Proof-of-Delivery Note', type: FieldType.data),
           FieldDefinition(key: 'pod_image', label: 'Proof of Delivery', type: FieldType.attachImage),
+          // S3 capture: the receiver's signature (normalised strokes JSON,
+          // drawn on-device) and when the proof was taken.
+          FieldDefinition(key: 'pod_signature', label: 'Receiver Signature', type: FieldType.signature),
+          FieldDefinition(key: 'pod_time', label: 'Proof Taken At', type: FieldType.data, readOnly: true),
         ],
       );
 

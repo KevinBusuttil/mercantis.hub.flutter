@@ -1,14 +1,15 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// This device's connection to an Atlas Team backend: where it is, which
 /// company it belongs to, and the credentials issued at join time.
 ///
-/// Deliberately stored in [SharedPreferences], NOT as an engine document:
-/// engine documents ride the sync plane, and the device token is a
-/// per-device secret that must never replicate to other devices.
+/// Stored in the platform keychain (never as an engine document: engine
+/// documents ride the sync plane, and the device token is a per-device
+/// secret that must never replicate to other devices).
 class TeamSession {
   const TeamSession({
     required this.baseUrl,
@@ -58,28 +59,51 @@ class TeamSession {
       );
 }
 
-/// Loads/saves the [TeamSession] under a single preferences key.
+/// Loads/saves the [TeamSession] in the platform keychain (Phase 0.5,
+/// gap analysis §8-C8). Earlier builds kept it in [SharedPreferences] —
+/// plaintext on disk; [load] migrates such an entry into the keychain once
+/// and deletes the plaintext copy.
 class TeamSessionStore {
+  TeamSessionStore({FlutterSecureStorage? storage})
+      : _storage = storage ?? const FlutterSecureStorage();
+
   static const _key = 'atlas_team_session';
+  final FlutterSecureStorage _storage;
 
   Future<TeamSession?> load() async {
+    final raw = await _storage.read(key: _key);
+    if (raw != null && raw.isNotEmpty) return _decode(raw);
+    return _migrateLegacy();
+  }
+
+  /// One-time move of a pre-keychain session out of plaintext preferences.
+  Future<TeamSession?> _migrateLegacy() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_key);
     if (raw == null || raw.isEmpty) return null;
+    final session = _decode(raw);
+    if (session != null) {
+      await _storage.write(key: _key, value: raw);
+    }
+    await prefs.remove(_key); // plaintext copy goes either way
+    return session;
+  }
+
+  TeamSession? _decode(String raw) {
     try {
-      return TeamSession.fromJson(
-          jsonDecode(raw) as Map<String, dynamic>);
+      return TeamSession.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     } catch (_) {
       return null; // Corrupt entry — treat as signed out rather than wedging.
     }
   }
 
   Future<void> save(TeamSession session) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode(session.toJson()));
+    await _storage.write(key: _key, value: jsonEncode(session.toJson()));
   }
 
   Future<void> clear() async {
+    await _storage.delete(key: _key);
+    // Also drop any lingering pre-migration copy.
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
   }

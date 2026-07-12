@@ -121,6 +121,10 @@ abstract final class BuyingModule {
           FieldDefinition(key: 'tax_total', label: 'Tax Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'grand_total', label: 'Grand Total', type: FieldType.currency, readOnly: true),
           FieldDefinition(key: 'outstanding_amount', label: 'Outstanding', type: FieldType.currency, readOnly: true, allowOnSubmit: true),
+          // Allocated by the Team posting authority at official submit —
+          // gap-free per company, the document's real-world number on
+          // screens and PDFs. Blank in Solo (the local id serves there).
+          FieldDefinition(key: 'official_number', label: 'Official Number', type: FieldType.data, readOnly: true, allowOnSubmit: true),
         ],
       );
 

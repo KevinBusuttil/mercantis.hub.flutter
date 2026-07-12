@@ -25,6 +25,7 @@ abstract final class HubWorkflows {
         _stockEntry(),
         _journalEntry(),
         _paymentEntry(),
+        _customerDeposit(),
         _expense(),
         _bom(),
         _workOrder(),
@@ -257,6 +258,19 @@ abstract final class HubWorkflows {
           _t('wf-payment-entry', 'Draft', 'Submitted', 'Submit'),
           _t('wf-payment-entry', 'Submitted', 'Reconciled', 'Reconcile'),
           _t('wf-payment-entry', 'Submitted', 'Cancelled', 'Cancel'),
+        ],
+      );
+
+  static WorkflowDefinition _customerDeposit() => WorkflowDefinition(
+        id: 'wf-customer-deposit',
+        states: [
+          _state('Draft', isDefault: true, allowEdit: true),
+          _state('Submitted'),
+          _state('Cancelled'),
+        ],
+        transitions: [
+          _t('wf-customer-deposit', 'Draft', 'Submitted', 'Submit'),
+          _t('wf-customer-deposit', 'Submitted', 'Cancelled', 'Cancel'),
         ],
       );
 

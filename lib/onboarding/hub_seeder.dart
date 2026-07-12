@@ -163,6 +163,7 @@ abstract final class HubChart {
     // bill clears it; counts/adjustments post to Stock Adjustment.
     SeedAccount('GRNI', 'Stock Received But Not Billed', 'Liability', 'Stock Received But Not Billed', parent: 'Liabilities'),
     SeedAccount('VAT', 'VAT', 'Liability', 'Tax', parent: 'Liabilities'),
+    SeedAccount('Customer Deposits', 'Customer Deposits', 'Liability', '', parent: 'Liabilities'),
     SeedAccount('Sales', 'Sales', 'Income', 'Income Account', parent: 'Income'),
     SeedAccount('COGS', 'Cost of Goods Sold', 'Expense', 'Cost of Goods Sold', parent: 'Expenses'),
     SeedAccount('Stock Adjustment', 'Stock Adjustment', 'Expense', 'Stock Adjustment', parent: 'Expenses'),
@@ -184,6 +185,7 @@ abstract final class HubChart {
     'default_cogs_account': 'COGS',
     'default_stock_adjustment_account': 'Stock Adjustment',
     'default_grni_account': 'GRNI',
+    'default_customer_deposit_account': 'Customer Deposits',
   };
 
   /// Starter hierarchies for the other tree masters, kept deliberately small and

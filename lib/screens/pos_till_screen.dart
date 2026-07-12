@@ -11,6 +11,7 @@ import '../modules/pos/pos_receipt.dart';
 import '../modules/pos/pos_shift_report.dart' as shift;
 import '../modules/pos/pos_till_logic.dart';
 import '../payments/pos_checkout.dart';
+import '../pricing/price_resolver.dart';
 
 const _systemRoles = {'System Manager'};
 
@@ -29,6 +30,9 @@ class _TillContext {
     this.company,
     this.companyName,
     this.profileId,
+    this.receiptSeries,
+    this.priceList,
+    this.listRates = const {},
     this.sessionId,
     this.openingFloat = 0,
   });
@@ -48,6 +52,18 @@ class _TillContext {
 
   /// The configured POS Profile (null until one exists).
   final String? profileId;
+
+  /// The profile's price list and the rates it resolved at load time (S8);
+  /// items absent from the list fall back to their standard rate.
+  final String? priceList;
+  final Map<String, num> listRates;
+
+  num priceFor(Document item) =>
+      listRates[item.id] ?? asNum(item.payload['standard_rate']);
+
+  /// This till's receipt series (POS Profile.receipt_series) — makes ids
+  /// collision-proof across registers, including offline.
+  final String? receiptSeries;
 
   /// The open POS Session this till posts sales into (null until the operator
   /// opens the till with a counted float). Drives the shift reports.
@@ -79,6 +95,15 @@ final _tillContextProvider = FutureProvider<_TillContext>((ref) async {
 
   final profile = profiles.isEmpty ? null : profiles.first;
 
+  // S8: the till's product prices come from the profile's price list.
+  final priceList = asNonEmpty(profile?.payload['price_list']);
+  final listRates = priceList == null
+      ? const <String, num>{}
+      : await PriceResolver(engine).sellingRates(
+          priceList: priceList,
+          currency: asNonEmpty(company?.payload['default_currency']),
+        );
+
   // Resolve the open POS Session for *this* profile (or open one) so sales are
   // attributed to the right shift and the X/Z reports aggregate the right
   // invoices. Sessions are scoped by `pos_profile`, so a session is only
@@ -109,6 +134,9 @@ final _tillContextProvider = FutureProvider<_TillContext>((ref) async {
     company: company?.id,
     companyName: asNonEmpty(company?.payload['company_name']) ?? company?.id,
     profileId: profile?.id,
+    receiptSeries: asNonEmpty(profile?.payload['receipt_series']),
+    priceList: priceList,
+    listRates: listRates,
     sessionId: session?.id,
     openingFloat: asNum(session?.payload['opening_amount']),
   );
@@ -146,6 +174,10 @@ class _CartLine {
 
 class _PosTillScreenState extends ConsumerState<PosTillScreen> {
   final List<_CartLine> _cart = [];
+
+  /// Whole-sale discount percent (S8b) — applied to every line at save.
+  num _discountPercent = 0;
+  final _discountController = TextEditingController();
   final _scanController = TextEditingController();
   final _scanFocus = FocusNode();
   String? _customer;
@@ -157,6 +189,7 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
   @override
   void dispose() {
     _scanController.dispose();
+    _discountController.dispose();
     _scanFocus.dispose();
     super.dispose();
   }
@@ -164,7 +197,8 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
   TaxComputation _totals(_TillContext ctx) => HubTaxEngine.compute(
         [
           for (final l in _cart)
-            TaxLine(l.amount, l.taxCode ?? ctx.profileTaxCode),
+            TaxLine(l.amount * (1 - _discountPercent / 100),
+                l.taxCode ?? ctx.profileTaxCode),
         ],
         ctx.rateByCode,
       );
@@ -175,7 +209,7 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         item: item.id,
         name: (item.payload['item_name'] as String?) ?? item.id,
         taxCode: asNonEmpty(item.payload['tax_code']),
-        rate: asNum(item.payload['standard_rate']),
+        rate: ctx.priceFor(item),
       ));
     });
   }
@@ -327,6 +361,9 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         pricesIncludeTax: ctx.pricesIncludeTax,
         company: ctx.company,
         posSession: ctx.sessionId,
+        tillSeries: ctx.receiptSeries,
+        priceList: ctx.priceList,
+        discountPercent: _discountPercent,
         lines: [
           for (final l in _cart)
             PosCartLine(item: l.item, qty: l.qty, rate: l.lineRate, taxCode: l.taxCode),
@@ -340,6 +377,8 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
         _posting = false;
         _result = '${posted.id} — total ${asNum(posted.payload['grand_total']).toStringAsFixed(2)}';
         _cart.clear();
+        _discountPercent = 0;
+        _discountController.clear();
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sale ${posted.id} completed')));
       await _showReceipt(ctx, posted);
@@ -724,6 +763,28 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Discount %',
+                          style: Theme.of(context).textTheme.bodyMedium),
+                    ),
+                    SizedBox(
+                      width: 72,
+                      child: TextField(
+                        controller: _discountController,
+                        enabled: !_posting,
+                        textAlign: TextAlign.right,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration:
+                            const InputDecoration(isDense: true, hintText: '0'),
+                        onChanged: (v) => setState(() => _discountPercent =
+                            (num.tryParse(v.trim()) ?? 0).clamp(0, 100)),
+                      ),
+                    ),
+                  ],
+                ),
                 AtlasTotalRow(label: 'Net', value: totals.netTotal.toStringAsFixed(2)),
                 AtlasTotalRow(label: 'VAT', value: totals.totalTax.toStringAsFixed(2)),
                 AtlasTotalRow(

@@ -18,6 +18,10 @@ WorkspaceDescriptor salesFulfilmentWorkspace({bool posEnabled = true}) =>
           label: 'Pipeline',
           description: 'Track demand from first contact to confirmed order',
           items: [
+            CustomWorkspaceItem(routeName: 'schedule',
+              label: 'Schedule', icon: Icons.calendar_month_outlined,
+              description: 'Bookings by resource — day and week boards'),
+
             DocTypeWorkspaceItem(docType: 'Lead', icon: Icons.flag_outlined),
             DocTypeWorkspaceItem(docType: 'Opportunity', icon: Icons.bolt_outlined),
             DocTypeWorkspaceItem(docType: 'Quotation', icon: Icons.note_outlined),
