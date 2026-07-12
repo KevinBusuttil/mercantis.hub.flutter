@@ -41,6 +41,7 @@ import '../screens/settings_screen.dart';
 import '../screens/setup_packs_screen.dart';
 import '../screens/conflicts_screen.dart';
 import '../screens/dispatch_screen.dart';
+import '../screens/field_service_kpis_screen.dart';
 import '../screens/schedule_screen.dart';
 import '../screens/tech_today_screen.dart';
 import '../screens/team_screen.dart';
@@ -115,6 +116,8 @@ void wireHubNavigation(WidgetRef ref) {
     registry.registerRoute('schedule', (c, s) => const ScheduleScreen());
     registry.registerRoute('dispatch', (c, s) => const DispatchScreen());
     registry.registerRoute('tech-today', (c, s) => const TechTodayScreen());
+    registry.registerRoute(
+        'field-service-kpis', (c, s) => const FieldServiceKpisScreen());
     registry.registerRoute(
         'accountant-export', (c, s) => const AccountantExportScreen());
     registry.registerRoute(

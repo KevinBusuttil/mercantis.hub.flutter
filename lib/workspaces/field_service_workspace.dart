@@ -25,6 +25,10 @@ const fieldServiceWorkspace = WorkspaceDescriptor(
       CustomWorkspaceItem(routeName: 'schedule',
         label: 'Schedule', icon: Icons.calendar_month_outlined,
         description: 'All bookings by resource — day and week boards'),
+      CustomWorkspaceItem(routeName: 'field-service-kpis',
+        label: 'KPIs', icon: Icons.insights_outlined,
+        description: 'Jobs done, revenue per technician, backlog and '
+            'contract health'),
     ]),
     WorkspaceSection(label: 'Records', items: [
       DocTypeWorkspaceItem(docType: 'Service Request',

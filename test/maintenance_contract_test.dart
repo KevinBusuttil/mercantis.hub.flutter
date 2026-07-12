@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_hub_app/field_service/maintenance_contract_service.dart';
-import 'package:mercantis_hub_app/ledger/ledger_values.dart' hide isTrue;
 import 'package:mercantis_hub_app/manifest/hub_manifest.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -140,7 +139,7 @@ void main() {
       'WHERE id = ?',
       [broken.id],
     );
-    final healthy = await contract(next: '2026-01-15');
+    await contract(next: '2026-01-15'); // the healthy one
 
     final run = await service.generateDue(asOf: '2026-02-01');
     expect(run.generated, hasLength(1)); // the healthy one still ran

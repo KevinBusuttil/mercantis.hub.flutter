@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'deposits_screen.dart';
+import 'field_service_kpis_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
@@ -47,6 +48,17 @@ class ReportsScreen extends ConsumerWidget {
             name: 'Financial statements',
             child: Column(
               children: [
+                ListTile(
+                  leading: const Icon(Icons.insights_outlined),
+                  title: const Text('Field service KPIs'),
+                  subtitle: const Text(
+                      'Jobs done, revenue per technician, backlog'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const FieldServiceKpisScreen()),
+                  ),
+                ),
                 ListTile(
                   leading: const Icon(Icons.savings_outlined),
                   title: const Text('Customer deposits'),
