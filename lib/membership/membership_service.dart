@@ -61,7 +61,11 @@ class MembershipService {
       throw StateError('Plan ${plan.id} has no fee amount.');
     }
 
+    // The membership's company rides onto the template (and from there
+    // onto every generated fee invoice) — multi-company books must not
+    // fall to the defaults interceptor's first company (Codex, PR #169).
     final template = Document(id: '', docType: 'Recurring Invoice',
+        company: membership.company,
         payload: {
           'customer': membership.payload['member'],
           'frequency': asNonEmpty(plan.payload['frequency']) ?? 'Monthly',

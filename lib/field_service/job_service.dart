@@ -53,7 +53,8 @@ class JobService {
     }
 
     final job = await _engine.save(
-        Document(id: '', docType: 'Job', payload: {
+        Document(id: '', docType: 'Job', company: request.company,
+            payload: {
           'subject': request.payload['subject'],
           'customer': customer,
           'service_request': request.id,
@@ -99,6 +100,7 @@ class JobService {
         : await _engine.fetch('Appointment', appointmentId);
     final booking = appointment ??
         Document(id: '', docType: 'Appointment', payload: {});
+    booking.company ??= job.company;
     booking.payload
       ..['subject'] = '${job.id}: ${job.payload['subject']}'
       ..['resource'] = technician
@@ -189,7 +191,8 @@ class JobService {
       throw StateError('Job $jobId has no billable lines.');
     }
 
-    final invoice = Document(id: '', docType: 'Sales Invoice', payload: {
+    final invoice = Document(id: '', docType: 'Sales Invoice',
+        company: job.company, payload: {
       'customer': customer,
       'posting_date': asNonEmpty(postingDate) ??
           DateTime.now().toIso8601String().split('T').first,

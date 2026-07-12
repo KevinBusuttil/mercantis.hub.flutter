@@ -68,7 +68,11 @@ class LeaseService {
     if (depositAmount > 0) {
       final deposit = await _engine.submit(
           await _engine.save(
-              Document(id: '', docType: 'Customer Deposit', payload: {
+              // The lease's company rides onto everything it creates —
+              // in multi-company books the defaults interceptor would
+              // otherwise stamp the FIRST company (Codex, PR #169).
+              Document(id: '', docType: 'Customer Deposit',
+                  company: lease.company, payload: {
                 'customer': lease.payload['tenant'],
                 'posting_date':
                     DateTime.now().toIso8601String().split('T').first,
@@ -85,6 +89,7 @@ class LeaseService {
     }
 
     final template = Document(id: '', docType: 'Recurring Invoice',
+        company: lease.company,
         payload: {
           'customer': lease.payload['tenant'],
           'frequency': asNonEmpty(lease.payload['frequency']) ?? 'Monthly',

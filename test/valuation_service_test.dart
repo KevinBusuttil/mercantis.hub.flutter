@@ -61,7 +61,8 @@ void main() {
 
   Future<Document> activeContract({num value = 100000}) async {
     final contract = await engine.save(
-        Document(id: '', docType: 'Construction Contract', payload: {
+        Document(id: '', docType: 'Construction Contract',
+            company: 'CO-2', payload: {
           'contract_name': 'Villa shell works',
           'customer': 'EMP-1',
           'status': 'Active',
@@ -83,6 +84,8 @@ void main() {
         cumulativePercent: 45, date: DateTime(2026, 8, 31));
     expect(first.docStatus, 1);
     expect(asNum(first.payload['grand_total']), 40500);
+    // Codex P2 (PR #169): the invoice posts under the CONTRACT's company.
+    expect(first.company, 'CO-2');
     expect(first.children['items']!.single.payload['description'],
         contains('45% complete'));
 
@@ -151,6 +154,7 @@ void main() {
     await valuations.markPracticallyComplete(contract.id);
     final release = await valuations.releaseRetention(contract.id);
     expect(release.docStatus, 1);
+    expect(release.company, 'CO-2'); // Codex P2 (PR #169)
     expect(asNum(release.payload['grand_total']), 5000);
     expect(release.children['items']!.single.payload['description'],
         contains('Retention release'));

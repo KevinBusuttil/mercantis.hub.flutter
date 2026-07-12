@@ -58,7 +58,8 @@ class EquipmentService {
       throw StateError('Equipment $equipmentId not found.');
     }
     return _engine.save(
-        Document(id: '', docType: 'Service Request', payload: {
+        Document(id: '', docType: 'Service Request',
+            company: equipment.company, payload: {
           'subject': subject,
           'customer': equipment.payload['customer'],
           'equipment': equipment.id,

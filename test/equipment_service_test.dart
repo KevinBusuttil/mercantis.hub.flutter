@@ -49,7 +49,8 @@ void main() {
         }),
         roles);
     await engine.save(
-        Document(id: 'CAR-1', docType: 'Customer Equipment', payload: {
+        Document(id: 'CAR-1', docType: 'Customer Equipment',
+            company: 'CO-2', payload: {
           'equipment_name': 'Toyota Yaris',
           'customer': 'CUST-1',
           'equipment_type': 'Vehicle',
@@ -71,10 +72,12 @@ void main() {
     expect(request.id, startsWith('SRQ-'));
     expect(request.payload['customer'], 'CUST-1'); // owner prefilled
     expect(request.payload['equipment'], 'CAR-1');
+    expect(request.company, 'CO-2'); // company sweep: unit → request
     expect(asNum(request.payload['meter_reading']), 78200);
 
     final job = await jobs.jobFromRequest(request.id);
     expect(job.payload['equipment'], 'CAR-1');
+    expect(job.company, 'CO-2'); // …→ job
     expect(asNum(job.payload['meter_reading']), 78200);
 
     // Unknown units refuse loudly.

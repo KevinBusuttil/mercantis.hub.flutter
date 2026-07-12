@@ -133,7 +133,10 @@ class AssetService {
   }
 
   Future<Document> _depreciationEntry(Document asset, ChildRow row) async {
-    final je = Document(id: '', docType: 'Journal Entry', payload: {
+    // The JE posts under the ASSET's company — multi-company books must
+    // not fall to the defaults interceptor's first company.
+    final je = Document(id: '', docType: 'Journal Entry',
+        company: asset.company, payload: {
       'voucher_type': 'Depreciation Entry',
       'posting_date': row.payload['period_date'],
       'user_remark': 'Depreciation — ${asset.payload['asset_name']} '
@@ -195,7 +198,8 @@ class AssetService {
     final when =
         (date ?? DateTime.now()).toIso8601String().split('T').first;
 
-    final je = Document(id: '', docType: 'Journal Entry', payload: {
+    final je = Document(id: '', docType: 'Journal Entry',
+        company: asset.company, payload: {
       'voucher_type': 'Disposal Entry',
       'posting_date': when,
       'user_remark': 'Disposal — ${asset.payload['asset_name']} '

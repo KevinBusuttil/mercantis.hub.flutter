@@ -67,7 +67,8 @@ void main() {
         }),
         roles);
     await engine.save(
-        Document(id: 'UNIT-1', docType: 'Rental Unit', payload: {
+        Document(id: 'UNIT-1', docType: 'Rental Unit', company: 'CO-2',
+            payload: {
           'unit_name': 'Mini digger #1',
           'resource': 'RES-DIGGER',
           'rental_item': 'HIRE-DIGGER',
@@ -112,6 +113,7 @@ void main() {
     );
     expect(hire.id, startsWith('RENT-'));
     expect(hire.payload['status'], 'Draft');
+    expect(hire.company, 'CO-2'); // company sweep: unit → agreement
     expect(asNum(hire.payload['daily_rate']), 75); // from the unit
     expect('${hire.payload['deposit']}', startsWith('DEP-'));
 
@@ -161,6 +163,7 @@ void main() {
       asOf: day(5), // exactly 4 × 24h after pickup
     );
     expect(invoice.docStatus, 1);
+    expect(invoice.company, 'CO-2'); // company sweep: unit → invoice
     expect(asNum(invoice.payload['grand_total']), 300); // 4 × 75
     final line = invoice.children['items']!.single;
     expect(asNum(line.payload['qty']), 4);

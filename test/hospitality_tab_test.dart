@@ -50,7 +50,8 @@ void main() {
     tabs = TabService(engine);
 
     await engine.save(
-        Document(id: 'T1', docType: 'POS Table', payload: {
+        Document(id: 'T1', docType: 'POS Table', company: 'CO-2',
+            payload: {
           'table_name': 'Table 1', 'area': 'Terrace', 'seats': 4,
         }),
         roles);
@@ -76,6 +77,7 @@ void main() {
     final tab = await tabs.openTab(table: 'T1', covers: 2, server: 'Anna');
     expect(tab.id, startsWith('TAB-'));
     expect(tab.payload['status'], 'Open');
+    expect(tab.company, 'CO-2'); // company sweep: table → tab
 
     await expectLater(
       tabs.openTab(table: 'T1'),
@@ -123,6 +125,7 @@ void main() {
     );
 
     expect(invoice.docStatus, 1); // submitted — the fiscal document
+    expect(invoice.company, 'CO-2'); // company sweep: tab → invoice
     expect(invoice.id, startsWith('POS-.TERRACE.-')); // per-till series
     expect(asNum(invoice.payload['grand_total']), 17.5);
     // The modifier delta folded into the line rate…
@@ -193,6 +196,7 @@ void main() {
     final first = await tabs.sendToKitchen(tab.id);
     expect(first.id, startsWith('KOT-'));
     expect(first.payload['status'], 'Open');
+    expect(first.company, 'CO-2'); // company sweep: tab → ticket
     expect(first.payload['table'], 'T1');
     final lines = first.children['items']!;
     expect(lines, hasLength(2));

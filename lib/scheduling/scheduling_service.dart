@@ -106,7 +106,10 @@ class SchedulingService {
     }
 
     final startsAt = '${appointment.payload['starts_at']}';
-    final invoice = Document(id: '', docType: 'Sales Invoice', payload: {
+    // The appointment's company rides onto the invoice — multi-company
+    // books must not fall to the defaults interceptor's first company.
+    final invoice = Document(id: '', docType: 'Sales Invoice',
+        company: appointment.company, payload: {
       'customer': customer,
       'posting_date': DateTime.now().toIso8601String().split('T').first,
     });

@@ -95,7 +95,7 @@ void main() {
 
   Future<Document> van({num gross = 1200, num salvage = 0}) async =>
       engine.save(
-          Document(id: '', docType: 'Asset', payload: {
+          Document(id: '', docType: 'Asset', company: 'CO-2', payload: {
             'asset_name': 'Delivery van',
             'category': 'VANS',
             'status': 'Draft',
@@ -168,6 +168,10 @@ void main() {
     final loaded = await engine.fetch('Asset', asset.id);
     final rows = loaded!.children['schedule']!;
     expect('${rows[0].payload['journal_entry']}', startsWith('JV-'));
+    // Company sweep: the JE posts under the asset's company.
+    final je = await engine.fetch(
+        'Journal Entry', '${rows[0].payload['journal_entry']}');
+    expect(je!.company, 'CO-2');
     expect(AssetService.netBookValue(loaded), 900);
 
     // The next month brings exactly one more.
@@ -190,6 +194,7 @@ void main() {
       date: DateTime(2026, 4, 30),
     );
     expect(je.docStatus, 1);
+    expect(je.company, 'CO-2'); // company sweep
     final legs = je.children['accounts']!;
     num debit(String account) => legs
         .where((l) => l.payload['account'] == account)

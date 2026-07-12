@@ -71,7 +71,14 @@ abstract final class UblInvoiceBuilder {
   static String _money(num v) => v.toStringAsFixed(2);
 
   /// Builds the XML. [taxRateByCode] maps Tax Code ids to their percent
-  /// rates (the caller resolves them — this stays pure and testable).
+  /// rates, [itemTaxCodeByItem] carries each line item's master-level
+  /// tax code and [partyTaxCode] the customer's — together they mirror
+  /// the tax interceptor's line → item → document → party fallback
+  /// chain, so a line's ClassifiedTaxCategory matches what actually
+  /// posted (Codex P1, PR #169). The VAT breakdown and totals prefer the
+  /// invoice's PERSISTED `taxes` rows and totals over recomputation for
+  /// the same reason — including prices_include_tax invoices, whose
+  /// contained tax was already extracted at posting time.
   /// Throws a StateError listing EVERY missing mandatory element at
   /// once, so the user fixes the record in one pass.
   static String build({
@@ -79,6 +86,8 @@ abstract final class UblInvoiceBuilder {
     required Document seller,
     required Document buyer,
     Map<String, num> taxRateByCode = const {},
+    Map<String, String> itemTaxCodeByItem = const {},
+    String? partyTaxCode,
   }) {
     final problems = <String>[];
     if (invoice.docStatus != 1) {
@@ -118,50 +127,93 @@ abstract final class UblInvoiceBuilder {
         asNonEmpty(invoice.payload['official_number']) ?? invoice.id;
     final isCreditNote = isTrue(invoice.payload['is_return']);
     final docTaxCode = asNonEmpty(invoice.payload['tax_code']);
+    final inclusive = isTrue(invoice.payload['prices_include_tax']);
 
-    // VAT breakdown (BG-23): lines grouped by their resolved rate.
+    // The interceptor's fallback chain, mirrored exactly.
     num rateFor(ChildRow row) {
-      final code = asNonEmpty(row.payload['tax_code']) ?? docTaxCode;
+      final code = asNonEmpty(row.payload['tax_code']) ??
+          itemTaxCodeByItem['${row.payload['item']}'] ??
+          docTaxCode ??
+          partyTaxCode;
       return code == null ? 0 : (taxRateByCode[code] ?? 0);
     }
 
-    final taxableByRate = <num, num>{};
+    // A line's NET extension: inclusive documents entered gross, and
+    // the posting extracted the contained tax — do the same here.
+    num lineNet(ChildRow row) {
+      final entered =
+          asNum(row.payload['qty']) * asNum(row.payload['rate']);
+      if (!inclusive) return round2(entered);
+      final rate = rateFor(row);
+      return round2(entered * 100 / (100 + rate));
+    }
+
+    // VAT breakdown (BG-23): the PERSISTED taxes rows are the truth the
+    // document posted with — recomputation is only the fallback for
+    // records that predate the tax interceptor.
+    final taxRows = [
+      for (final t in invoice.children['taxes'] ?? const <ChildRow>[])
+        if ('${t.payload['tax_type']}' != 'Withholding') t,
+    ];
     num netTotal = 0;
     for (final row in rows) {
-      final amount = asNum(row.payload['qty']) * asNum(row.payload['rate']);
-      netTotal += amount;
-      final rate = rateFor(row);
-      taxableByRate[rate] = (taxableByRate[rate] ?? 0) + amount;
+      netTotal += lineNet(row);
     }
     netTotal = round2(netTotal);
+    final persistedNet = asNum(invoice.payload['total']);
+    if (persistedNet != 0) netTotal = persistedNet;
+
     num taxTotal = 0;
     final subtotals = StringBuffer();
-    for (final rate
-        in taxableByRate.keys.toList()..sort((a, b) => b.compareTo(a))) {
-      final taxable = round2(taxableByRate[rate]!);
-      final tax = round2(taxable * rate / 100);
+    void subtotal(num taxable, num tax, num rate) {
       taxTotal = round2(taxTotal + tax);
-      final category = rate > 0 ? 'S' : 'Z';
       subtotals.write('''
     <cac:TaxSubtotal>
       <cbc:TaxableAmount currencyID="$currency">${_money(taxable)}</cbc:TaxableAmount>
       <cbc:TaxAmount currencyID="$currency">${_money(tax)}</cbc:TaxAmount>
       <cac:TaxCategory>
-        <cbc:ID>$category</cbc:ID>
+        <cbc:ID>${rate > 0 ? 'S' : 'Z'}</cbc:ID>
         <cbc:Percent>${_money(rate)}</cbc:Percent>
         <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
       </cac:TaxCategory>
     </cac:TaxSubtotal>
 ''');
     }
-    final grandTotal = round2(netTotal + taxTotal);
+
+    if (taxRows.isNotEmpty) {
+      num coveredTaxable = 0;
+      for (final t in taxRows) {
+        final taxable = asNum(t.payload['taxable_amount']);
+        subtotal(taxable, asNum(t.payload['tax_amount']),
+            asNum(t.payload['rate']));
+        coveredTaxable = round2(coveredTaxable + taxable);
+      }
+      // Lines no tax row covers are the zero-rated remainder.
+      final zeroRated = round2(netTotal - coveredTaxable);
+      if (zeroRated > 0.005) subtotal(zeroRated, 0, 0);
+    } else {
+      final taxableByRate = <num, num>{};
+      for (final row in rows) {
+        final rate = rateFor(row);
+        taxableByRate[rate] = (taxableByRate[rate] ?? 0) + lineNet(row);
+      }
+      for (final rate in taxableByRate.keys.toList()
+        ..sort((a, b) => b.compareTo(a))) {
+        final taxable = round2(taxableByRate[rate]!);
+        subtotal(taxable, round2(taxable * rate / 100), rate);
+      }
+    }
+
+    final persistedGrand = asNum(invoice.payload['grand_total']);
+    final grandTotal =
+        persistedGrand != 0 ? persistedGrand : round2(netTotal + taxTotal);
 
     final lines = StringBuffer();
     for (var i = 0; i < rows.length; i++) {
       final row = rows[i];
       final qty = asNum(row.payload['qty']);
-      final rate = asNum(row.payload['rate']);
-      final amount = round2(qty * rate);
+      final amount = lineNet(row);
+      final rate = qty == 0 ? 0 : round2(amount / qty);
       final unit = _unitCodes['${row.payload['uom']}'] ?? 'C62';
       final vatRate = rateFor(row);
       final name = asNonEmpty(row.payload['description']) ??
@@ -274,12 +326,28 @@ class UblExportService {
           'Customer ${invoice.payload['customer']} not found.');
     }
 
+    // The full fallback chain's inputs: line codes, each line item's
+    // master code, the document code, and the customer's default.
+    final itemTaxCodeByItem = <String, String>{};
+    for (final row in invoice.children['items'] ?? const <ChildRow>[]) {
+      final itemId = asNonEmpty(row.payload['item']);
+      if (itemId == null || itemTaxCodeByItem.containsKey(itemId)) {
+        continue;
+      }
+      final item = await _engine.fetch('Item', itemId);
+      final code = asNonEmpty(item?.payload['tax_code']);
+      if (code != null) itemTaxCodeByItem[itemId] = code;
+    }
+    final partyTaxCode = asNonEmpty(buyer.payload['tax_code']);
+
     final codes = <String>{
       if (asNonEmpty(invoice.payload['tax_code']) != null)
         '${invoice.payload['tax_code']}',
       for (final row in invoice.children['items'] ?? const <ChildRow>[])
         if (asNonEmpty(row.payload['tax_code']) != null)
           '${row.payload['tax_code']}',
+      ...itemTaxCodeByItem.values,
+      if (partyTaxCode != null) partyTaxCode,
     };
     final rates = <String, num>{};
     for (final code in codes) {
@@ -292,6 +360,8 @@ class UblExportService {
       seller: seller,
       buyer: buyer,
       taxRateByCode: rates,
+      itemTaxCodeByItem: itemTaxCodeByItem,
+      partyTaxCode: partyTaxCode,
     );
   }
 }
