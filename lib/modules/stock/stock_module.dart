@@ -51,6 +51,9 @@ abstract final class StockModule {
             defaultValue: 'Nos',
           ),
           FieldDefinition(key: 'standard_rate', label: 'Standard Selling Rate', type: FieldType.currency),
+          // Hospitality (V2): the menu choice set offered when ordering this
+          // item on a tab (cooking level, extras with price deltas).
+          FieldDefinition(key: 'modifier_group', label: 'Modifier Group', type: FieldType.link, linkDocType: 'Modifier Group', options: 'Modifier Group'),
           FieldDefinition(key: 'standard_buying_rate', label: 'Standard Buying Rate', type: FieldType.currency),
           // How stock issues are costed (H5). Moving Average (the default) costs
           // every issue at the bin's running average; FIFO consumes the oldest

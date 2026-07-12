@@ -90,15 +90,60 @@ Floor/Table + Tab + modifiers → table-map till on the existing
 session/tender/Z spine → kitchen tickets → split/merge + service charge →
 void/comp audit. **Precondition: verify Malta fiscal-receipt law.**
 
+Status: precondition **verified** (docs/MALTA_FISCAL_RECEIPTS.md —
+proceed; EXO approval is certification, not code); V2-1 **done**
+(POS Table/Tab/modifiers + TabService settle-to-fiscal-invoice + EXO on
+profile and receipt); V2-2 **done** (table-map till: floor screen with
+free/occupied cards and running totals, modifier-aware ordering, bar
+tabs, tender dialog settling onto the per-till fiscal series); V2-3
+**done** (kitchen tickets: per-round KOT snapshots, kitchen rail screen
+with wait-time triage and bump, void cascade to open tickets); V2-4
+**done** (split settlement by lines with split_invoices trail, tab
+merge with kitchen-ticket re-pointing, service charge as a priced VAT
+line from the POS Profile); V2-5 **done** (first-class comps with
+mandatory reasons kept through billing; void/comp/cancellation audit
+report + screen).
+
+**Phase 3 complete — V2 Hospitality POS ships** on the fiscal rails:
+tabs are pre-fiscal working state, every euro reaches a sequential
+per-till POS Invoice, and every giveaway leaves a reasoned trail.
+Malta go-live still needs the EXO certification *process*
+(docs/MALTA_FISCAL_RECEIPTS.md).
+
 ## Phase 4 — Appointments composition pack (~2 increments)
 S1 + S4 + S9 (commission rules) + booking screen + Setup Pack — the
 salon/tutor/studio offering without a vertical build.
+
+Status: P4-1 **done** (BookingService: book = conflict-checked slot +
+submitted S4 deposit in one move; completeBooking = S1 invoice hook +
+S8 pricing + auto-applied deposit; Commission Rule doctype +
+computeCommissions with per-service override); P4-2 **done**
+(front-desk booking screen with complete-to-invoice, commissions
+report, Appointments workspace gated on appointmentsEnabled, and the
+"Appointments & Booking" Setup Pack).
+
+**Phase 4 complete — the composition thesis proven:** salon/tutor/
+studio ships as one Setup Pack over S1+S4+S8+S9, with Commission Rule
+the only new doctype.
 
 ## Phase 5 — Next wave (each gated on its capability)
 S10 Fixed assets → V4 Repair/Garage (V1 specialisation + S2 asset
 register) → V3 Rental (S2+S5+S10) → V5 Property/Landlords → V7
 Memberships → S13 EN 16931/PEPPOL e-invoicing (EU mandate clock) → V6
 Construction.
+
+Status: S10 **done** (Asset/Asset Category register docs; straight-line
+schedules summing exactly to gross − salvage; idempotent due-period
+posting as Journal Entries; disposal JE with gain/loss; register screen
+in Finance); V4 **done** (Customer Equipment register; equipment +
+meter riding request→job and contract→job; history / last-meter /
+book-it-in service; equipment screen in Field Service); V3-1 **done**
+(Rental Unit backed by a Schedulable Resource — availability IS the S1
+calendar; Rental Agreement Draft→Out→Returned with S4 deposit and
+day-count invoice at return); V3-2 **done** (hire desk screen: fleet
+out/free state, hand over / return / cancel actions, New hire dialog).
+
+**V3 Rental complete.**
 
 **Deferred:** S7 batch/serial/expiry (deepest ledger surgery — wait for a
 paying segment), multi-company, SaaS-billing depth, i18n scaffolding until

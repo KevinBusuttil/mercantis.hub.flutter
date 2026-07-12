@@ -415,6 +415,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
                 AtlasFieldRow(
+                  label: 'Appointments (booking & commissions)',
+                  onTap: _saving
+                      ? null
+                      : () => setState(() => _draft = _draft.copyWith(
+                          appointmentsEnabled: !_draft.appointmentsEnabled)),
+                  trailing: Switch(
+                    value: _draft.appointmentsEnabled,
+                    onChanged: _saving
+                        ? null
+                        : (v) => setState(() => _draft =
+                            _draft.copyWith(appointmentsEnabled: v)),
+                  ),
+                ),
+                AtlasFieldRow(
                   label: 'Projects & Time',
                   onTap: _saving
                       ? null

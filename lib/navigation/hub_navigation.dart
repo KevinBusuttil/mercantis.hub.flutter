@@ -18,6 +18,9 @@ import '../screens/dashboards_screen.dart';
 import '../screens/approvals_inbox_screen.dart';
 import '../screens/audit_trail_screen.dart';
 import '../screens/bank_reconcile_screen.dart';
+import '../screens/assets_screen.dart';
+import '../screens/booking_screen.dart';
+import '../screens/commissions_screen.dart';
 import '../screens/customer_account_screen.dart';
 import '../screens/customer_statement_screen.dart';
 import '../screens/delivery_route_screen.dart';
@@ -33,14 +36,19 @@ import '../screens/scan_receipt_screen.dart';
 import '../screens/numbering_series_screen.dart';
 import '../screens/opening_balances_screen.dart';
 import '../screens/pos_till_screen.dart';
+import '../screens/rentals_screen.dart';
 import '../screens/report_builder_screen.dart';
 import '../screens/reports_screen.dart';
 import '../screens/sales_orders_screen.dart';
+import '../screens/hospitality_audit_screen.dart';
+import '../screens/kitchen_screen.dart';
 import '../screens/stock_count_screen.dart';
+import '../screens/tables_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/setup_packs_screen.dart';
 import '../screens/conflicts_screen.dart';
 import '../screens/dispatch_screen.dart';
+import '../screens/equipment_screen.dart';
 import '../screens/field_service_kpis_screen.dart';
 import '../screens/schedule_screen.dart';
 import '../screens/tech_today_screen.dart';
@@ -114,8 +122,14 @@ void wireHubNavigation(WidgetRef ref) {
         (c, s) => const SalesOrdersScreen());
     registry.registerRoute('reports', (c, s) => const ReportsScreen());
     registry.registerRoute('schedule', (c, s) => const ScheduleScreen());
+    registry.registerRoute('booking', (c, s) => const BookingScreen());
+    registry.registerRoute(
+        'commissions', (c, s) => const CommissionsScreen());
+    registry.registerRoute('assets', (c, s) => const AssetsScreen());
+    registry.registerRoute('rentals', (c, s) => const RentalsScreen());
     registry.registerRoute('dispatch', (c, s) => const DispatchScreen());
     registry.registerRoute('tech-today', (c, s) => const TechTodayScreen());
+    registry.registerRoute('equipment', (c, s) => const EquipmentScreen());
     registry.registerRoute(
         'field-service-kpis', (c, s) => const FieldServiceKpisScreen());
     registry.registerRoute(
@@ -128,6 +142,10 @@ void wireHubNavigation(WidgetRef ref) {
     registry.registerRoute(
         'pay-supplier', (c, s) => const GuidedPaymentScreen(receive: false));
     registry.registerRoute('pos-till', (c, s) => const PosTillScreen());
+    registry.registerRoute('tables', (c, s) => const TablesScreen());
+    registry.registerRoute('kitchen', (c, s) => const KitchenScreen());
+    registry.registerRoute(
+        'hospitality-audit', (c, s) => const HospitalityAuditScreen());
     registry.registerRoute(
         'work-order-complete', (c, s) => const WorkOrderCompleteScreen());
     registry.registerRoute('settings', (c, s) => const SettingsScreen());

@@ -88,6 +88,8 @@ class MaintenanceContractService {
         'priority': contract.payload['priority'],
         'address': contract.payload['address'],
         'description': contract.payload['description'],
+        if (asNonEmpty(contract.payload['equipment']) != null)
+          'equipment': contract.payload['equipment'],
         'status': 'Draft',
       },
     );

@@ -1,0 +1,412 @@
+import 'package:mercantis_core/mercantis_core.dart';
+
+import '../ledger/ledger_values.dart';
+import '../payments/pos_checkout.dart';
+import '../pricing/price_resolver.dart';
+
+const _systemRoles = {'System Manager'};
+
+/// V2 Hospitality: the tab lifecycle. A tab is pre-fiscal working state —
+/// it opens on a table, accumulates rounds, and only becomes money when it
+/// settles into a POS Invoice on the existing till spine (per-till fiscal
+/// series, session, Z report). Voiding an un-settled tab requires a reason
+/// and leaves the record (status Void), never deletes it — that trail is
+/// what a fiscal auditor looks for.
+class TabService {
+  TabService(this._engine, {Set<String> roles = _systemRoles})
+      : _roles = roles;
+
+  final DocumentEngine _engine;
+  final Set<String> _roles;
+
+  /// Opens a tab on [table]. One OPEN tab per table — a second sitting
+  /// needs the first settled or voided (bar tabs pass no table and are
+  /// unlimited).
+  Future<Document> openTab({
+    String? table,
+    int covers = 1,
+    String? server,
+    String? customer,
+  }) async {
+    if (table != null) {
+      final tableDoc = await _engine.fetch('POS Table', table);
+      if (tableDoc == null) throw StateError('Table $table not found.');
+      final open = await _openTabFor(table);
+      if (open != null) {
+        throw StateError(
+            'Table $table already has open tab ${open.id} — settle or '
+            'void it first.');
+      }
+    }
+    return _engine.save(
+        Document(id: '', docType: 'POS Tab', payload: {
+          if (table != null) 'table': table,
+          'status': 'Open',
+          'opened_at': DateTime.now().toIso8601String(),
+          'covers': covers,
+          if (server != null) 'server': server,
+          if (customer != null) 'customer': customer,
+        }),
+        _roles);
+  }
+
+  Future<Document?> _openTabFor(String table) async {
+    final tabs = await _engine.list('POS Tab',
+        filters: {'table': table}, userRoles: _roles);
+    for (final t in tabs) {
+      if ('${t.payload['status']}' == 'Open') return t;
+    }
+    return null;
+  }
+
+  /// Adds a line to an open tab. A blank rate resolves through S8 pricing
+  /// (price list → standard rate); [modifiers] is the human summary and
+  /// [modifierAmount] the per-unit price delta of the chosen options.
+  Future<Document> addItem(
+    String tabId, {
+    required String item,
+    num qty = 1,
+    num? rate,
+    String? modifiers,
+    num modifierAmount = 0,
+    String? notes,
+    String? priceList,
+  }) async {
+    final tab = await _requireOpen(tabId);
+    var lineRate = rate;
+    if (lineRate == null) {
+      final resolved = await PriceResolver(_engine).resolve(
+        item: item,
+        qty: qty,
+        customer: asNonEmpty(tab.payload['customer']),
+        priceList: priceList,
+      );
+      lineRate = resolved?.rate ?? 0;
+    }
+    final rows = tab.children['items'] ?? <ChildRow>[];
+    rows.add(ChildRow(
+      id: '', parentId: tab.id, parentDocType: 'POS Tab',
+      tableName: 'items', rowIndex: rows.length,
+      payload: {
+        'item': item,
+        'qty': qty,
+        'rate': lineRate,
+        if (modifiers != null && modifiers.isNotEmpty)
+          'modifiers': modifiers,
+        if (modifierAmount != 0) 'modifier_amount': modifierAmount,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      },
+    ));
+    tab.children['items'] = rows;
+    return _engine.save(tab, _roles);
+  }
+
+  /// The tab's running total: Σ qty × (rate + modifier delta), pre-tax
+  /// semantics identical to what settlement will invoice. Comped lines
+  /// are off the bill (V2-5). Static — pure arithmetic over a hydrated
+  /// tab.
+  static num tabTotal(Document tab) {
+    num total = 0;
+    for (final row in tab.children['items'] ?? const <ChildRow>[]) {
+      if (isTrue(row.payload['comp'])) continue;
+      total += asNum(row.payload['qty']) *
+          (asNum(row.payload['rate']) +
+              asNum(row.payload['modifier_amount']));
+    }
+    return round2(total);
+  }
+
+  /// V2-5: comps a line — it leaves the bill but stays on the tab with
+  /// who-knows-why attached. The kitchen already cooked it; the record
+  /// of giving it away is the point.
+  Future<Document> compLine(String tabId, int rowIndex,
+      {required String reason}) async {
+    if (reason.trim().isEmpty) {
+      throw StateError('A comp needs a reason.');
+    }
+    final tab = await _requireOpen(tabId);
+    final rows = tab.children['items'] ?? const <ChildRow>[];
+    if (rowIndex < 0 || rowIndex >= rows.length) {
+      throw StateError('Tab $tabId has no line $rowIndex.');
+    }
+    if (isTrue(rows[rowIndex].payload['comp'])) {
+      throw StateError('That line is already comped.');
+    }
+    rows[rowIndex].payload['comp'] = 1;
+    rows[rowIndex].payload['comp_reason'] = reason.trim();
+    return _engine.save(tab, _roles);
+  }
+
+  /// Settlement: the tab becomes a submitted POS Invoice — the fiscal
+  /// moment. Modifier deltas fold into each line's rate (backend invariant
+  /// amount == qty × rate holds untouched) and the modifiers ride the line
+  /// description onto the receipt.
+  ///
+  /// V2-4: [rowIndexes] settles just those lines — a SPLIT. The settled
+  /// lines leave the tab (their invoice recorded in `split_invoices`) and
+  /// the rest stays Open; when the last line settles the tab goes Billed.
+  /// An even split needs no lines at all: one invoice, several tenders.
+  ///
+  /// [serviceChargePercent] adds a service charge as a priced line on
+  /// [serviceChargeItem] — a normal supply, so VAT applies to it and the
+  /// backend's total invariant holds.
+  Future<Document> settleTab(
+    String tabId, {
+    required List<PosTender> tenders,
+    String? warehouse,
+    String? taxCode,
+    bool pricesIncludeTax = false,
+    String? company,
+    String? posProfile,
+    String? posSession,
+    String? tillSeries,
+    String? priceList,
+    List<int>? rowIndexes,
+    num serviceChargePercent = 0,
+    String? serviceChargeItem,
+  }) async {
+    final tab = await _requireOpen(tabId);
+    final rows = tab.children['items'] ?? const <ChildRow>[];
+    if (rows.isEmpty) {
+      throw StateError('Tab $tabId has no items — nothing to settle.');
+    }
+    final selected = rowIndexes == null
+        ? [
+            for (var i = 0; i < rows.length; i++)
+              if (!isTrue(rows[i].payload['comp'])) i,
+          ]
+        : (rowIndexes.toSet().toList()..sort());
+    if (selected.isEmpty) {
+      throw StateError('Nothing selected to settle.');
+    }
+    for (final i in selected) {
+      if (i < 0 || i >= rows.length) {
+        throw StateError('Tab $tabId has no line $i.');
+      }
+      if (isTrue(rows[i].payload['comp'])) {
+        throw StateError(
+            'Line $i is comped — it is off the bill and cannot settle.');
+      }
+    }
+
+    final lines = <PosCartLine>[];
+    num preTax = 0;
+    for (final i in selected) {
+      final row = rows[i];
+      final modifiers = asNonEmpty(row.payload['modifiers']);
+      final rate = asNum(row.payload['rate']) +
+          asNum(row.payload['modifier_amount']);
+      preTax += asNum(row.payload['qty']) * rate;
+      lines.add(PosCartLine(
+        item: '${row.payload['item']}',
+        qty: asNum(row.payload['qty']),
+        rate: rate,
+        description:
+            modifiers == null ? null : '${row.payload['item']} ($modifiers)',
+      ));
+    }
+    if (serviceChargePercent > 0) {
+      if (serviceChargeItem == null) {
+        throw StateError(
+            'A service charge needs a service_charge_item on the POS '
+            'Profile — the charge posts as a priced line.');
+      }
+      final charge = round2(preTax * serviceChargePercent / 100);
+      if (charge > 0) {
+        lines.add(PosCartLine(
+          item: serviceChargeItem,
+          qty: 1,
+          rate: charge,
+          description: 'Service charge ($serviceChargePercent%)',
+        ));
+      }
+    }
+
+    final draft = PosCheckout.buildPosInvoice(
+      postingDate: DateTime.now().toIso8601String().split('T').first,
+      customer: asNonEmpty(tab.payload['customer']),
+      warehouse: warehouse,
+      taxCode: taxCode,
+      pricesIncludeTax: pricesIncludeTax,
+      company: company,
+      posProfile: posProfile,
+      posSession: posSession,
+      tillSeries: tillSeries,
+      priceList: priceList,
+      lines: lines,
+      tenders: tenders,
+    );
+    final saved = await _engine.save(draft, _roles);
+    final posted = await _engine.submit(saved, _roles);
+
+    final remainingBillable = [
+      for (var i = 0; i < rows.length; i++)
+        if (!selected.contains(i) && !isTrue(rows[i].payload['comp']))
+          rows[i],
+    ];
+    if (remainingBillable.isEmpty) {
+      // Everything payable is paid. The tab keeps ALL its lines —
+      // including comped ones — as the audit record.
+      tab.payload['status'] = 'Billed';
+      tab.payload['pos_invoice'] = posted.id;
+    } else {
+      final remaining = [
+        for (var i = 0; i < rows.length; i++)
+          if (!selected.contains(i)) rows[i],
+      ];
+      for (var i = 0; i < remaining.length; i++) {
+        remaining[i].rowIndex = i;
+      }
+      tab.children['items'] = remaining;
+      final prev = asNonEmpty(tab.payload['split_invoices']);
+      tab.payload['split_invoices'] =
+          prev == null ? posted.id : '$prev, ${posted.id}';
+    }
+    await _engine.save(tab, _roles);
+    return posted;
+  }
+
+  /// V2-4: merges [sourceId] into [targetId] when parties join up. Lines
+  /// move across with their kitchen state (nothing re-fires), covers add,
+  /// open kitchen tickets re-point at the target, and the source stays on
+  /// record as Merged → target. Both tabs must be Open.
+  Future<Document> mergeTabs(String sourceId, String targetId) async {
+    if (sourceId == targetId) {
+      throw StateError('A tab cannot merge into itself.');
+    }
+    final source = await _requireOpen(sourceId);
+    final target = await _requireOpen(targetId);
+
+    final targetRows = target.children['items'] ?? <ChildRow>[];
+    for (final r in source.children['items'] ?? const <ChildRow>[]) {
+      targetRows.add(ChildRow(
+        id: '', parentId: target.id, parentDocType: 'POS Tab',
+        tableName: 'items', rowIndex: targetRows.length,
+        payload: Map.of(r.payload),
+      ));
+    }
+    target.children['items'] = targetRows;
+    target.payload['covers'] = (asNum(target.payload['covers']) +
+            asNum(source.payload['covers']))
+        .toInt();
+    final merged = await _engine.save(target, _roles);
+
+    // The kitchen keeps cooking — the round just belongs elsewhere now.
+    final tickets = await _engine.list('Kitchen Ticket',
+        filters: {'tab': source.id}, userRoles: _roles);
+    for (final t in tickets) {
+      if ('${t.payload['status']}' != 'Open') continue;
+      t.payload['tab'] = target.id;
+      final table = asNonEmpty(target.payload['table']);
+      if (table != null) {
+        t.payload['table'] = table;
+      } else {
+        t.payload.remove('table');
+      }
+      await _engine.save(t, _roles);
+    }
+
+    source.payload['status'] = 'Merged';
+    source.payload['merged_into'] = target.id;
+    await _engine.save(source, _roles);
+    return merged;
+  }
+
+  /// V2-3: sends the tab's not-yet-sent lines to the kitchen as ONE
+  /// ticket (a round). The lines are snapshotted onto the ticket and
+  /// flagged `sent_to_kitchen` on the tab, so the next round only carries
+  /// what's new. Nothing new to send is an error the server sees.
+  Future<Document> sendToKitchen(String tabId) async {
+    final tab = await _requireOpen(tabId);
+    final rows = tab.children['items'] ?? const <ChildRow>[];
+    final unsent = [
+      for (final r in rows)
+        if (!isTrue(r.payload['sent_to_kitchen'])) r,
+    ];
+    if (unsent.isEmpty) {
+      throw StateError(
+          'Tab $tabId has nothing new to send — every line is already '
+          'in the kitchen.');
+    }
+
+    final ticket = Document(id: '', docType: 'Kitchen Ticket', payload: {
+      'tab': tab.id,
+      if (asNonEmpty(tab.payload['table']) != null)
+        'table': tab.payload['table'],
+      'status': 'Open',
+      'sent_at': DateTime.now().toIso8601String(),
+      if (asNonEmpty(tab.payload['server']) != null)
+        'server': tab.payload['server'],
+    });
+    ticket.children['items'] = [
+      for (var i = 0; i < unsent.length; i++)
+        ChildRow(
+          id: '', parentId: '', parentDocType: 'Kitchen Ticket',
+          tableName: 'items', rowIndex: i,
+          payload: {
+            'item': unsent[i].payload['item'],
+            'qty': unsent[i].payload['qty'],
+            if (asNonEmpty(unsent[i].payload['modifiers']) != null)
+              'modifiers': unsent[i].payload['modifiers'],
+            if (asNonEmpty(unsent[i].payload['notes']) != null)
+              'notes': unsent[i].payload['notes'],
+          },
+        ),
+    ];
+    final saved = await _engine.save(ticket, _roles);
+
+    for (final r in unsent) {
+      r.payload['sent_to_kitchen'] = 1;
+    }
+    await _engine.save(tab, _roles);
+    return saved;
+  }
+
+  /// The kitchen bumps a finished ticket off the rail.
+  Future<Document> bumpTicket(String ticketId) async {
+    final ticket = await _engine.fetch('Kitchen Ticket', ticketId);
+    if (ticket == null) throw StateError('Ticket $ticketId not found.');
+    if ('${ticket.payload['status']}' != 'Open') {
+      throw StateError(
+          'Ticket $ticketId is ${ticket.payload['status']}, not Open.');
+    }
+    ticket.payload['status'] = 'Done';
+    return _engine.save(ticket, _roles);
+  }
+
+  /// Voids an un-settled tab. The reason is mandatory and the record stays
+  /// — a disappeared tab is exactly what a fiscal audit flags. Any ticket
+  /// still open on the kitchen rail voids with it, so the kitchen never
+  /// cooks a dead order.
+  Future<Document> voidTab(String tabId, {required String reason}) async {
+    if (reason.trim().isEmpty) {
+      throw StateError('A void needs a reason.');
+    }
+    final tab = await _engine.fetch('POS Tab', tabId);
+    if (tab == null) throw StateError('Tab $tabId not found.');
+    if ('${tab.payload['status']}' == 'Billed') {
+      throw StateError(
+          'Tab $tabId is settled as ${tab.payload['pos_invoice']} — cancel '
+          'that POS Invoice instead of voiding the tab.');
+    }
+    final tickets = await _engine.list('Kitchen Ticket',
+        filters: {'tab': tab.id}, userRoles: _roles);
+    for (final t in tickets) {
+      if ('${t.payload['status']}' != 'Open') continue;
+      t.payload['status'] = 'Void';
+      await _engine.save(t, _roles);
+    }
+    tab.payload['status'] = 'Void';
+    tab.payload['void_reason'] = reason.trim();
+    return _engine.save(tab, _roles);
+  }
+
+  Future<Document> _requireOpen(String tabId) async {
+    final tab = await _engine.fetch('POS Tab', tabId);
+    if (tab == null) throw StateError('Tab $tabId not found.');
+    if ('${tab.payload['status']}' != 'Open') {
+      throw StateError('Tab $tabId is ${tab.payload['status']}, not Open.');
+    }
+    return tab;
+  }
+}

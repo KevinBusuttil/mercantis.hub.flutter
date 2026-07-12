@@ -9,7 +9,28 @@ final List<SetupPack> builtinSetupPacks = [
   stockAndCogsPack,
   posShopPack,
   bankRulesStarterPack,
+  appointmentsPack,
 ];
+
+/// Phase 4: the appointments composition (salon / tutor / studio /
+/// clinic front desk). Books need a deposit liability account to hold
+/// prepayments (S4); the pack seeds it and turns the booking surfaces on.
+const appointmentsPack = SetupPack(
+  id: 'appointments',
+  name: 'Appointments & Booking',
+  version: '1.0.0',
+  description: 'Front-desk booking on your existing invoicing: '
+      'conflict-checked slots per staff member, deposits held as a '
+      'liability until the visit invoices, and commission rules per '
+      'staff member or service.',
+  masters: [
+    PackMaster(docType: 'Account', id: 'Customer Deposits', payload: {
+      'account_name': 'Customer Deposits',
+      'root_type': 'Liability',
+    }),
+  ],
+  moduleToggles: {'appointments': true},
+);
 
 /// Stock & COGS module pack: the perpetual-inventory accounts and company
 /// defaults, for installs whose preset didn't enable stock.

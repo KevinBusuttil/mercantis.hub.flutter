@@ -68,6 +68,9 @@ abstract final class SchedulingModule {
           FieldDefinition(key: 'notes', label: 'Notes', type: FieldType.smallText),
           // Stamped by the booking→invoice hook; the appointment's paper trail.
           FieldDefinition(key: 'sales_invoice', label: 'Invoiced As', type: FieldType.link, linkDocType: 'Sales Invoice', options: 'Sales Invoice', readOnly: true),
+          // Phase 4: the S4 deposit taken at booking, auto-applied when
+          // the appointment completes to invoice.
+          FieldDefinition(key: 'deposit', label: 'Booking Deposit', type: FieldType.link, linkDocType: 'Customer Deposit', options: 'Customer Deposit', readOnly: true),
         ],
       );
 }

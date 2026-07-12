@@ -61,6 +61,16 @@ WorkspaceDescriptor salesFulfilmentWorkspace({bool posEnabled = true}) =>
               CustomWorkspaceItem(routeName: 'pos-till',
                 label: 'Open Till', icon: Icons.point_of_sale,
                 description: 'Cart, live VAT and cash checkout'),
+              CustomWorkspaceItem(routeName: 'tables',
+                label: 'Tables', icon: Icons.table_bar_outlined,
+                description: 'Floor map, tabs and settlement'),
+              CustomWorkspaceItem(routeName: 'kitchen',
+                label: 'Kitchen', icon: Icons.restaurant_outlined,
+                description: 'Open tickets on the rail, oldest first'),
+              CustomWorkspaceItem(routeName: 'hospitality-audit',
+                label: 'Void & comp audit', icon: Icons.fact_check_outlined,
+                description: 'Voids, comps and cancelled receipts with '
+                    'reasons and value'),
               DocTypeWorkspaceItem(docType: 'POS Invoice',
                 icon: Icons.point_of_sale_outlined),
               DocTypeWorkspaceItem(docType: 'POS Profile',
@@ -69,6 +79,21 @@ WorkspaceDescriptor salesFulfilmentWorkspace({bool posEnabled = true}) =>
                 icon: Icons.schedule_outlined),
             ],
           ),
+        const WorkspaceSection(
+          label: 'Rentals',
+          description: 'Hire out units — availability held on the '
+              'calendar, deposits as liabilities, days billed at return',
+          items: [
+            CustomWorkspaceItem(routeName: 'rentals',
+              label: 'Hire desk', icon: Icons.handshake_outlined,
+              description: 'The fleet, who has what out, hand over and '
+                  'return'),
+            DocTypeWorkspaceItem(docType: 'Rental Agreement',
+              icon: Icons.assignment_outlined),
+            DocTypeWorkspaceItem(docType: 'Rental Unit',
+              icon: Icons.construction_outlined),
+          ],
+        ),
         const WorkspaceSection(
           label: 'Online channels',
           description: 'Storefront orders staged for review, then posted as '

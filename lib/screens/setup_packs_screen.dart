@@ -68,6 +68,8 @@ class _SetupPacksScreenState extends ConsumerState<SetupPacksScreen> {
                     t['manufacturing'] ?? settings.manufacturingEnabled,
                 deliveriesEnabled:
                     t['deliveries'] ?? settings.deliveriesEnabled,
+                appointmentsEnabled:
+                    t['appointments'] ?? settings.appointmentsEnabled,
               ),
             );
       }

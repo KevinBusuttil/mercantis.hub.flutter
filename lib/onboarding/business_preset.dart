@@ -16,6 +16,7 @@ class BusinessPreset {
     this.enablesDeliveries = false,
     this.enablesManufacturing = false,
     this.enablesFieldService = false,
+    this.enablesAppointments = false,
   });
 
   final String id;
@@ -28,6 +29,10 @@ class BusinessPreset {
   final bool enablesManufacturing;
   final bool enablesFieldService;
 
+  /// Phase 4: booking/appointment surfaces (front desk, commissions) —
+  /// the salon/tutor/studio composition.
+  final bool enablesAppointments;
+
   static const services = BusinessPreset(
     id: 'services',
     label: 'Services',
@@ -35,6 +40,7 @@ class BusinessPreset {
         'stock-heavy extras.',
     enablesProjects: true,
     enablesFieldService: true,
+    enablesAppointments: true,
   );
 
   static const trade = BusinessPreset(
