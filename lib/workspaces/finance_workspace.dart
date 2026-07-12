@@ -76,6 +76,19 @@ const financeWorkspace = WorkspaceDescriptor(
       ],
     ),
     WorkspaceSection(
+      label: 'Property & tenancies',
+      description: 'Leases whose rent bills itself; arrears on one list',
+      items: [
+        CustomWorkspaceItem(routeName: 'rent-roll',
+          label: 'Rent roll', icon: Icons.apartment_outlined,
+          description: 'Active tenancies, next billing and arrears'),
+        DocTypeWorkspaceItem(docType: 'Property',
+          icon: Icons.home_work_outlined),
+        DocTypeWorkspaceItem(docType: 'Lease',
+          icon: Icons.assignment_outlined),
+      ],
+    ),
+    WorkspaceSection(
       label: 'Compliance',
       items: [
         DocTypeWorkspaceItem(docType: 'Tax Filing',
