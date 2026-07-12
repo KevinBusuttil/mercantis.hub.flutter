@@ -140,7 +140,10 @@ meter riding request→job and contract→job; history / last-meter /
 book-it-in service; equipment screen in Field Service); V3-1 **done**
 (Rental Unit backed by a Schedulable Resource — availability IS the S1
 calendar; Rental Agreement Draft→Out→Returned with S4 deposit and
-day-count invoice at return; hire desk screen pending as V3-2).
+day-count invoice at return); V3-2 **done** (hire desk screen: fleet
+out/free state, hand over / return / cancel actions, New hire dialog).
+
+**V3 Rental complete.**
 
 **Deferred:** S7 batch/serial/expiry (deepest ledger surgery — wait for a
 paying segment), multi-company, SaaS-billing depth, i18n scaffolding until
