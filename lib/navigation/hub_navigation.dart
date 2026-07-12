@@ -11,6 +11,7 @@ import '../modules/selling/hub_conversion_actions.dart';
 import '../modules/selling/hub_quotation_actions.dart';
 import '../modules/selling/hub_reminder_actions.dart';
 import '../modules/selling/hub_lineage_actions.dart';
+import '../einvoicing/hub_einvoice_actions.dart';
 import '../printing/hub_print_actions.dart';
 import '../screens/account_ledger_screen.dart';
 import '../screens/accountant_export_screen.dart';
@@ -91,6 +92,7 @@ void wireHubNavigation(WidgetRef ref) {
     registerHubLineageActions(ref);
     // Printing (HU2): a "Print preview" action rendering the default format.
     registerHubPrintActions(ref);
+    registerHubEInvoiceActions(ref);
     // Accounting: a "Ledger" action on an Account, opening its ledger.
     registerHubAccountActions(ref);
     // Phase 8: a "History" action on every saved record (audit trail).
