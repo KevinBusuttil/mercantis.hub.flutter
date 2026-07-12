@@ -100,7 +100,15 @@ tabs, tender dialog settling onto the per-till fiscal series); V2-3
 with wait-time triage and bump, void cascade to open tickets); V2-4
 **done** (split settlement by lines with split_invoices trail, tab
 merge with kitchen-ticket re-pointing, service charge as a priced VAT
-line from the POS Profile).
+line from the POS Profile); V2-5 **done** (first-class comps with
+mandatory reasons kept through billing; void/comp/cancellation audit
+report + screen).
+
+**Phase 3 complete — V2 Hospitality POS ships** on the fiscal rails:
+tabs are pre-fiscal working state, every euro reaches a sequential
+per-till POS Invoice, and every giveaway leaves a reasoned trail.
+Malta go-live still needs the EXO certification *process*
+(docs/MALTA_FISCAL_RECEIPTS.md).
 
 ## Phase 4 — Appointments composition pack (~2 increments)
 S1 + S4 + S9 (commission rules) + booking screen + Setup Pack — the
