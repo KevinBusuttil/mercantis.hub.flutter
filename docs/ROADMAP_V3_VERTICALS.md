@@ -90,6 +90,11 @@ Floor/Table + Tab + modifiers → table-map till on the existing
 session/tender/Z spine → kitchen tickets → split/merge + service charge →
 void/comp audit. **Precondition: verify Malta fiscal-receipt law.**
 
+Status: precondition **verified** (docs/MALTA_FISCAL_RECEIPTS.md —
+proceed; EXO approval is certification, not code); V2-1 **done**
+(POS Table/Tab/modifiers + TabService settle-to-fiscal-invoice + EXO on
+profile and receipt).
+
 ## Phase 4 — Appointments composition pack (~2 increments)
 S1 + S4 + S9 (commission rules) + booking screen + Setup Pack — the
 salon/tutor/studio offering without a vertical build.
