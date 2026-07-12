@@ -87,7 +87,11 @@ class ValuationService {
     final when =
         (date ?? DateTime.now()).toIso8601String().split('T').first;
 
-    final invoice = Document(id: '', docType: 'Sales Invoice', payload: {
+    // The contract's company rides onto the invoice — multi-company
+    // books must not fall to the defaults interceptor's first company
+    // (Codex, PR #169).
+    final invoice = Document(id: '', docType: 'Sales Invoice',
+        company: contract.company, payload: {
       'customer': contract.payload['customer'],
       'posting_date': when,
       if (asNonEmpty(contract.payload['tax_code']) != null)
@@ -156,7 +160,8 @@ class ValuationService {
     final when =
         (date ?? DateTime.now()).toIso8601String().split('T').first;
 
-    final invoice = Document(id: '', docType: 'Sales Invoice', payload: {
+    final invoice = Document(id: '', docType: 'Sales Invoice',
+        company: contract.company, payload: {
       'customer': contract.payload['customer'],
       'posting_date': when,
       if (asNonEmpty(contract.payload['tax_code']) != null)

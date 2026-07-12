@@ -78,7 +78,7 @@ void main() {
 
   Future<Document> draftLease({String starts = '2026-07-01'}) =>
       engine.save(
-          Document(id: '', docType: 'Lease', payload: {
+          Document(id: '', docType: 'Lease', company: 'CO-2', payload: {
             'property': 'PROP-A',
             'tenant': 'TEN-1',
             'status': 'Draft',
@@ -105,11 +105,15 @@ void main() {
     expect(deposit!.docStatus, 1);
     expect(asNum(deposit.payload['amount']), 1600);
     expect(deposit.payload['remarks'], contains('Sliema'));
+    expect(deposit.company, 'CO-2'); // Codex P2 (PR #169)
 
-    // The template bills the tenant 800 monthly from the start date.
+    // The template bills the tenant 800 monthly from the start date —
+    // under the LEASE's company (Codex P2, PR #169: multi-company books
+    // must not fall to the first company).
     final template = await engine.fetch(
         'Recurring Invoice', '${lease.payload['recurring_invoice']}');
     expect(template!.payload['customer'], 'TEN-1');
+    expect(template.company, 'CO-2');
     expect(template.payload['next_invoice_date'], '2026-07-01');
     expect(asNum(template.children['items']!.single.payload['rate']), 800);
 

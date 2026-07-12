@@ -67,7 +67,7 @@ void main() {
   tearDown(() async => db.close());
 
   Future<Document> signUp({String joined = '2026-01-10'}) => engine.save(
-      Document(id: '', docType: 'Membership', payload: {
+      Document(id: '', docType: 'Membership', company: 'CO-2', payload: {
         'member': 'MBR-1',
         'plan': 'GOLD',
         'status': 'Draft',
@@ -82,6 +82,8 @@ void main() {
     final template = await engine.fetch('Recurring Invoice',
         '${membership.payload['recurring_invoice']}');
     expect(template!.payload['customer'], 'MBR-1');
+    // Codex P2 (PR #169): the membership's company rides the template.
+    expect(template.company, 'CO-2');
     expect(template.payload['next_invoice_date'], '2026-01-10');
     expect(asNum(template.children['items']!.single.payload['rate']), 50);
 

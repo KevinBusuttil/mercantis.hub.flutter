@@ -3,6 +3,7 @@ import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_hub_app/einvoicing/hub_einvoice_actions.dart';
 import 'package:mercantis_hub_app/einvoicing/ubl_invoice.dart';
 import 'package:mercantis_hub_app/ledger/hub_interceptors.dart';
+import 'package:mercantis_hub_app/ledger/ledger_values.dart' hide isTrue;
 import 'package:mercantis_hub_app/manifest/hub_manifest.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -149,6 +150,76 @@ void main() {
     expect(xml, contains('unitCode="HUR"'));
     expect(xml, contains('Fitting &lt;on site&gt;'));
     expect(xml, contains('<cbc:PriceAmount currencyID="EUR">100.00'));
+  });
+
+  // Codex P1 (PR #169): the export must mirror the POSTED tax calc.
+  test('item-master and customer fallback rates reach the UBL breakdown',
+      () async {
+    await engine.save(
+        Document(id: 'CONSULT', docType: 'Item', payload: {
+          'item_code': 'CONSULT', 'item_name': 'Consulting',
+          'item_type': 'Service', 'stock_uom': 'Nos',
+          'tax_code': 'VAT18', // the ITEM carries the code
+        }),
+        roles);
+    final invoice = Document(id: '', docType: 'Sales Invoice', payload: {
+      'customer': 'CUST-IT',
+      'posting_date': '2026-07-12',
+      // No document tax_code, no line tax_code.
+    });
+    invoice.children['items'] = [
+      ChildRow(
+        id: '', parentId: '', parentDocType: 'Sales Invoice',
+        tableName: 'items', rowIndex: 0,
+        payload: {'item': 'CONSULT', 'qty': 1, 'rate': 100},
+      ),
+    ];
+    final posted =
+        await engine.submit(await engine.save(invoice, roles), roles);
+    // The interceptor found VAT18 through the item: 118 posted.
+    expect(asNum(posted.payload['grand_total']), 118);
+
+    final xml = await ubl.buildFor(posted.id);
+    // Previously this exported as zero-rated with a 100.00 payable —
+    // diverging from the posted document. Now it mirrors it.
+    expect(xml, contains('<cbc:TaxableAmount currencyID="EUR">100.00'));
+    expect(xml, contains('<cbc:TaxAmount currencyID="EUR">18.00'));
+    expect(xml, contains('<cbc:Percent>18.00</cbc:Percent>'));
+    expect(xml, isNot(contains('<cbc:ID>Z</cbc:ID>')));
+    expect(
+        xml, contains('<cbc:PayableAmount currencyID="EUR">118.00'));
+  });
+
+  test('prices-include-tax invoices export extracted nets, not gross',
+      () async {
+    final invoice = Document(id: '', docType: 'Sales Invoice', payload: {
+      'customer': 'CUST-IT',
+      'posting_date': '2026-07-12',
+      'prices_include_tax': 1,
+    });
+    invoice.children['items'] = [
+      ChildRow(
+        id: '', parentId: '', parentDocType: 'Sales Invoice',
+        tableName: 'items', rowIndex: 0,
+        payload: {
+          'item': 'WIDGET', 'qty': 1, 'rate': 118, 'tax_code': 'VAT18',
+        },
+      ),
+    ];
+    final posted =
+        await engine.submit(await engine.save(invoice, roles), roles);
+    expect(asNum(posted.payload['grand_total']), 118); // entered gross
+
+    final xml = await ubl.buildFor(posted.id);
+    // The contained tax is extracted, exactly as it posted.
+    expect(xml, contains('<cbc:TaxableAmount currencyID="EUR">100.00'));
+    expect(xml, contains('<cbc:TaxAmount currencyID="EUR">18.00'));
+    expect(xml,
+        contains('<cbc:TaxExclusiveAmount currencyID="EUR">100.00'));
+    expect(
+        xml, contains('<cbc:PayableAmount currencyID="EUR">118.00'));
+    expect(xml,
+        contains('<cbc:LineExtensionAmount currencyID="EUR">100.00'));
   });
 
   test('drafts and incomplete masters are refused with every gap named',
