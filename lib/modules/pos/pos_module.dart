@@ -42,6 +42,9 @@ abstract final class PosModule {
           // S8 pricing: the till's product-button prices come from this list
           // (falling back to each item's standard rate when absent).
           FieldDefinition(key: 'price_list', label: 'Price List', type: FieldType.link, linkDocType: 'Price List', options: 'Price List'),
+          // Malta fiscal receipts: the Commissioner's EXO approval number —
+          // printed on every receipt once granted (docs/MALTA_FISCAL_RECEIPTS.md).
+          FieldDefinition(key: 'exo_number', label: 'EXO Number (Malta)', type: FieldType.data),
           FieldDefinition(key: 'enabled', label: 'Enabled', type: FieldType.check, defaultValue: '1'),
         ],
       );

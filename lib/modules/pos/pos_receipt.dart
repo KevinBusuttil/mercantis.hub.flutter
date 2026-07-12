@@ -12,6 +12,7 @@ abstract final class PosReceiptBuilder {
     required String businessName,
     String? addressLine,
     String? vatNumber,
+    String? exoNumber,
     String? footer,
     int width = 42,
   }) {
@@ -27,6 +28,11 @@ abstract final class PosReceiptBuilder {
     }
     if (vatNumber != null && vatNumber.trim().isNotEmpty) {
       center('VAT No: ${vatNumber.trim()}');
+    }
+    // Malta 13th Schedule: the Commissioner's approval number must appear
+    // on every fiscal receipt issued by an approved POS.
+    if (exoNumber != null && exoNumber.trim().isNotEmpty) {
+      center('EXO No: ${exoNumber.trim()}');
     }
     rule();
     kv('Receipt', invoice.id);

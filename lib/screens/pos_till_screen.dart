@@ -31,6 +31,8 @@ class _TillContext {
     this.companyName,
     this.profileId,
     this.receiptSeries,
+    this.exoNumber,
+    this.vatNumber,
     this.priceList,
     this.listRates = const {},
     this.sessionId,
@@ -52,6 +54,11 @@ class _TillContext {
 
   /// The configured POS Profile (null until one exists).
   final String? profileId;
+
+  /// Malta fiscal identifiers printed on every receipt: the profile's EXO
+  /// approval number and the company's VAT registration.
+  final String? exoNumber;
+  final String? vatNumber;
 
   /// The profile's price list and the rates it resolved at load time (S8);
   /// items absent from the list fall back to their standard rate.
@@ -135,6 +142,8 @@ final _tillContextProvider = FutureProvider<_TillContext>((ref) async {
     companyName: asNonEmpty(company?.payload['company_name']) ?? company?.id,
     profileId: profile?.id,
     receiptSeries: asNonEmpty(profile?.payload['receipt_series']),
+    exoNumber: asNonEmpty(profile?.payload['exo_number']),
+    vatNumber: asNonEmpty(company?.payload['tax_id']),
     priceList: priceList,
     listRates: listRates,
     sessionId: session?.id,
@@ -319,6 +328,8 @@ class _PosTillScreenState extends ConsumerState<PosTillScreen> {
     final text = PosReceiptBuilder.build(
       invoice: hydrated,
       businessName: ctx.companyName ?? 'Receipt',
+      vatNumber: ctx.vatNumber,
+      exoNumber: ctx.exoNumber,
     );
     if (!mounted) return;
     await showDialog<void>(

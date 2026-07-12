@@ -4,12 +4,16 @@ import '../ledger/ledger_values.dart';
 
 /// One cart line for a POS sale.
 class PosCartLine {
-  const PosCartLine({required this.item, required this.qty, required this.rate, this.taxCode, this.warehouse});
+  const PosCartLine({required this.item, required this.qty, required this.rate, this.taxCode, this.warehouse, this.description});
   final String item;
   final num qty;
   final num rate;
   final String? taxCode;
   final String? warehouse;
+
+  /// Optional receipt text overriding the item name — hospitality tabs use
+  /// it to carry the chosen modifiers onto the fiscal receipt.
+  final String? description;
 }
 
 /// One payment tender on a POS sale.
@@ -97,6 +101,7 @@ abstract final class PosCheckout {
             'rate': lines[i].rate,
             if (asNonEmpty(lines[i].taxCode) != null) 'tax_code': lines[i].taxCode,
             if (asNonEmpty(lines[i].warehouse) != null) 'warehouse': lines[i].warehouse,
+            if (asNonEmpty(lines[i].description) != null) 'description': lines[i].description,
           },
         ),
     ];
