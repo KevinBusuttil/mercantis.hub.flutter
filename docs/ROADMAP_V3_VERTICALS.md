@@ -154,7 +154,14 @@ back-bills the gap; Members screen with arrears and per-status
 actions); S13 **done** (EN 16931 / PEPPOL BIS 3.0 UBL 2.1 generator
 from submitted Sales Invoices with one-pass BT validation and an
 E-invoice command-bar action; Access Point transmission stays an
-integration).
+integration); V6-1 **done** (Construction Contract + cumulative
+valuations billed less capped retention, forward-only guard, retention
+release at practical completion, contracts board in Projects).
+
+**Phase 5 first pass complete** — every roadmap vertical/capability has
+its foundation increment shipped (S10, V4, V3, V5, V7, S13, V6-1).
+Deepening (V6 variations/certificates, S13 XRechnung/Factur-X flavours,
+V3 recurring long-hire billing) proceeds by demand.
 
 **Deferred:** S7 batch/serial/expiry (deepest ledger surgery — wait for a
 paying segment), multi-company, SaaS-billing depth, i18n scaffolding until
