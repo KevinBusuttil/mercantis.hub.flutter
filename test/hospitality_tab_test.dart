@@ -105,7 +105,7 @@ void main() {
     expect(asNum(lines[1].payload['qty']), 2);
 
     // 1 × (12 + 0.50) + 2 × 2.50 = 17.50
-    expect(tabs.tabTotal(loaded), 17.5);
+    expect(TabService.tabTotal(loaded), 17.5);
   });
 
   test('settlement is the fiscal moment: POS Invoice on the till series',

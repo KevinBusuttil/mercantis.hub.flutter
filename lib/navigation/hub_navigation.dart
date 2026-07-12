@@ -37,6 +37,7 @@ import '../screens/report_builder_screen.dart';
 import '../screens/reports_screen.dart';
 import '../screens/sales_orders_screen.dart';
 import '../screens/stock_count_screen.dart';
+import '../screens/tables_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/setup_packs_screen.dart';
 import '../screens/conflicts_screen.dart';
@@ -128,6 +129,7 @@ void wireHubNavigation(WidgetRef ref) {
     registry.registerRoute(
         'pay-supplier', (c, s) => const GuidedPaymentScreen(receive: false));
     registry.registerRoute('pos-till', (c, s) => const PosTillScreen());
+    registry.registerRoute('tables', (c, s) => const TablesScreen());
     registry.registerRoute(
         'work-order-complete', (c, s) => const WorkOrderCompleteScreen());
     registry.registerRoute('settings', (c, s) => const SettingsScreen());

@@ -102,8 +102,9 @@ class TabService {
   }
 
   /// The tab's running total: Σ qty × (rate + modifier delta), pre-tax
-  /// semantics identical to what settlement will invoice.
-  num tabTotal(Document tab) {
+  /// semantics identical to what settlement will invoice. Static — pure
+  /// arithmetic over a hydrated tab.
+  static num tabTotal(Document tab) {
     num total = 0;
     for (final row in tab.children['items'] ?? const <ChildRow>[]) {
       total += asNum(row.payload['qty']) *
