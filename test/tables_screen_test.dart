@@ -96,6 +96,8 @@ void main() {
     expect(find.text('Total (ex VAT): 17.50'), findsOneWidget);
     expect(find.text('Add items'), findsOneWidget);
     expect(find.text('Settle'), findsOneWidget);
+    expect(find.text('Split'), findsOneWidget);
+    expect(find.text('Merge'), findsOneWidget);
     expect(find.text('Void'), findsOneWidget);
   });
 

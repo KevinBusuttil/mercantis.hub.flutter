@@ -257,25 +257,21 @@ class _TablesScreenState extends ConsumerState<TablesScreen> {
     }
   }
 
-  Future<void> _settle(Document tab, TablesData data) async {
-    final service = await _tabs;
-    final fresh = await (await ref.read(documentEngineProvider.future))
-        .fetch('POS Tab', tab.id);
-    if (fresh == null) return;
-    final total = TabService.tabTotal(fresh);
-    if (!mounted) return;
-
+  /// Cash/card entry for [total] (pre-tax). Returns null on cancel.
+  Future<List<PosTender>?> _tenderDialog(num total, {String? note}) async {
+    if (!mounted) return null;
     final cashCtrl =
         TextEditingController(text: total.toStringAsFixed(2));
     final cardCtrl = TextEditingController(text: '0.00');
-    final tenders = await showDialog<List<PosTender>>(
+    return showDialog<List<PosTender>>(
       context: context,
       builder: (c) => StatefulBuilder(
         builder: (c, setDialogState) {
           final cash = num.tryParse(cashCtrl.text.trim()) ?? 0;
           final card = num.tryParse(cardCtrl.text.trim()) ?? 0;
           return AlertDialog(
-            title: Text('Settle — ${total.toStringAsFixed(2)} (ex VAT)'),
+            title: Text('Settle — ${total.toStringAsFixed(2)} (ex VAT)'
+                '${note != null ? '\n$note' : ''}'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -314,6 +310,37 @@ class _TablesScreenState extends ConsumerState<TablesScreen> {
         },
       ),
     );
+  }
+
+  num _serviceChargePercent(TablesData data) =>
+      asNum(data.profile?.payload['service_charge_percent']);
+
+  /// Settles [rowIndexes] of the tab (null = everything) through the
+  /// tender dialog, applying the profile's service charge to the settled
+  /// portion.
+  Future<void> _settle(Document tab, TablesData data,
+      {List<int>? rowIndexes}) async {
+    final service = await _tabs;
+    final fresh = await (await ref.read(documentEngineProvider.future))
+        .fetch('POS Tab', tab.id);
+    if (fresh == null) return;
+
+    final rows = fresh.children['items'] ?? const <ChildRow>[];
+    num total = 0;
+    for (var i = 0; i < rows.length; i++) {
+      if (rowIndexes != null && !rowIndexes.contains(i)) continue;
+      total += asNum(rows[i].payload['qty']) *
+          (asNum(rows[i].payload['rate']) +
+              asNum(rows[i].payload['modifier_amount']));
+    }
+    total = round2(total);
+    final pct = _serviceChargePercent(data);
+    final charge = pct > 0 ? round2(total * pct / 100) : 0;
+
+    final tenders = await _tenderDialog(
+      round2(total + charge),
+      note: charge > 0 ? 'incl. $charge service charge ($pct%)' : null,
+    );
     if (tenders == null || tenders.isEmpty) return;
 
     try {
@@ -328,8 +355,101 @@ class _TablesScreenState extends ConsumerState<TablesScreen> {
         posSession: data.sessionId,
         tillSeries: asNonEmpty(data.profile?.payload['receipt_series']),
         priceList: asNonEmpty(data.profile?.payload['price_list']),
+        rowIndexes: rowIndexes,
+        serviceChargePercent: pct,
+        serviceChargeItem:
+            asNonEmpty(data.profile?.payload['service_charge_item']),
       );
       _toast('Settled as ${invoice.id}');
+    } catch (e) {
+      _toast(e);
+    } finally {
+      ref.invalidate(tablesDataProvider);
+    }
+  }
+
+  /// Split: pick lines, settle just those into their own invoice. The
+  /// rest of the tab stays open on the table.
+  Future<void> _split(Document tab, TablesData data) async {
+    final fresh = await (await ref.read(documentEngineProvider.future))
+        .fetch('POS Tab', tab.id);
+    if (fresh == null || !mounted) return;
+    final rows = fresh.children['items'] ?? const <ChildRow>[];
+    if (rows.length < 2) {
+      _toast('Nothing to split — the tab has ${rows.length} line(s).');
+      return;
+    }
+    final chosen = <int>{};
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, setDialogState) => AlertDialog(
+          title: const Text('Split — settle these lines'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < rows.length; i++)
+                CheckboxListTile(
+                  dense: true,
+                  title: Text(
+                      '${asNum(rows[i].payload['qty'])} × '
+                      '${rows[i].payload['item']}'),
+                  secondary: Text((asNum(rows[i].payload['qty']) *
+                          (asNum(rows[i].payload['rate']) +
+                              asNum(rows[i].payload['modifier_amount'])))
+                      .toStringAsFixed(2)),
+                  value: chosen.contains(i),
+                  onChanged: (v) => setDialogState(
+                      () => v == true ? chosen.add(i) : chosen.remove(i)),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: chosen.isEmpty
+                    ? null
+                    : () => Navigator.pop(c, true),
+                child: const Text('Settle selection')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true || chosen.isEmpty) return;
+    await _settle(fresh, data, rowIndexes: chosen.toList()..sort());
+  }
+
+  /// Merge this tab into another open tab (parties joining up).
+  Future<void> _merge(Document tab, TablesData data) async {
+    final targets = [
+      ...data.openTabsByTable.values,
+      ...data.barTabs,
+    ]..removeWhere((t) => t.id == tab.id);
+    if (targets.isEmpty) {
+      _toast('No other open tab to merge into.');
+      return;
+    }
+    if (!mounted) return;
+    final target = await showDialog<Document>(
+      context: context,
+      builder: (c) => SimpleDialog(
+        title: const Text('Merge into…'),
+        children: [
+          for (final t in targets)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(c, t),
+              child: Text(
+                  '${t.id} · ${asNonEmpty(t.payload['table']) ?? 'Bar'}'),
+            ),
+        ],
+      ),
+    );
+    if (target == null) return;
+    try {
+      await (await _tabs).mergeTabs(tab.id, target.id);
+      _toast('Merged into ${target.id}');
     } catch (e) {
       _toast(e);
     } finally {
@@ -437,6 +557,20 @@ class _TablesScreenState extends ConsumerState<TablesScreen> {
                         await _settle(tab, data);
                       },
                       child: const Text('Settle'),
+                    ),
+                    OutlinedButton(
+                      onPressed: () async {
+                        Navigator.pop(c);
+                        await _split(tab, data);
+                      },
+                      child: const Text('Split'),
+                    ),
+                    OutlinedButton(
+                      onPressed: () async {
+                        Navigator.pop(c);
+                        await _merge(tab, data);
+                      },
+                      child: const Text('Merge'),
                     ),
                     OutlinedButton(
                       onPressed: () async {

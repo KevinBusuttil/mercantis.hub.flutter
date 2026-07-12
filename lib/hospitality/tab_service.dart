@@ -117,8 +117,16 @@ class TabService {
   /// Settlement: the tab becomes a submitted POS Invoice — the fiscal
   /// moment. Modifier deltas fold into each line's rate (backend invariant
   /// amount == qty × rate holds untouched) and the modifiers ride the line
-  /// description onto the receipt. The tab is stamped Billed with the
-  /// invoice id; the table frees.
+  /// description onto the receipt.
+  ///
+  /// V2-4: [rowIndexes] settles just those lines — a SPLIT. The settled
+  /// lines leave the tab (their invoice recorded in `split_invoices`) and
+  /// the rest stays Open; when the last line settles the tab goes Billed.
+  /// An even split needs no lines at all: one invoice, several tenders.
+  ///
+  /// [serviceChargePercent] adds a service charge as a priced line on
+  /// [serviceChargeItem] — a normal supply, so VAT applies to it and the
+  /// backend's total invariant holds.
   Future<Document> settleTab(
     String tabId, {
     required List<PosTender> tenders,
@@ -130,24 +138,58 @@ class TabService {
     String? posSession,
     String? tillSeries,
     String? priceList,
+    List<int>? rowIndexes,
+    num serviceChargePercent = 0,
+    String? serviceChargeItem,
   }) async {
     final tab = await _requireOpen(tabId);
     final rows = tab.children['items'] ?? const <ChildRow>[];
     if (rows.isEmpty) {
       throw StateError('Tab $tabId has no items — nothing to settle.');
     }
+    final selected = rowIndexes == null
+        ? [for (var i = 0; i < rows.length; i++) i]
+        : (rowIndexes.toSet().toList()..sort());
+    if (selected.isEmpty) {
+      throw StateError('Nothing selected to settle.');
+    }
+    for (final i in selected) {
+      if (i < 0 || i >= rows.length) {
+        throw StateError('Tab $tabId has no line $i.');
+      }
+    }
 
     final lines = <PosCartLine>[];
-    for (final row in rows) {
+    num preTax = 0;
+    for (final i in selected) {
+      final row = rows[i];
       final modifiers = asNonEmpty(row.payload['modifiers']);
+      final rate = asNum(row.payload['rate']) +
+          asNum(row.payload['modifier_amount']);
+      preTax += asNum(row.payload['qty']) * rate;
       lines.add(PosCartLine(
         item: '${row.payload['item']}',
         qty: asNum(row.payload['qty']),
-        rate: asNum(row.payload['rate']) +
-            asNum(row.payload['modifier_amount']),
+        rate: rate,
         description:
             modifiers == null ? null : '${row.payload['item']} ($modifiers)',
       ));
+    }
+    if (serviceChargePercent > 0) {
+      if (serviceChargeItem == null) {
+        throw StateError(
+            'A service charge needs a service_charge_item on the POS '
+            'Profile — the charge posts as a priced line.');
+      }
+      final charge = round2(preTax * serviceChargePercent / 100);
+      if (charge > 0) {
+        lines.add(PosCartLine(
+          item: serviceChargeItem,
+          qty: 1,
+          rate: charge,
+          description: 'Service charge ($serviceChargePercent%)',
+        ));
+      }
     }
 
     final draft = PosCheckout.buildPosInvoice(
@@ -167,10 +209,70 @@ class TabService {
     final saved = await _engine.save(draft, _roles);
     final posted = await _engine.submit(saved, _roles);
 
-    tab.payload['status'] = 'Billed';
-    tab.payload['pos_invoice'] = posted.id;
+    final remaining = [
+      for (var i = 0; i < rows.length; i++)
+        if (!selected.contains(i)) rows[i],
+    ];
+    if (remaining.isEmpty) {
+      tab.payload['status'] = 'Billed';
+      tab.payload['pos_invoice'] = posted.id;
+    } else {
+      for (var i = 0; i < remaining.length; i++) {
+        remaining[i].rowIndex = i;
+      }
+      tab.children['items'] = remaining;
+      final prev = asNonEmpty(tab.payload['split_invoices']);
+      tab.payload['split_invoices'] =
+          prev == null ? posted.id : '$prev, ${posted.id}';
+    }
     await _engine.save(tab, _roles);
     return posted;
+  }
+
+  /// V2-4: merges [sourceId] into [targetId] when parties join up. Lines
+  /// move across with their kitchen state (nothing re-fires), covers add,
+  /// open kitchen tickets re-point at the target, and the source stays on
+  /// record as Merged → target. Both tabs must be Open.
+  Future<Document> mergeTabs(String sourceId, String targetId) async {
+    if (sourceId == targetId) {
+      throw StateError('A tab cannot merge into itself.');
+    }
+    final source = await _requireOpen(sourceId);
+    final target = await _requireOpen(targetId);
+
+    final targetRows = target.children['items'] ?? <ChildRow>[];
+    for (final r in source.children['items'] ?? const <ChildRow>[]) {
+      targetRows.add(ChildRow(
+        id: '', parentId: target.id, parentDocType: 'POS Tab',
+        tableName: 'items', rowIndex: targetRows.length,
+        payload: Map.of(r.payload),
+      ));
+    }
+    target.children['items'] = targetRows;
+    target.payload['covers'] = (asNum(target.payload['covers']) +
+            asNum(source.payload['covers']))
+        .toInt();
+    final merged = await _engine.save(target, _roles);
+
+    // The kitchen keeps cooking — the round just belongs elsewhere now.
+    final tickets = await _engine.list('Kitchen Ticket',
+        filters: {'tab': source.id}, userRoles: _roles);
+    for (final t in tickets) {
+      if ('${t.payload['status']}' != 'Open') continue;
+      t.payload['tab'] = target.id;
+      final table = asNonEmpty(target.payload['table']);
+      if (table != null) {
+        t.payload['table'] = table;
+      } else {
+        t.payload.remove('table');
+      }
+      await _engine.save(t, _roles);
+    }
+
+    source.payload['status'] = 'Merged';
+    source.payload['merged_into'] = target.id;
+    await _engine.save(source, _roles);
+    return merged;
   }
 
   /// V2-3: sends the tab's not-yet-sent lines to the kitchen as ONE

@@ -45,7 +45,7 @@ abstract final class HospitalityModule {
             key: 'status',
             label: 'Status',
             type: FieldType.select,
-            options: 'Open\nBilled\nVoid',
+            options: 'Open\nBilled\nVoid\nMerged',
             defaultValue: 'Open',
           ),
           FieldDefinition(key: 'opened_at', label: 'Opened', type: FieldType.data, readOnly: true),
@@ -57,6 +57,10 @@ abstract final class HospitalityModule {
           // Settlement stamps the fiscal document; voiding records why.
           FieldDefinition(key: 'pos_invoice', label: 'Settled As', type: FieldType.link, linkDocType: 'POS Invoice', options: 'POS Invoice', readOnly: true),
           FieldDefinition(key: 'void_reason', label: 'Void Reason', type: FieldType.data, readOnly: true),
+          // V2-4: partial (split) settlements list their invoices here;
+          // a merged-away tab points at where its lines went.
+          FieldDefinition(key: 'split_invoices', label: 'Split Invoices', type: FieldType.smallText, readOnly: true),
+          FieldDefinition(key: 'merged_into', label: 'Merged Into', type: FieldType.link, linkDocType: 'POS Tab', options: 'POS Tab', readOnly: true),
         ],
       );
 

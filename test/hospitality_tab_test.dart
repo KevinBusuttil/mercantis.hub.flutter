@@ -221,6 +221,128 @@ void main() {
     expect(t2!.payload['status'], 'Void');
   });
 
+  test('split settlement: chosen lines invoice now, the rest stays open',
+      () async {
+    final tab = await tabs.openTab(table: 'T1', covers: 3);
+    await tabs.addItem(tab.id, item: 'BURGER',
+        modifiers: '+cheese', modifierAmount: 0.5); // 12.50
+    await tabs.addItem(tab.id, item: 'COLA', qty: 2); // 5.00
+    await tabs.addItem(tab.id, item: 'COLA'); // 2.50
+
+    // One guest pays for their burger and leaves.
+    final first = await tabs.settleTab(
+      tab.id,
+      tenders: const [PosTender(type: 'Card', amount: 12.5)],
+      rowIndexes: const [0],
+    );
+    expect(first.docStatus, 1);
+    expect(asNum(first.payload['grand_total']), 12.5);
+
+    // The tab is still open with the two cola lines and remembers the
+    // split invoice.
+    final open = await engine.fetch('POS Tab', tab.id);
+    expect(open!.payload['status'], 'Open');
+    expect(open.children['items'], hasLength(2));
+    expect(open.payload['split_invoices'], contains(first.id));
+    expect(TabService.tabTotal(open), 7.5);
+
+    // A stale line index refuses.
+    await expectLater(
+      tabs.settleTab(tab.id,
+          tenders: const [PosTender(type: 'Cash', amount: 1)],
+          rowIndexes: const [7]),
+      throwsA(isA<StateError>()),
+    );
+
+    // Settling the rest bills the tab.
+    final rest = await tabs.settleTab(tab.id,
+        tenders: const [PosTender(type: 'Cash', amount: 7.5)]);
+    expect(asNum(rest.payload['grand_total']), 7.5);
+    final billed = await engine.fetch('POS Tab', tab.id);
+    expect(billed!.payload['status'], 'Billed');
+    expect(billed.payload['pos_invoice'], rest.id);
+  });
+
+  test('service charge posts as a priced line and takes VAT', () async {
+    await engine.save(
+        Document(id: 'SVC', docType: 'Item', payload: {
+          'item_code': 'SVC', 'item_name': 'Service Charge',
+          'item_type': 'Service', 'stock_uom': 'Nos',
+        }),
+        roles);
+
+    final tab = await tabs.openTab(table: 'T1');
+    await tabs.addItem(tab.id, item: 'BURGER'); // 12.00
+    await tabs.addItem(tab.id, item: 'COLA', qty: 2); // 5.00
+
+    // Percent without a configured item is a config error, not silence.
+    await expectLater(
+      tabs.settleTab(tab.id,
+          tenders: const [PosTender(type: 'Cash', amount: 20)],
+          serviceChargePercent: 10),
+      throwsA(isA<StateError>()),
+    );
+
+    final invoice = await tabs.settleTab(
+      tab.id,
+      tenders: const [PosTender(type: 'Cash', amount: 20)],
+      serviceChargePercent: 10,
+      serviceChargeItem: 'SVC',
+    );
+    // 17.00 + 1.70 service charge = 18.70
+    expect(asNum(invoice.payload['grand_total']), 18.7);
+    final lines = invoice.children['items']!;
+    expect(lines, hasLength(3));
+    expect(lines.last.payload['item'], 'SVC');
+    expect(asNum(lines.last.payload['rate']), 1.7);
+    expect(lines.last.payload['description'], contains('10%'));
+  });
+
+  test('merge: lines and covers move over, the source stays on record',
+      () async {
+    await engine.save(
+        Document(id: 'T2', docType: 'POS Table', payload: {
+          'table_name': 'Table 2', 'area': 'Terrace', 'seats': 2,
+        }),
+        roles);
+
+    final host = await tabs.openTab(table: 'T1', covers: 2);
+    await tabs.addItem(host.id, item: 'BURGER');
+    final joiner = await tabs.openTab(table: 'T2', covers: 1);
+    await tabs.addItem(joiner.id, item: 'COLA', qty: 2,
+        modifiers: 'no ice');
+    await tabs.sendToKitchen(joiner.id); // a round already cooking
+
+    await expectLater(
+        tabs.mergeTabs(host.id, host.id), throwsA(isA<StateError>()));
+
+    await tabs.mergeTabs(joiner.id, host.id);
+
+    final merged = await engine.fetch('POS Tab', host.id);
+    expect(merged!.children['items'], hasLength(2));
+    expect(merged.children['items']![1].payload['modifiers'], 'no ice');
+    // Moved lines keep their kitchen state — nothing re-fires.
+    expect(merged.children['items']![1].payload['sent_to_kitchen'], 1);
+    expect(asNum(merged.payload['covers']), 3);
+    expect(TabService.tabTotal(merged), 17);
+
+    // The source stays on record, pointing at where its lines went…
+    final gone = await engine.fetch('POS Tab', joiner.id);
+    expect(gone!.payload['status'], 'Merged');
+    expect(gone.payload['merged_into'], host.id);
+    // …it can't take orders, and Table 2 frees for the next sitting.
+    await expectLater(
+        tabs.addItem(gone.id, item: 'COLA'), throwsA(isA<StateError>()));
+    await tabs.openTab(table: 'T2');
+
+    // The cooking round now belongs to the host tab and its table.
+    final tickets =
+        await engine.list('Kitchen Ticket', userRoles: roles);
+    expect(tickets, hasLength(1));
+    expect(tickets.first.payload['tab'], host.id);
+    expect(tickets.first.payload['table'], 'T1');
+  });
+
   test('the fiscal receipt carries VAT and EXO numbers', () async {
     final tab = await tabs.openTab(table: 'T1');
     await tabs.addItem(tab.id, item: 'BURGER');
