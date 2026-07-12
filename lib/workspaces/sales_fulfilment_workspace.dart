@@ -110,6 +110,20 @@ WorkspaceDescriptor salesFulfilmentWorkspace({bool posEnabled = true}) =>
           ],
         ),
         const WorkspaceSection(
+          label: 'Memberships',
+          description: 'Plans whose fees bill themselves; pause without '
+              'back-billing',
+          items: [
+            CustomWorkspaceItem(routeName: 'members',
+              label: 'Members', icon: Icons.card_membership_outlined,
+              description: 'Who\'s on what plan, next billing, arrears'),
+            DocTypeWorkspaceItem(docType: 'Membership',
+              icon: Icons.badge_outlined),
+            DocTypeWorkspaceItem(docType: 'Membership Plan',
+              icon: Icons.workspace_premium_outlined),
+          ],
+        ),
+        const WorkspaceSection(
           label: 'Customer base',
           items: [
             DocTypeWorkspaceItem(docType: 'Customer', icon: Icons.person_outline),

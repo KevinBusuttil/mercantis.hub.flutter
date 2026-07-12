@@ -36,6 +36,7 @@ import '../screens/scan_receipt_screen.dart';
 import '../screens/numbering_series_screen.dart';
 import '../screens/opening_balances_screen.dart';
 import '../screens/pos_till_screen.dart';
+import '../screens/members_screen.dart';
 import '../screens/rent_roll_screen.dart';
 import '../screens/rentals_screen.dart';
 import '../screens/report_builder_screen.dart';
@@ -129,6 +130,7 @@ void wireHubNavigation(WidgetRef ref) {
     registry.registerRoute('assets', (c, s) => const AssetsScreen());
     registry.registerRoute('rentals', (c, s) => const RentalsScreen());
     registry.registerRoute('rent-roll', (c, s) => const RentRollScreen());
+    registry.registerRoute('members', (c, s) => const MembersScreen());
     registry.registerRoute('dispatch', (c, s) => const DispatchScreen());
     registry.registerRoute('tech-today', (c, s) => const TechTodayScreen());
     registry.registerRoute('equipment', (c, s) => const EquipmentScreen());
