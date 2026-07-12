@@ -148,7 +148,10 @@ out/free state, hand over / return / cancel actions, New hire dialog).
 V5 **done** (Property register + Lease; activation takes the S4
 tenancy deposit and writes a Recurring Invoice template so rent bills
 through the existing runner; rent roll screen with computed arrears and
-activate/end actions in Finance).
+activate/end actions in Finance); V7 **done** (Membership Plan +
+Membership over the same Recurring Invoice engine; pause/resume never
+back-bills the gap; Members screen with arrears and per-status
+actions).
 
 **Deferred:** S7 batch/serial/expiry (deepest ledger surgery — wait for a
 paying segment), multi-company, SaaS-billing depth, i18n scaffolding until
