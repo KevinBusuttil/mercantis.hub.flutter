@@ -84,6 +84,10 @@ WorkspaceDescriptor salesFulfilmentWorkspace({bool posEnabled = true}) =>
           description: 'Hire out units — availability held on the '
               'calendar, deposits as liabilities, days billed at return',
           items: [
+            CustomWorkspaceItem(routeName: 'rentals',
+              label: 'Hire desk', icon: Icons.handshake_outlined,
+              description: 'The fleet, who has what out, hand over and '
+                  'return'),
             DocTypeWorkspaceItem(docType: 'Rental Agreement',
               icon: Icons.assignment_outlined),
             DocTypeWorkspaceItem(docType: 'Rental Unit',
