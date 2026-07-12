@@ -11,6 +11,7 @@ import '../modules/selling/hub_conversion_actions.dart';
 import '../modules/selling/hub_quotation_actions.dart';
 import '../modules/selling/hub_reminder_actions.dart';
 import '../modules/selling/hub_lineage_actions.dart';
+import '../einvoicing/hub_einvoice_actions.dart';
 import '../printing/hub_print_actions.dart';
 import '../screens/account_ledger_screen.dart';
 import '../screens/accountant_export_screen.dart';
@@ -21,6 +22,7 @@ import '../screens/bank_reconcile_screen.dart';
 import '../screens/assets_screen.dart';
 import '../screens/booking_screen.dart';
 import '../screens/commissions_screen.dart';
+import '../screens/contracts_screen.dart';
 import '../screens/customer_account_screen.dart';
 import '../screens/customer_statement_screen.dart';
 import '../screens/delivery_route_screen.dart';
@@ -36,6 +38,8 @@ import '../screens/scan_receipt_screen.dart';
 import '../screens/numbering_series_screen.dart';
 import '../screens/opening_balances_screen.dart';
 import '../screens/pos_till_screen.dart';
+import '../screens/members_screen.dart';
+import '../screens/rent_roll_screen.dart';
 import '../screens/rentals_screen.dart';
 import '../screens/report_builder_screen.dart';
 import '../screens/reports_screen.dart';
@@ -89,6 +93,7 @@ void wireHubNavigation(WidgetRef ref) {
     registerHubLineageActions(ref);
     // Printing (HU2): a "Print preview" action rendering the default format.
     registerHubPrintActions(ref);
+    registerHubEInvoiceActions(ref);
     // Accounting: a "Ledger" action on an Account, opening its ledger.
     registerHubAccountActions(ref);
     // Phase 8: a "History" action on every saved record (audit trail).
@@ -127,6 +132,10 @@ void wireHubNavigation(WidgetRef ref) {
         'commissions', (c, s) => const CommissionsScreen());
     registry.registerRoute('assets', (c, s) => const AssetsScreen());
     registry.registerRoute('rentals', (c, s) => const RentalsScreen());
+    registry.registerRoute('rent-roll', (c, s) => const RentRollScreen());
+    registry.registerRoute('members', (c, s) => const MembersScreen());
+    registry.registerRoute(
+        'contracts', (c, s) => const ContractsScreen());
     registry.registerRoute('dispatch', (c, s) => const DispatchScreen());
     registry.registerRoute('tech-today', (c, s) => const TechTodayScreen());
     registry.registerRoute('equipment', (c, s) => const EquipmentScreen());

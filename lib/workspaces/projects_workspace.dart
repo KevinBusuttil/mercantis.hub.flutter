@@ -34,6 +34,19 @@ const projectsWorkspace = WorkspaceDescriptor(
         ),
       ],
     ),
+    WorkspaceSection(
+      label: 'Construction',
+      description: 'Interim valuations billed less retention; the held '
+          'retention releases at practical completion',
+      items: [
+        CustomWorkspaceItem(routeName: 'contracts',
+          label: 'Contracts board', icon: Icons.engineering_outlined,
+          description: 'Certified position, billed to date and retention '
+              'held per contract'),
+        DocTypeWorkspaceItem(docType: 'Construction Contract',
+          icon: Icons.engineering_outlined),
+      ],
+    ),
   ],
   quickActions: [
     QuickAction(id: 'proj_new_project', label: 'New Project',
