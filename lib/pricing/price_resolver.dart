@@ -43,10 +43,11 @@ class PriceResolver {
     String? priceList,
     String? currency,
     String? onDate,
+    String? company,
   }) async {
     final date = asNonEmpty(onDate) ?? _todayIso();
     for (final listId in await _candidateLists(
-        explicit: priceList, customer: customer)) {
+        explicit: priceList, customer: customer, company: company)) {
       final rate = await _rateFromList(
         listId: listId,
         item: item,
@@ -88,6 +89,7 @@ class PriceResolver {
   Future<List<String>> _candidateLists({
     String? explicit,
     String? customer,
+    String? company,
   }) async {
     final candidates = <String>[];
     void add(dynamic id) {
@@ -100,9 +102,18 @@ class PriceResolver {
       final c = await _engine.fetch('Customer', customer!);
       add(c?.payload['default_price_list']);
     }
-    final companies = await _engine.list('Company', userRoles: _systemRoles);
-    if (companies.isNotEmpty) {
-      add(companies.first.payload['default_selling_price_list']);
+    // The DOCUMENT's company owns the fallback list — in a multi-company
+    // database, company B's invoice must never price from company A's
+    // default. Only a company-less document uses the sole/first company.
+    if (asNonEmpty(company) != null) {
+      final c = await _engine.fetch('Company', company!);
+      add(c?.payload['default_selling_price_list']);
+    } else {
+      final companies =
+          await _engine.list('Company', userRoles: _systemRoles);
+      if (companies.isNotEmpty) {
+        add(companies.first.payload['default_selling_price_list']);
+      }
     }
     return candidates;
   }
@@ -209,6 +220,7 @@ class PriceResolutionInterceptor extends DocumentInterceptor {
         priceList: asNonEmpty(doc.payload['price_list']),
         currency: asNonEmpty(doc.payload['currency']),
         onDate: onDate,
+        company: asNonEmpty(doc.company),
       );
       if (resolved == null) continue;
       row.payload['rate'] = resolved.rate;

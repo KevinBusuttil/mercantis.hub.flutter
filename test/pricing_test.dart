@@ -134,6 +134,34 @@ void main() {
       expect(gbp!.rate, 100); // EUR list can't price a GBP document
     });
 
+    // Codex review (PR #166): the fallback list belongs to the DOCUMENT's
+    // company — company B must never price from company A's default.
+    test('company fallback uses the document company, not the first company',
+        () async {
+      await save('Price List', 'B-LIST', {
+        'price_list_name': 'B list', 'currency': 'EUR',
+        'selling': 1, 'enabled': 1,
+      }, children: {
+        'items': [
+          {'item': 'WIDGET', 'rate': 60},
+        ],
+      });
+      await save('Company', 'CO-A', {
+        'company_name': 'A', 'abbr': 'A',
+        'default_selling_price_list': 'TRADE',
+      });
+      await save('Company', 'CO-B', {
+        'company_name': 'B', 'abbr': 'B',
+        'default_selling_price_list': 'B-LIST',
+      });
+
+      final forB = await resolver.resolve(item: 'WIDGET', company: 'CO-B');
+      expect(forB!.rate, 60);
+      expect(forB.priceList, 'B-LIST');
+      final forA = await resolver.resolve(item: 'WIDGET', company: 'CO-A');
+      expect(forA!.rate, 90); // TRADE
+    });
+
     test('sellingRates maps the whole list for the POS till', () async {
       final rates = await resolver.sellingRates(priceList: 'TRADE');
       expect(rates, {'WIDGET': 90}); // qty-1 view: breaks don't apply

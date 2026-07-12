@@ -76,6 +76,9 @@ class DepositApplicationInterceptor extends DocumentInterceptor {
     if (docType.id != 'Payment Entry') return;
     final depositId = asNonEmpty(doc.payload['deposit']);
     if (depositId == null) return;
+    // Only a Receive payment can consume a customer deposit; autofilling a
+    // Pay/Internal Transfer here would aim its GL at the deposit liability.
+    if ('${doc.payload['payment_type']}' != 'Receive') return;
     final deposit = await engine.fetch('Customer Deposit', depositId);
     if (deposit == null) return;
     if (asNonEmpty(doc.payload['paid_to']) == null) {
@@ -94,6 +97,11 @@ class DepositApplicationInterceptor extends DocumentInterceptor {
     if (docType.id != 'Payment Entry') return;
     final depositId = asNonEmpty(doc.payload['deposit']);
     if (depositId == null) return;
+    if ('${doc.payload['payment_type']}' != 'Receive') {
+      throw StateError(
+          'A Customer Deposit applies through a Receive payment — this '
+          'entry is ${doc.payload['payment_type']}.');
+    }
 
     final deposit = await engine.fetch('Customer Deposit', depositId);
     if (deposit == null || deposit.docStatus != 1) {

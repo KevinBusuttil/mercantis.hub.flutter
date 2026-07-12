@@ -231,6 +231,32 @@ void main() {
         engine.submit(second, roles), throwsA(isA<StateError>()));
   });
 
+  // Codex review (PR #166): a deposit consumes through a Receive payment
+  // ONLY — a Pay entry naming one must neither autofill nor submit.
+  test('non-Receive payments cannot apply a deposit', () async {
+    final dep = await submittedDeposit(100);
+    final pe = await engine.save(
+        Document(id: '', docType: 'Payment Entry', payload: {
+          'payment_type': 'Pay',
+          'posting_date': today,
+          'deposit': dep.id,
+          'paid_from': 'Bank',
+          'paid_to': 'Debtors',
+          'party_type': 'Supplier',
+          'paid_amount': 50,
+        }),
+        roles);
+    // beforeSave left the Pay entry alone…
+    expect(pe.payload['paid_to'], 'Debtors');
+    expect(pe.payload['party'], isNull);
+    // …and submit refuses outright.
+    await expectLater(
+      engine.submit(pe, roles),
+      throwsA(isA<StateError>().having(
+          (e) => '$e', 'message', contains('Receive'))),
+    );
+  });
+
   test('a draft deposit cannot be applied', () async {
     final draft = await engine.save(
         Document(id: '', docType: 'Customer Deposit', payload: {
