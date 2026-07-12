@@ -180,6 +180,47 @@ void main() {
     );
   });
 
+  test(
+      'kitchen rounds: each send snapshots only the new lines; bumps and '
+      'void cascade', () async {
+    final tab = await tabs.openTab(table: 'T1', server: 'Anna');
+    await tabs.addItem(tab.id, item: 'BURGER',
+        modifiers: 'well done', notes: 'no bun');
+    await tabs.addItem(tab.id, item: 'COLA', qty: 2);
+
+    // Round one carries both lines with their kitchen detail.
+    final first = await tabs.sendToKitchen(tab.id);
+    expect(first.id, startsWith('KOT-'));
+    expect(first.payload['status'], 'Open');
+    expect(first.payload['table'], 'T1');
+    final lines = first.children['items']!;
+    expect(lines, hasLength(2));
+    expect(lines[0].payload['modifiers'], 'well done');
+    expect(lines[0].payload['notes'], 'no bun');
+
+    // Nothing new — the server gets told, the kitchen gets no duplicate.
+    await expectLater(
+        tabs.sendToKitchen(tab.id), throwsA(isA<StateError>()));
+
+    // A follow-up order is the NEXT ticket, holding only the new line.
+    await tabs.addItem(tab.id, item: 'COLA');
+    final second = await tabs.sendToKitchen(tab.id);
+    expect(second.children['items'], hasLength(1));
+
+    // The kitchen bumps round one; a Done ticket can't bump twice.
+    final done = await tabs.bumpTicket(first.id);
+    expect(done.payload['status'], 'Done');
+    await expectLater(
+        tabs.bumpTicket(first.id), throwsA(isA<StateError>()));
+
+    // Voiding the tab voids what's still on the rail — never cooked work.
+    await tabs.voidTab(tab.id, reason: 'Guests walked out');
+    final t1 = await engine.fetch('Kitchen Ticket', first.id);
+    final t2 = await engine.fetch('Kitchen Ticket', second.id);
+    expect(t1!.payload['status'], 'Done'); // history stays honest
+    expect(t2!.payload['status'], 'Void');
+  });
+
   test('the fiscal receipt carries VAT and EXO numbers', () async {
     final tab = await tabs.openTab(table: 'T1');
     await tabs.addItem(tab.id, item: 'BURGER');

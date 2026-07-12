@@ -173,8 +173,72 @@ class TabService {
     return posted;
   }
 
+  /// V2-3: sends the tab's not-yet-sent lines to the kitchen as ONE
+  /// ticket (a round). The lines are snapshotted onto the ticket and
+  /// flagged `sent_to_kitchen` on the tab, so the next round only carries
+  /// what's new. Nothing new to send is an error the server sees.
+  Future<Document> sendToKitchen(String tabId) async {
+    final tab = await _requireOpen(tabId);
+    final rows = tab.children['items'] ?? const <ChildRow>[];
+    final unsent = [
+      for (final r in rows)
+        if (!isTrue(r.payload['sent_to_kitchen'])) r,
+    ];
+    if (unsent.isEmpty) {
+      throw StateError(
+          'Tab $tabId has nothing new to send — every line is already '
+          'in the kitchen.');
+    }
+
+    final ticket = Document(id: '', docType: 'Kitchen Ticket', payload: {
+      'tab': tab.id,
+      if (asNonEmpty(tab.payload['table']) != null)
+        'table': tab.payload['table'],
+      'status': 'Open',
+      'sent_at': DateTime.now().toIso8601String(),
+      if (asNonEmpty(tab.payload['server']) != null)
+        'server': tab.payload['server'],
+    });
+    ticket.children['items'] = [
+      for (var i = 0; i < unsent.length; i++)
+        ChildRow(
+          id: '', parentId: '', parentDocType: 'Kitchen Ticket',
+          tableName: 'items', rowIndex: i,
+          payload: {
+            'item': unsent[i].payload['item'],
+            'qty': unsent[i].payload['qty'],
+            if (asNonEmpty(unsent[i].payload['modifiers']) != null)
+              'modifiers': unsent[i].payload['modifiers'],
+            if (asNonEmpty(unsent[i].payload['notes']) != null)
+              'notes': unsent[i].payload['notes'],
+          },
+        ),
+    ];
+    final saved = await _engine.save(ticket, _roles);
+
+    for (final r in unsent) {
+      r.payload['sent_to_kitchen'] = 1;
+    }
+    await _engine.save(tab, _roles);
+    return saved;
+  }
+
+  /// The kitchen bumps a finished ticket off the rail.
+  Future<Document> bumpTicket(String ticketId) async {
+    final ticket = await _engine.fetch('Kitchen Ticket', ticketId);
+    if (ticket == null) throw StateError('Ticket $ticketId not found.');
+    if ('${ticket.payload['status']}' != 'Open') {
+      throw StateError(
+          'Ticket $ticketId is ${ticket.payload['status']}, not Open.');
+    }
+    ticket.payload['status'] = 'Done';
+    return _engine.save(ticket, _roles);
+  }
+
   /// Voids an un-settled tab. The reason is mandatory and the record stays
-  /// — a disappeared tab is exactly what a fiscal audit flags.
+  /// — a disappeared tab is exactly what a fiscal audit flags. Any ticket
+  /// still open on the kitchen rail voids with it, so the kitchen never
+  /// cooks a dead order.
   Future<Document> voidTab(String tabId, {required String reason}) async {
     if (reason.trim().isEmpty) {
       throw StateError('A void needs a reason.');
@@ -185,6 +249,13 @@ class TabService {
       throw StateError(
           'Tab $tabId is settled as ${tab.payload['pos_invoice']} — cancel '
           'that POS Invoice instead of voiding the tab.');
+    }
+    final tickets = await _engine.list('Kitchen Ticket',
+        filters: {'tab': tab.id}, userRoles: _roles);
+    for (final t in tickets) {
+      if ('${t.payload['status']}' != 'Open') continue;
+      t.payload['status'] = 'Void';
+      await _engine.save(t, _roles);
     }
     tab.payload['status'] = 'Void';
     tab.payload['void_reason'] = reason.trim();

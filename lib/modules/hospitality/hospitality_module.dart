@@ -18,6 +18,8 @@ abstract final class HospitalityModule {
         _posTabItem(),
         _modifierGroup(),
         _modifierOption(),
+        _kitchenTicket(),
+        _kitchenTicketItem(),
       ];
 
   static DocType _posTable() => const DocType(
@@ -87,6 +89,46 @@ abstract final class HospitalityModule {
         fields: [
           FieldDefinition(key: 'group_name', label: 'Group Name', type: FieldType.data, required: true),
           FieldDefinition(key: 'options', label: 'Options', type: FieldType.table, tableDocType: 'Modifier Option', options: 'Modifier Option'),
+        ],
+      );
+
+  /// V2-3: one ROUND sent to the kitchen. Each "Send to kitchen" snapshots
+  /// the tab's not-yet-sent lines into a ticket, so a second round is a
+  /// second ticket — the kitchen never re-reads a mutating tab. Tickets are
+  /// working documents (not fiscal, not submittable): Open on the rail
+  /// until the kitchen bumps them Done; voiding a tab voids its open
+  /// tickets so the rail never cooks a dead order.
+  static DocType _kitchenTicket() => const DocType(
+        id: 'Kitchen Ticket',
+        name: 'Kitchen Ticket',
+        module: _module,
+        namingRule: 'KOT-.YYYY.-.####',
+        fields: [
+          FieldDefinition(key: 'tab', label: 'Tab', type: FieldType.link, linkDocType: 'POS Tab', options: 'POS Tab', required: true),
+          FieldDefinition(key: 'table', label: 'Table', type: FieldType.link, linkDocType: 'POS Table', options: 'POS Table'),
+          FieldDefinition(
+            key: 'status',
+            label: 'Status',
+            type: FieldType.select,
+            options: 'Open\nDone\nVoid',
+            defaultValue: 'Open',
+          ),
+          FieldDefinition(key: 'sent_at', label: 'Sent', type: FieldType.data, readOnly: true),
+          FieldDefinition(key: 'server', label: 'Server', type: FieldType.data),
+          FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Kitchen Ticket Item', options: 'Kitchen Ticket Item'),
+        ],
+      );
+
+  static DocType _kitchenTicketItem() => const DocType(
+        id: 'Kitchen Ticket Item',
+        name: 'Kitchen Ticket Item',
+        module: _module,
+        isChild: true,
+        fields: [
+          FieldDefinition(key: 'item', label: 'Item', type: FieldType.link, linkDocType: 'Item', options: 'Item', required: true),
+          FieldDefinition(key: 'qty', label: 'Qty', type: FieldType.float, required: true, defaultValue: '1'),
+          FieldDefinition(key: 'modifiers', label: 'Modifiers', type: FieldType.smallText),
+          FieldDefinition(key: 'notes', label: 'Kitchen Note', type: FieldType.data),
         ],
       );
 

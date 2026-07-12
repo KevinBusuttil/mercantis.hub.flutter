@@ -416,6 +416,21 @@ class _TablesScreenState extends ConsumerState<TablesScreen> {
                       },
                       child: const Text('Add items'),
                     ),
+                    FilledButton.tonal(
+                      onPressed: () async {
+                        Navigator.pop(c);
+                        try {
+                          final ticket =
+                              await (await _tabs).sendToKitchen(tab.id);
+                          _toast('Sent ${ticket.id} to the kitchen');
+                        } catch (e) {
+                          _toast(e);
+                        } finally {
+                          ref.invalidate(tablesDataProvider);
+                        }
+                      },
+                      child: const Text('Send to kitchen'),
+                    ),
                     FilledButton(
                       onPressed: () async {
                         Navigator.pop(c);
