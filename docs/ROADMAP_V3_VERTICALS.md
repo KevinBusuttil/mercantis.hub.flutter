@@ -117,7 +117,14 @@ salon/tutor/studio offering without a vertical build.
 Status: P4-1 **done** (BookingService: book = conflict-checked slot +
 submitted S4 deposit in one move; completeBooking = S1 invoice hook +
 S8 pricing + auto-applied deposit; Commission Rule doctype +
-computeCommissions with per-service override).
+computeCommissions with per-service override); P4-2 **done**
+(front-desk booking screen with complete-to-invoice, commissions
+report, Appointments workspace gated on appointmentsEnabled, and the
+"Appointments & Booking" Setup Pack).
+
+**Phase 4 complete — the composition thesis proven:** salon/tutor/
+studio ships as one Setup Pack over S1+S4+S8+S9, with Commission Rule
+the only new doctype.
 
 ## Phase 5 — Next wave (each gated on its capability)
 S10 Fixed assets → V4 Repair/Garage (V1 specialisation + S2 asset
