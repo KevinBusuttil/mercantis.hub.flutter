@@ -18,6 +18,7 @@ import '../screens/dashboards_screen.dart';
 import '../screens/approvals_inbox_screen.dart';
 import '../screens/audit_trail_screen.dart';
 import '../screens/bank_reconcile_screen.dart';
+import '../screens/assets_screen.dart';
 import '../screens/booking_screen.dart';
 import '../screens/commissions_screen.dart';
 import '../screens/customer_account_screen.dart';
@@ -122,6 +123,7 @@ void wireHubNavigation(WidgetRef ref) {
     registry.registerRoute('booking', (c, s) => const BookingScreen());
     registry.registerRoute(
         'commissions', (c, s) => const CommissionsScreen());
+    registry.registerRoute('assets', (c, s) => const AssetsScreen());
     registry.registerRoute('dispatch', (c, s) => const DispatchScreen());
     registry.registerRoute('tech-today', (c, s) => const TechTodayScreen());
     registry.registerRoute(

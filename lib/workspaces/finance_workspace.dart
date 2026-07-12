@@ -61,6 +61,21 @@ const financeWorkspace = WorkspaceDescriptor(
       ],
     ),
     WorkspaceSection(
+      label: 'Fixed assets',
+      description: 'The register, straight-line schedules, and the '
+          'depreciation run',
+      items: [
+        CustomWorkspaceItem(routeName: 'assets',
+          label: 'Asset register', icon: Icons.precision_manufacturing_outlined,
+          description: 'Book values and one-tap posting of due '
+              'depreciation'),
+        DocTypeWorkspaceItem(docType: 'Asset',
+          icon: Icons.precision_manufacturing_outlined),
+        DocTypeWorkspaceItem(docType: 'Asset Category',
+          icon: Icons.category_outlined),
+      ],
+    ),
+    WorkspaceSection(
       label: 'Compliance',
       items: [
         DocTypeWorkspaceItem(docType: 'Tax Filing',
