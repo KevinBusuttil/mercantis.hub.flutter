@@ -95,7 +95,9 @@ proceed; EXO approval is certification, not code); V2-1 **done**
 (POS Table/Tab/modifiers + TabService settle-to-fiscal-invoice + EXO on
 profile and receipt); V2-2 **done** (table-map till: floor screen with
 free/occupied cards and running totals, modifier-aware ordering, bar
-tabs, tender dialog settling onto the per-till fiscal series).
+tabs, tender dialog settling onto the per-till fiscal series); V2-3
+**done** (kitchen tickets: per-round KOT snapshots, kitchen rail screen
+with wait-time triage and bump, void cascade to open tickets).
 
 ## Phase 4 — Appointments composition pack (~2 increments)
 S1 + S4 + S9 (commission rules) + booking screen + Setup Pack — the
