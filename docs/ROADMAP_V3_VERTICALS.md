@@ -93,7 +93,9 @@ void/comp audit. **Precondition: verify Malta fiscal-receipt law.**
 Status: precondition **verified** (docs/MALTA_FISCAL_RECEIPTS.md —
 proceed; EXO approval is certification, not code); V2-1 **done**
 (POS Table/Tab/modifiers + TabService settle-to-fiscal-invoice + EXO on
-profile and receipt).
+profile and receipt); V2-2 **done** (table-map till: floor screen with
+free/occupied cards and running totals, modifier-aware ordering, bar
+tabs, tender dialog settling onto the per-till fiscal series).
 
 ## Phase 4 — Appointments composition pack (~2 increments)
 S1 + S4 + S9 (commission rules) + booking screen + Setup Pack — the
