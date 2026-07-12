@@ -137,7 +137,10 @@ schedules summing exactly to gross − salvage; idempotent due-period
 posting as Journal Entries; disposal JE with gain/loss; register screen
 in Finance); V4 **done** (Customer Equipment register; equipment +
 meter riding request→job and contract→job; history / last-meter /
-book-it-in service; equipment screen in Field Service).
+book-it-in service; equipment screen in Field Service); V3-1 **done**
+(Rental Unit backed by a Schedulable Resource — availability IS the S1
+calendar; Rental Agreement Draft→Out→Returned with S4 deposit and
+day-count invoice at return; hire desk screen pending as V3-2).
 
 **Deferred:** S7 batch/serial/expiry (deepest ledger surgery — wait for a
 paying segment), multi-company, SaaS-billing depth, i18n scaffolding until
