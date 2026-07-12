@@ -49,8 +49,12 @@ class RentalService {
       throw StateError('Unit $unitId is disabled.');
     }
 
+    // Everything the hire creates inherits the UNIT's company —
+    // multi-company books must not fall to the defaults interceptor's
+    // first company.
     final hold = await _engine.save(
-        Document(id: '', docType: 'Appointment', payload: {
+        Document(id: '', docType: 'Appointment', company: unit.company,
+            payload: {
           'subject': 'HIRE ${unit.payload['unit_name']} — $customer',
           'resource': unit.payload['resource'],
           'customer': customer,
@@ -61,7 +65,8 @@ class RentalService {
         _roles);
 
     final agreement = await _engine.save(
-        Document(id: '', docType: 'Rental Agreement', payload: {
+        Document(id: '', docType: 'Rental Agreement',
+            company: unit.company, payload: {
           'customer': customer,
           'unit': unit.id,
           'status': 'Draft',
@@ -76,7 +81,9 @@ class RentalService {
     if (depositAmount > 0) {
       final deposit = await _engine.submit(
           await _engine.save(
-              Document(id: '', docType: 'Customer Deposit', payload: {
+              Document(id: '', docType: 'Customer Deposit',
+                  company: agreement.company,
+                  payload: {
                 'customer': customer,
                 'posting_date':
                     DateTime.now().toIso8601String().split('T').first,
@@ -133,7 +140,8 @@ class RentalService {
     final days = chargeableDays(from, to);
     final rate = asNum(agreement.payload['daily_rate']);
 
-    final invoice = Document(id: '', docType: 'Sales Invoice', payload: {
+    final invoice = Document(id: '', docType: 'Sales Invoice',
+        company: agreement.company, payload: {
       'customer': agreement.payload['customer'],
       'posting_date': actual.toIso8601String().split('T').first,
       if (taxCode != null) 'tax_code': taxCode,
@@ -165,7 +173,9 @@ class RentalService {
         final apply = remaining < due ? remaining : due;
         if (apply > 0.005) {
           final application = await _engine.save(
-              Document(id: '', docType: 'Payment Entry', payload: {
+              Document(id: '', docType: 'Payment Entry',
+                  company: posted.company,
+                  payload: {
                 'payment_type': 'Receive',
                 'posting_date':
                     actual.toIso8601String().split('T').first,

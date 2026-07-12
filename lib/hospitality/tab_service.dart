@@ -28,8 +28,9 @@ class TabService {
     String? server,
     String? customer,
   }) async {
+    Document? tableDoc;
     if (table != null) {
-      final tableDoc = await _engine.fetch('POS Table', table);
+      tableDoc = await _engine.fetch('POS Table', table);
       if (tableDoc == null) throw StateError('Table $table not found.');
       final open = await _openTabFor(table);
       if (open != null) {
@@ -39,7 +40,8 @@ class TabService {
       }
     }
     return _engine.save(
-        Document(id: '', docType: 'POS Tab', payload: {
+        Document(id: '', docType: 'POS Tab',
+            company: tableDoc?.company, payload: {
           if (table != null) 'table': table,
           'status': 'Open',
           'opened_at': DateTime.now().toIso8601String(),
@@ -228,7 +230,7 @@ class TabService {
       warehouse: warehouse,
       taxCode: taxCode,
       pricesIncludeTax: pricesIncludeTax,
-      company: company,
+      company: company ?? tab.company,
       posProfile: posProfile,
       posSession: posSession,
       tillSeries: tillSeries,
@@ -329,7 +331,8 @@ class TabService {
           'in the kitchen.');
     }
 
-    final ticket = Document(id: '', docType: 'Kitchen Ticket', payload: {
+    final ticket = Document(id: '', docType: 'Kitchen Ticket',
+        company: tab.company, payload: {
       'tab': tab.id,
       if (asNonEmpty(tab.payload['table']) != null)
         'table': tab.payload['table'],

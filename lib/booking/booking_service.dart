@@ -68,9 +68,14 @@ class BookingService {
         _roles);
     if (depositAmount <= 0) return appointment;
 
+    // The deposit inherits the booking's company (which the defaults
+    // interceptor stamped at save) — multi-company books must not hold
+    // the liability under the wrong company.
     final deposit = await _engine.submit(
         await _engine.save(
-            Document(id: '', docType: 'Customer Deposit', payload: {
+            Document(id: '', docType: 'Customer Deposit',
+                company: appointment.company,
+                payload: {
               'customer': customer,
               'posting_date':
                   DateTime.now().toIso8601String().split('T').first,
@@ -109,7 +114,9 @@ class BookingService {
         final apply = remaining < due ? remaining : due;
         if (apply > 0.005) {
           final application = await _engine.save(
-              Document(id: '', docType: 'Payment Entry', payload: {
+              Document(id: '', docType: 'Payment Entry',
+                  company: invoice.company,
+                  payload: {
                 'payment_type': 'Receive',
                 'posting_date':
                     DateTime.now().toIso8601String().split('T').first,
