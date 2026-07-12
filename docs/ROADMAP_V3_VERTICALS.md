@@ -78,7 +78,10 @@ update_stock, S8-priced materials, labour via service item); V1-3
 **done** (dispatch board + Field Service workspace + module toggle);
 V1-4 **done** (My Day tech screen: checklist, parts, hours, S3 sign-off
 → completeJob); V1-5 **done** (Maintenance Contract + recurring job
-generation at boot). Ships as an
+generation at boot); V1-6 **done** (KPIs: work done, revenue/tech,
+unbilled leakage, backlog, contract health).
+
+**Phase 2 complete — V1 Field Service ships.** Ships as an
 AppManifest package + Setup Pack — first proof of the composable
 architecture; close manifest-versioning and UI-override-registry gaps here.
 
