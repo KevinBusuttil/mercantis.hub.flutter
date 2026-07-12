@@ -22,6 +22,7 @@ import '../screens/bank_reconcile_screen.dart';
 import '../screens/assets_screen.dart';
 import '../screens/booking_screen.dart';
 import '../screens/commissions_screen.dart';
+import '../screens/contracts_screen.dart';
 import '../screens/customer_account_screen.dart';
 import '../screens/customer_statement_screen.dart';
 import '../screens/delivery_route_screen.dart';
@@ -133,6 +134,8 @@ void wireHubNavigation(WidgetRef ref) {
     registry.registerRoute('rentals', (c, s) => const RentalsScreen());
     registry.registerRoute('rent-roll', (c, s) => const RentRollScreen());
     registry.registerRoute('members', (c, s) => const MembersScreen());
+    registry.registerRoute(
+        'contracts', (c, s) => const ContractsScreen());
     registry.registerRoute('dispatch', (c, s) => const DispatchScreen());
     registry.registerRoute('tech-today', (c, s) => const TechTodayScreen());
     registry.registerRoute('equipment', (c, s) => const EquipmentScreen());

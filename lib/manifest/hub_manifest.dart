@@ -17,6 +17,7 @@ import '../modules/channels/channels_module.dart';
 import '../modules/assets/assets_module.dart';
 import '../modules/booking/booking_module.dart';
 import '../modules/equipment/equipment_module.dart';
+import '../modules/construction/construction_module.dart';
 import '../modules/membership/membership_module.dart';
 import '../modules/property/property_module.dart';
 import '../modules/rental/rental_module.dart';
@@ -57,6 +58,7 @@ abstract final class HubManifest {
       ...RentalModule.docTypes(),
       ...PropertyModule.docTypes(),
       ...MembershipModule.docTypes(),
+      ...ConstructionModule.docTypes(),
       ...SetupLibraryModule.docTypes(),
     ];
 
