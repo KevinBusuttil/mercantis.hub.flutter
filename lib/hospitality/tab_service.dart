@@ -102,16 +102,39 @@ class TabService {
   }
 
   /// The tab's running total: Σ qty × (rate + modifier delta), pre-tax
-  /// semantics identical to what settlement will invoice. Static — pure
-  /// arithmetic over a hydrated tab.
+  /// semantics identical to what settlement will invoice. Comped lines
+  /// are off the bill (V2-5). Static — pure arithmetic over a hydrated
+  /// tab.
   static num tabTotal(Document tab) {
     num total = 0;
     for (final row in tab.children['items'] ?? const <ChildRow>[]) {
+      if (isTrue(row.payload['comp'])) continue;
       total += asNum(row.payload['qty']) *
           (asNum(row.payload['rate']) +
               asNum(row.payload['modifier_amount']));
     }
     return round2(total);
+  }
+
+  /// V2-5: comps a line — it leaves the bill but stays on the tab with
+  /// who-knows-why attached. The kitchen already cooked it; the record
+  /// of giving it away is the point.
+  Future<Document> compLine(String tabId, int rowIndex,
+      {required String reason}) async {
+    if (reason.trim().isEmpty) {
+      throw StateError('A comp needs a reason.');
+    }
+    final tab = await _requireOpen(tabId);
+    final rows = tab.children['items'] ?? const <ChildRow>[];
+    if (rowIndex < 0 || rowIndex >= rows.length) {
+      throw StateError('Tab $tabId has no line $rowIndex.');
+    }
+    if (isTrue(rows[rowIndex].payload['comp'])) {
+      throw StateError('That line is already comped.');
+    }
+    rows[rowIndex].payload['comp'] = 1;
+    rows[rowIndex].payload['comp_reason'] = reason.trim();
+    return _engine.save(tab, _roles);
   }
 
   /// Settlement: the tab becomes a submitted POS Invoice — the fiscal
@@ -148,7 +171,10 @@ class TabService {
       throw StateError('Tab $tabId has no items — nothing to settle.');
     }
     final selected = rowIndexes == null
-        ? [for (var i = 0; i < rows.length; i++) i]
+        ? [
+            for (var i = 0; i < rows.length; i++)
+              if (!isTrue(rows[i].payload['comp'])) i,
+          ]
         : (rowIndexes.toSet().toList()..sort());
     if (selected.isEmpty) {
       throw StateError('Nothing selected to settle.');
@@ -156,6 +182,10 @@ class TabService {
     for (final i in selected) {
       if (i < 0 || i >= rows.length) {
         throw StateError('Tab $tabId has no line $i.');
+      }
+      if (isTrue(rows[i].payload['comp'])) {
+        throw StateError(
+            'Line $i is comped — it is off the bill and cannot settle.');
       }
     }
 
@@ -209,14 +239,21 @@ class TabService {
     final saved = await _engine.save(draft, _roles);
     final posted = await _engine.submit(saved, _roles);
 
-    final remaining = [
+    final remainingBillable = [
       for (var i = 0; i < rows.length; i++)
-        if (!selected.contains(i)) rows[i],
+        if (!selected.contains(i) && !isTrue(rows[i].payload['comp']))
+          rows[i],
     ];
-    if (remaining.isEmpty) {
+    if (remainingBillable.isEmpty) {
+      // Everything payable is paid. The tab keeps ALL its lines —
+      // including comped ones — as the audit record.
       tab.payload['status'] = 'Billed';
       tab.payload['pos_invoice'] = posted.id;
     } else {
+      final remaining = [
+        for (var i = 0; i < rows.length; i++)
+          if (!selected.contains(i)) rows[i],
+      ];
       for (var i = 0; i < remaining.length; i++) {
         remaining[i].rowIndex = i;
       }

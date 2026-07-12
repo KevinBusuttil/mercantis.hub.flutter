@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mercantis_core/mercantis_core.dart';
+import 'package:mercantis_hub_app/hospitality/hospitality_audit.dart';
 import 'package:mercantis_hub_app/hospitality/tab_service.dart';
 import 'package:mercantis_hub_app/ledger/hub_interceptors.dart';
 import 'package:mercantis_hub_app/ledger/ledger_values.dart' hide isTrue;
@@ -341,6 +342,64 @@ void main() {
     expect(tickets, hasLength(1));
     expect(tickets.first.payload['tab'], host.id);
     expect(tickets.first.payload['table'], 'T1');
+  });
+
+  test('comps leave the bill but never the record; the audit sees all',
+      () async {
+    final tab = await tabs.openTab(table: 'T1', server: 'Anna');
+    await tabs.addItem(tab.id, item: 'BURGER'); // 12.00
+    await tabs.addItem(tab.id, item: 'COLA', qty: 2); // 5.00
+
+    // A comp needs a reason, and only once per line.
+    await expectLater(
+        tabs.compLine(tab.id, 0, reason: '  '),
+        throwsA(isA<StateError>()));
+    await tabs.compLine(tab.id, 0, reason: 'Dropped at the pass');
+    await expectLater(
+        tabs.compLine(tab.id, 0, reason: 'again'),
+        throwsA(isA<StateError>()));
+
+    // Off the bill…
+    final loaded = await engine.fetch('POS Tab', tab.id);
+    expect(TabService.tabTotal(loaded!), 5);
+    // …and unsettleable, even by explicit selection.
+    await expectLater(
+      tabs.settleTab(tab.id,
+          tenders: const [PosTender(type: 'Cash', amount: 12)],
+          rowIndexes: const [0]),
+      throwsA(isA<StateError>()),
+    );
+
+    // Default settlement invoices only what's payable — and the billed
+    // tab keeps BOTH lines, comp attached, as the record.
+    final invoice = await tabs.settleTab(tab.id,
+        tenders: const [PosTender(type: 'Cash', amount: 5)]);
+    expect(asNum(invoice.payload['grand_total']), 5);
+    expect(invoice.children['items'], hasLength(1));
+    final billed = await engine.fetch('POS Tab', tab.id);
+    expect(billed!.payload['status'], 'Billed');
+    expect(billed.children['items'], hasLength(2));
+    expect(billed.children['items']![0].payload['comp_reason'],
+        contains('pass'));
+
+    // Add a voided tab and a cancelled fiscal invoice to the picture.
+    final walked = await tabs.openTab(table: 'T1');
+    await tabs.addItem(walked.id, item: 'COLA'); // 2.50
+    await tabs.voidTab(walked.id, reason: 'Guests walked out');
+    await engine.cancel(
+        (await engine.fetch('POS Invoice', invoice.id))!, roles);
+
+    // The audit report: every giveaway with its value and reason.
+    final audit = await buildHospitalityAudit(engine);
+    expect(audit.comps, hasLength(1));
+    expect(audit.comps.first.value, 12);
+    expect(audit.comps.first.reason, contains('pass'));
+    expect(audit.compValue, 12);
+    expect(audit.voids, hasLength(1));
+    expect(audit.voids.first.value, 2.5);
+    expect(audit.voids.first.reason, contains('walked'));
+    expect(audit.cancellations, hasLength(1));
+    expect(audit.cancellations.first.value, 5);
   });
 
   test('the fiscal receipt carries VAT and EXO numbers', () async {

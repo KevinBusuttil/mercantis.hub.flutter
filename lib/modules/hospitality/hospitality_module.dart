@@ -81,6 +81,11 @@ abstract final class HospitalityModule {
           FieldDefinition(key: 'notes', label: 'Kitchen Note', type: FieldType.data),
           // Kitchen-ticket state (V2-3 uses it; harmless before then).
           FieldDefinition(key: 'sent_to_kitchen', label: 'Sent', type: FieldType.check),
+          // V2-5: a comped line leaves the bill but never the record —
+          // who gave what away and why is exactly what the fiscal
+          // auditor (and the owner) wants to see.
+          FieldDefinition(key: 'comp', label: 'Comped', type: FieldType.check, readOnly: true),
+          FieldDefinition(key: 'comp_reason', label: 'Comp Reason', type: FieldType.data, readOnly: true),
         ],
       );
 

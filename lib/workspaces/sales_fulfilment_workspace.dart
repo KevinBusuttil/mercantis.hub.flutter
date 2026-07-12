@@ -67,6 +67,10 @@ WorkspaceDescriptor salesFulfilmentWorkspace({bool posEnabled = true}) =>
               CustomWorkspaceItem(routeName: 'kitchen',
                 label: 'Kitchen', icon: Icons.restaurant_outlined,
                 description: 'Open tickets on the rail, oldest first'),
+              CustomWorkspaceItem(routeName: 'hospitality-audit',
+                label: 'Void & comp audit', icon: Icons.fact_check_outlined,
+                description: 'Voids, comps and cancelled receipts with '
+                    'reasons and value'),
               DocTypeWorkspaceItem(docType: 'POS Invoice',
                 icon: Icons.point_of_sale_outlined),
               DocTypeWorkspaceItem(docType: 'POS Profile',

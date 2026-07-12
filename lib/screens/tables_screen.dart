@@ -490,6 +490,41 @@ class _TablesScreenState extends ConsumerState<TablesScreen> {
     }
   }
 
+  /// V2-5: comp a line — off the bill, on the record.
+  Future<void> _comp(Document tab, int rowIndex) async {
+    final reasonCtrl = TextEditingController();
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Comp this item?'),
+        content: TextField(
+          controller: reasonCtrl,
+          autofocus: true,
+          decoration: const InputDecoration(
+              labelText: 'Reason (required — kept on record)',
+              border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Back')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Comp')),
+        ],
+      ),
+    );
+    if (sure != true) return;
+    try {
+      await (await _tabs).compLine(tab.id, rowIndex,
+          reason: reasonCtrl.text);
+    } catch (e) {
+      _toast(e);
+    } finally {
+      ref.invalidate(tablesDataProvider);
+    }
+  }
+
   Future<void> _tabSheet(Document tab, TablesData data) async {
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -512,14 +547,35 @@ class _TablesScreenState extends ConsumerState<TablesScreen> {
                 if (lines.isEmpty)
                   const Text('Nothing ordered yet.')
                 else
-                  for (final l in lines)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
-                      child: Text(
-                          '${asNum(l.payload['qty'])} × '
-                          '${l.payload['item']}'
-                          '${asNonEmpty(l.payload['modifiers']) != null ? ' (${l.payload['modifiers']})' : ''}'
-                          '  ${(asNum(l.payload['qty']) * (asNum(l.payload['rate']) + asNum(l.payload['modifier_amount']))).toStringAsFixed(2)}'),
+                  for (var i = 0; i < lines.length; i++)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                              '${asNum(lines[i].payload['qty'])} × '
+                              '${lines[i].payload['item']}'
+                              '${asNonEmpty(lines[i].payload['modifiers']) != null ? ' (${lines[i].payload['modifiers']})' : ''}'
+                              '  ${isTrue(lines[i].payload['comp']) ? 'comp' : (asNum(lines[i].payload['qty']) * (asNum(lines[i].payload['rate']) + asNum(lines[i].payload['modifier_amount']))).toStringAsFixed(2)}',
+                              style: isTrue(lines[i].payload['comp'])
+                                  ? Theme.of(c).textTheme.bodyMedium!
+                                      .copyWith(
+                                          decoration:
+                                              TextDecoration.lineThrough)
+                                  : null),
+                        ),
+                        if (!isTrue(lines[i].payload['comp']))
+                          IconButton(
+                            icon: const Icon(Icons.money_off_outlined,
+                                size: 18),
+                            tooltip: 'Comp (free of charge)',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () async {
+                              final index = i;
+                              Navigator.pop(c);
+                              await _comp(tab, index);
+                            },
+                          ),
+                      ],
                     ),
                 const SizedBox(height: MercantisSpacing.sm),
                 Text('Total (ex VAT): '
