@@ -30,6 +30,7 @@ class HubSettings {
     this.stockEnabled = true,
     this.projectsEnabled = true,
     this.fieldServiceEnabled = true,
+    this.appointmentsEnabled = true,
     this.posEnabled = true,
     this.manufacturingEnabled = true,
     this.deliveriesEnabled = true,
@@ -44,6 +45,9 @@ class HubSettings {
 
   /// Field-service surfaces (dispatch board, jobs) — V1 vertical.
   final bool fieldServiceEnabled;
+
+  /// Appointment surfaces (front-desk booking, commissions) — Phase 4.
+  final bool appointmentsEnabled;
   final bool posEnabled;
   final bool manufacturingEnabled;
   final bool deliveriesEnabled;
@@ -74,6 +78,7 @@ class HubSettings {
         stockEnabled: preset.enablesStock,
         projectsEnabled: preset.enablesProjects,
         fieldServiceEnabled: preset.enablesFieldService,
+        appointmentsEnabled: preset.enablesAppointments,
         posEnabled: preset.enablesPos,
         manufacturingEnabled: preset.enablesManufacturing,
         deliveriesEnabled: preset.enablesDeliveries,
@@ -84,6 +89,7 @@ class HubSettings {
     bool? stockEnabled,
     bool? projectsEnabled,
     bool? fieldServiceEnabled,
+    bool? appointmentsEnabled,
     bool? posEnabled,
     bool? manufacturingEnabled,
     bool? deliveriesEnabled,
@@ -96,6 +102,7 @@ class HubSettings {
         stockEnabled: stockEnabled ?? this.stockEnabled,
         projectsEnabled: projectsEnabled ?? this.projectsEnabled,
         fieldServiceEnabled: fieldServiceEnabled ?? this.fieldServiceEnabled,
+        appointmentsEnabled: appointmentsEnabled ?? this.appointmentsEnabled,
         posEnabled: posEnabled ?? this.posEnabled,
         manufacturingEnabled: manufacturingEnabled ?? this.manufacturingEnabled,
         deliveriesEnabled: deliveriesEnabled ?? this.deliveriesEnabled,
@@ -109,6 +116,7 @@ class HubSettings {
         'stock_enabled': stockEnabled,
         'projects_enabled': projectsEnabled,
         'field_service_enabled': fieldServiceEnabled,
+        'appointments_enabled': appointmentsEnabled,
         'pos_enabled': posEnabled,
         'manufacturing_enabled': manufacturingEnabled,
         'deliveries_enabled': deliveriesEnabled,
@@ -136,6 +144,8 @@ class HubSettings {
       projectsEnabled: flag(p['projects_enabled'], d.projectsEnabled),
       fieldServiceEnabled:
           flag(p['field_service_enabled'], d.fieldServiceEnabled),
+      appointmentsEnabled:
+          flag(p['appointments_enabled'], d.appointmentsEnabled),
       posEnabled: flag(p['pos_enabled'], d.posEnabled),
       manufacturingEnabled: flag(p['manufacturing_enabled'], d.manufacturingEnabled),
       deliveriesEnabled: flag(p['deliveries_enabled'], d.deliveriesEnabled),

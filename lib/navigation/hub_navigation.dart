@@ -18,6 +18,8 @@ import '../screens/dashboards_screen.dart';
 import '../screens/approvals_inbox_screen.dart';
 import '../screens/audit_trail_screen.dart';
 import '../screens/bank_reconcile_screen.dart';
+import '../screens/booking_screen.dart';
+import '../screens/commissions_screen.dart';
 import '../screens/customer_account_screen.dart';
 import '../screens/customer_statement_screen.dart';
 import '../screens/delivery_route_screen.dart';
@@ -117,6 +119,9 @@ void wireHubNavigation(WidgetRef ref) {
         (c, s) => const SalesOrdersScreen());
     registry.registerRoute('reports', (c, s) => const ReportsScreen());
     registry.registerRoute('schedule', (c, s) => const ScheduleScreen());
+    registry.registerRoute('booking', (c, s) => const BookingScreen());
+    registry.registerRoute(
+        'commissions', (c, s) => const CommissionsScreen());
     registry.registerRoute('dispatch', (c, s) => const DispatchScreen());
     registry.registerRoute('tech-today', (c, s) => const TechTodayScreen());
     registry.registerRoute(
