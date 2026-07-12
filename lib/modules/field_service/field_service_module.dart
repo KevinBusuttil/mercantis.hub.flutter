@@ -15,6 +15,7 @@ abstract final class FieldServiceModule {
   static List<DocType> docTypes() => [
         _serviceRequest(),
         _job(),
+        _maintenanceContract(),
         _jobChecklistItem(),
         _jobMaterial(),
         _jobLabour(),
@@ -61,6 +62,7 @@ abstract final class FieldServiceModule {
           FieldDefinition(key: 'subject', label: 'Subject', type: FieldType.data, required: true),
           FieldDefinition(key: 'customer', label: 'Customer', type: FieldType.link, linkDocType: 'Customer', options: 'Customer', required: true),
           FieldDefinition(key: 'service_request', label: 'From Request', type: FieldType.link, linkDocType: 'Service Request', options: 'Service Request', readOnly: true),
+          FieldDefinition(key: 'maintenance_contract', label: 'From Contract', type: FieldType.link, linkDocType: 'Maintenance Contract', options: 'Maintenance Contract', readOnly: true),
           // The technician IS a Schedulable Resource (S1) — dispatching a
           // job books a conflict-checked appointment on them.
           FieldDefinition(key: 'technician', label: 'Technician', type: FieldType.link, linkDocType: 'Schedulable Resource', options: 'Schedulable Resource'),
@@ -92,6 +94,50 @@ abstract final class FieldServiceModule {
           FieldDefinition(key: 'completion_photo', label: 'Completion Photo', type: FieldType.attachImage),
           FieldDefinition(key: 'completion_note', label: 'Completion Note', type: FieldType.smallText),
           FieldDefinition(key: 'sales_invoice', label: 'Invoiced As', type: FieldType.link, linkDocType: 'Sales Invoice', options: 'Sales Invoice', readOnly: true),
+        ],
+      );
+
+  /// V1-5: a standing agreement that generates its own jobs — the annual
+  /// boiler service, the quarterly aircon clean. The contract IS the job
+  /// template: its checklist/materials/labour copy onto every generated
+  /// job, which lands in the dispatch board's "waiting for a slot" queue
+  /// like any other draft. Follows the Recurring Invoice service pattern
+  /// (same date arithmetic, same last_error surfacing).
+  static DocType _maintenanceContract() => const DocType(
+        id: 'Maintenance Contract',
+        name: 'Maintenance Contract',
+        module: _module,
+        namingRule: 'MC-.YYYY.-.####',
+        fields: [
+          FieldDefinition(key: 'subject', label: 'Subject', type: FieldType.data, required: true),
+          FieldDefinition(key: 'customer', label: 'Customer', type: FieldType.link, linkDocType: 'Customer', options: 'Customer', required: true),
+          FieldDefinition(key: 'address', label: 'Site Address', type: FieldType.smallText),
+          FieldDefinition(
+            key: 'frequency',
+            label: 'Frequency',
+            type: FieldType.select,
+            options: 'Weekly\nMonthly\nQuarterly\nYearly',
+            defaultValue: 'Yearly',
+            required: true,
+          ),
+          FieldDefinition(key: 'start_date', label: 'Start Date', type: FieldType.date, required: true),
+          FieldDefinition(key: 'next_job_date', label: 'Next Job Date', type: FieldType.date, required: true),
+          FieldDefinition(key: 'end_date', label: 'End Date', type: FieldType.date),
+          FieldDefinition(key: 'active', label: 'Active', type: FieldType.check, defaultValue: '1'),
+          FieldDefinition(key: 'preferred_technician', label: 'Preferred Technician', type: FieldType.link, linkDocType: 'Schedulable Resource', options: 'Schedulable Resource'),
+          FieldDefinition(
+            key: 'priority',
+            label: 'Priority',
+            type: FieldType.select,
+            options: 'Low\nMedium\nHigh\nUrgent',
+            defaultValue: 'Medium',
+          ),
+          FieldDefinition(key: 'description', label: 'Work Description', type: FieldType.longText),
+          FieldDefinition(key: 'checklist', label: 'Checklist Template', type: FieldType.table, tableDocType: 'Job Checklist Item', options: 'Job Checklist Item'),
+          FieldDefinition(key: 'materials', label: 'Standard Materials', type: FieldType.table, tableDocType: 'Job Material', options: 'Job Material'),
+          FieldDefinition(key: 'labour', label: 'Standard Labour', type: FieldType.table, tableDocType: 'Job Labour', options: 'Job Labour'),
+          FieldDefinition(key: 'last_generated_on', label: 'Last Generated', type: FieldType.date, readOnly: true),
+          FieldDefinition(key: 'last_error', label: 'Last Error', type: FieldType.data, readOnly: true),
         ],
       );
 

@@ -30,6 +30,8 @@ const fieldServiceWorkspace = WorkspaceDescriptor(
       DocTypeWorkspaceItem(docType: 'Service Request',
         icon: Icons.call_received_outlined),
       DocTypeWorkspaceItem(docType: 'Job', icon: Icons.handyman_outlined),
+      DocTypeWorkspaceItem(docType: 'Maintenance Contract',
+        icon: Icons.event_repeat_outlined),
       DocTypeWorkspaceItem(docType: 'Schedulable Resource',
         icon: Icons.engineering_outlined),
     ]),
