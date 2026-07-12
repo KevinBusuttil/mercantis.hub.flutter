@@ -132,6 +132,11 @@ register) → V3 Rental (S2+S5+S10) → V5 Property/Landlords → V7
 Memberships → S13 EN 16931/PEPPOL e-invoicing (EU mandate clock) → V6
 Construction.
 
+Status: S10 **done** (Asset/Asset Category register docs; straight-line
+schedules summing exactly to gross − salvage; idempotent due-period
+posting as Journal Entries; disposal JE with gain/loss; register screen
+in Finance).
+
 **Deferred:** S7 batch/serial/expiry (deepest ledger surgery — wait for a
 paying segment), multi-company, SaaS-billing depth, i18n scaffolding until
 the first non-English market. **Integrations, never builds:** clinical
