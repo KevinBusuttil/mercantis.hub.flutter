@@ -163,6 +163,12 @@ its foundation increment shipped (S10, V4, V3, V5, V7, S13, V6-1).
 Deepening (V6 variations/certificates, S13 XRechnung/Factur-X flavours,
 V3 recurring long-hire billing) proceeds by demand.
 
+**Specced, not scheduled:** V8 Clinic Pack (medical GP vertical) —
+docs/V8_CLINIC_PACK_SPEC.md. Composition over Phase 4 booking + books;
+new builds limited to VAT exemption (UBL category E), appointment
+reminders, optional S7/insurance-claims; hard no-EMR boundary. Builds
+on a committed clinic prospect.
+
 **Deferred:** S7 batch/serial/expiry (deepest ledger surgery — wait for a
 paying segment), multi-company, SaaS-billing depth, i18n scaffolding until
 the first non-English market. **Integrations, never builds:** clinical
