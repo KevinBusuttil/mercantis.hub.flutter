@@ -80,6 +80,17 @@ WorkspaceDescriptor salesFulfilmentWorkspace({bool posEnabled = true}) =>
             ],
           ),
         const WorkspaceSection(
+          label: 'Rentals',
+          description: 'Hire out units — availability held on the '
+              'calendar, deposits as liabilities, days billed at return',
+          items: [
+            DocTypeWorkspaceItem(docType: 'Rental Agreement',
+              icon: Icons.assignment_outlined),
+            DocTypeWorkspaceItem(docType: 'Rental Unit',
+              icon: Icons.construction_outlined),
+          ],
+        ),
+        const WorkspaceSection(
           label: 'Online channels',
           description: 'Storefront orders staged for review, then posted as '
               'official invoices with stock and COGS',
