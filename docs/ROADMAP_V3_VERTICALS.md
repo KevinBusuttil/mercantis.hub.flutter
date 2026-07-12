@@ -135,7 +135,9 @@ Construction.
 Status: S10 **done** (Asset/Asset Category register docs; straight-line
 schedules summing exactly to gross − salvage; idempotent due-period
 posting as Journal Entries; disposal JE with gain/loss; register screen
-in Finance).
+in Finance); V4 **done** (Customer Equipment register; equipment +
+meter riding request→job and contract→job; history / last-meter /
+book-it-in service; equipment screen in Field Service).
 
 **Deferred:** S7 batch/serial/expiry (deepest ledger surgery — wait for a
 paying segment), multi-company, SaaS-billing depth, i18n scaffolding until
