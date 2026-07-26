@@ -198,6 +198,34 @@ void main() {
       expect(link.urlPath, '/pay/pay-tok-1');
     });
 
+    test('acceptInvitation carries the company name into the session '
+        '(older backends fall back to empty)', () async {
+      final client = MockClient((req) async => http.Response(
+          jsonEncode({
+            'userId': 'user-2',
+            'companyId': 'comp-1',
+            'companyName': 'Busuttil Technologies Limited',
+            'role': 'owner',
+            'token': 'user-token-2',
+          }),
+          201));
+      final joined = await TeamAccountClient(baseUrl: base, client: client)
+          .acceptInvitation(invitationToken: 'inv-1', displayName: 'Kevin');
+      expect(joined.companyName, 'Busuttil Technologies Limited');
+
+      final legacy = MockClient((req) async => http.Response(
+          jsonEncode({
+            'userId': 'user-2',
+            'companyId': 'comp-1',
+            'role': 'owner',
+            'token': 'user-token-2',
+          }),
+          201));
+      final old = await TeamAccountClient(baseUrl: base, client: legacy)
+          .acceptInvitation(invitationToken: 'inv-1', displayName: 'Kevin');
+      expect(old.companyName, ''); // id remains the display fallback
+    });
+
     test('server errors surface as CloudHttpException with the reason',
         () async {
       final client = MockClient((_) async => http.Response(

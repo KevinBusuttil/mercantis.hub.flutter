@@ -102,8 +102,14 @@ class TeamAccountClient {
 
   /// Join an existing company with an invitation token (7-day expiry,
   /// single use). Returns the new member's user token.
-  Future<({String companyId, String role, String userId, String userToken})>
-      acceptInvitation({
+  Future<
+      ({
+        String companyId,
+        String companyName,
+        String role,
+        String userId,
+        String userToken
+      })> acceptInvitation({
     required String invitationToken,
     required String displayName,
   }) async {
@@ -112,6 +118,8 @@ class TeamAccountClient {
     });
     return (
       companyId: '${body['companyId']}',
+      // Older backends omit the name; the id remains the fallback.
+      companyName: '${body['companyName'] ?? ''}',
       role: '${body['role']}',
       userId: '${body['userId']}',
       userToken: '${body['token']}',
@@ -328,7 +336,7 @@ class TeamAccountClient {
     return TeamSession(
       baseUrl: baseUrl,
       companyId: joined.companyId,
-      companyName: '', // accept response carries no name; cosmetic only
+      companyName: joined.companyName,
       userId: joined.userId,
       userToken: joined.userToken,
       deviceId: device.deviceId,
