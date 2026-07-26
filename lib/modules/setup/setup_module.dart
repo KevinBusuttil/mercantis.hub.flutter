@@ -1,5 +1,7 @@
 import 'package:mercantis_core/mercantis_core.dart';
 
+import '../common/countries.dart';
+
 abstract final class SetupModule {
   static const _module = 'Setup';
 
@@ -146,7 +148,7 @@ abstract final class SetupModule {
         fields: [
           FieldDefinition(key: 'company_name', label: 'Company Name', type: FieldType.data, required: true),
           FieldDefinition(key: 'abbr', label: 'Abbreviation', type: FieldType.data, required: true),
-          FieldDefinition(key: 'country', label: 'Country', type: FieldType.data),
+          FieldDefinition(key: 'country', label: 'Country', type: FieldType.select, options: kCountryOptions),
           FieldDefinition(key: 'default_currency', label: 'Default Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
           // S8 pricing: company-wide selling rates, third in the resolution
           // order (document's list, then customer's, then this).

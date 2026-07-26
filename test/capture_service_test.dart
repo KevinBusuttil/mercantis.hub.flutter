@@ -119,9 +119,11 @@ void main() {
         Document(id: '', docType: 'Captured Document', payload: {}), roles);
     final capture = await service.applyExtraction(
       created,
-      const ParsedReceipt(grandTotal: 9.99, currencyCode: 'GBP', confidence: 0.7),
+      const ParsedReceipt(grandTotal: 9.99, currencyCode: 'XXX', confidence: 0.7),
     );
-    // GBP isn't seeded ⇒ not written (would fail link validation otherwise).
+    // 'XXX' isn't a seeded currency ⇒ not written (would fail link
+    // validation otherwise). GBP no longer qualifies here — the seeder
+    // now lays down all the majors.
     expect(capture.payload.containsKey('currency'), isFalse);
     expect(capture.payload['status'], CaptureModule.statusReady);
   });
