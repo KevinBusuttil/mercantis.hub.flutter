@@ -287,15 +287,29 @@ class HubSeeder {
       created++;
     }
 
-    // 1. Currency — referenced by accounts + the company default.
-    await ensure('Currency', code, {
-      'currency_name': currencyName(code),
-      'symbol': currencySymbol(code),
-      'enabled': '1',
-    });
+    // 1. Currencies — the chosen one plus the majors, so multi-currency
+    //    documents have real options from day one (the company still
+    //    defaults to the chosen code).
+    for (final c in {code, ...majorCurrencies.keys}) {
+      await ensure('Currency', c, {
+        'currency_name': currencyName(c),
+        'symbol': currencySymbol(c),
+        'enabled': '1',
+      });
+    }
 
     // 2. Default warehouse.
     await ensure('Warehouse', 'Main Store', {'warehouse_name': 'Main Store'});
+
+    // 2b. Units of measure — the everyday list, count units flagged
+    //     whole-number. Matches (and extends) the line-item UOM options.
+    for (final u in defaultUoms.entries) {
+      await ensure('UOM', u.key, {
+        'uom_name': u.key,
+        'must_be_whole_number': u.value ? '1' : '0',
+        'enabled': '1',
+      });
+    }
 
     // 3. Current fiscal year (Jan 1 – Dec 31).
     final (start, end) = fiscalYearBounds(cy);
@@ -366,6 +380,10 @@ class HubSeeder {
           'company_name': businessName.trim().isEmpty ? 'My Business' : businessName.trim(),
           'abbr': abbreviate(businessName),
           'default_currency': code,
+          // The jurisdiction chosen in onboarding IS the company's country
+          // — it must land on the record (the e-invoice seller country and
+          // VAT box mapping read it, and the user typed it in good faith).
+          'country': jurisdiction.label,
           ...HubChart.companyDefaults,
         }),
         roles,
@@ -373,10 +391,18 @@ class HubSeeder {
       created++;
     } else {
       final company = (await engine.list('Company', userRoles: roles)).first;
+      var changed = false;
       if (company.payload['default_currency'] != code) {
         company.payload['default_currency'] = code;
-        await engine.save(company, roles);
+        changed = true;
       }
+      // Backfill a blank country (companies created before this existed).
+      final country = company.payload['country'];
+      if (country == null || '$country'.trim().isEmpty) {
+        company.payload['country'] = jurisdiction.label;
+        changed = true;
+      }
+      if (changed) await engine.save(company, roles);
       present++;
     }
 
@@ -397,29 +423,56 @@ class HubSeeder {
     return letters.length > 5 ? letters.substring(0, 5) : letters;
   }
 
-  static String currencyName(String code) {
-    switch (code) {
-      case 'EUR':
-        return 'Euro';
-      case 'USD':
-        return 'US Dollar';
-      case 'GBP':
-        return 'Pound Sterling';
-      default:
-        return code;
-    }
-  }
+  /// The majors seeded on every install: code → (name, symbol). The
+  /// company defaults to the onboarding choice; these just exist and are
+  /// enabled so multi-currency documents have real options.
+  static const majorCurrencies = <String, (String, String)>{
+    'EUR': ('Euro', '€'),
+    'USD': ('US Dollar', r'$'),
+    'GBP': ('Pound Sterling', '£'),
+    'CHF': ('Swiss Franc', 'CHF'),
+    'JPY': ('Japanese Yen', '¥'),
+    'CNY': ('Chinese Yuan', '¥'),
+    'AUD': ('Australian Dollar', r'A$'),
+    'CAD': ('Canadian Dollar', r'C$'),
+    'NZD': ('New Zealand Dollar', r'NZ$'),
+    'SEK': ('Swedish Krona', 'kr'),
+    'NOK': ('Norwegian Krone', 'kr'),
+    'DKK': ('Danish Krone', 'kr'),
+    'PLN': ('Polish Zloty', 'zł'),
+    'CZK': ('Czech Koruna', 'Kč'),
+    'HUF': ('Hungarian Forint', 'Ft'),
+    'RON': ('Romanian Leu', 'lei'),
+    'BGN': ('Bulgarian Lev', 'лв'),
+    'TRY': ('Turkish Lira', '₺'),
+    'AED': ('UAE Dirham', 'AED'),
+  };
 
-  static String currencySymbol(String code) {
-    switch (code) {
-      case 'EUR':
-        return '€';
-      case 'USD':
-        return r'$';
-      case 'GBP':
-        return '£';
-      default:
-        return code;
-    }
-  }
+  /// The everyday units seeded on every install: name → whole-number.
+  /// A superset of the line-item UOM select options, so picking from
+  /// either place stays consistent.
+  static const defaultUoms = <String, bool>{
+    'Nos': true,
+    'Unit': true,
+    'Pair': true,
+    'Set': true,
+    'Box': true,
+    'Pack': true,
+    'Dozen': true,
+    'Kg': false,
+    'Grams': false,
+    'Litre': false,
+    'Millilitre': false,
+    'Metre': false,
+    'Centimetre': false,
+    'Sq Metre': false,
+    'Hour': false,
+    'Day': false,
+  };
+
+  static String currencyName(String code) =>
+      majorCurrencies[code]?.$1 ?? code;
+
+  static String currencySymbol(String code) =>
+      majorCurrencies[code]?.$2 ?? code;
 }

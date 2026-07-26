@@ -1,5 +1,7 @@
 import 'package:mercantis_core/mercantis_core.dart';
 
+import '../common/countries.dart';
+
 abstract final class CrmModule {
   static const _module = 'CRM';
 
@@ -24,7 +26,7 @@ abstract final class CrmModule {
           FieldDefinition(key: 'address_line2', label: 'Address Line 2', type: FieldType.data),
           FieldDefinition(key: 'city', label: 'City', type: FieldType.data, required: true),
           FieldDefinition(key: 'state', label: 'State / Province', type: FieldType.data),
-          FieldDefinition(key: 'country', label: 'Country', type: FieldType.data, required: true),
+          FieldDefinition(key: 'country', label: 'Country', type: FieldType.select, options: kCountryOptions, required: true),
           FieldDefinition(key: 'pincode', label: 'Postcode', type: FieldType.data),
           FieldDefinition(key: 'phone', label: 'Phone', type: FieldType.data),
           FieldDefinition(key: 'fax', label: 'Fax', type: FieldType.data),
@@ -143,6 +145,7 @@ abstract final class CrmModule {
           FieldDefinition(key: 'email', label: 'Email', type: FieldType.data),
           FieldDefinition(key: 'territory', label: 'Territory', type: FieldType.data),
           FieldDefinition(key: 'tax_id', label: 'Tax ID', type: FieldType.data),
+          FieldDefinition(key: 'country', label: 'Country', type: FieldType.select, options: kCountryOptions),
           FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
           FieldDefinition(key: 'default_currency', label: 'Default Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
           // S8 pricing: this customer's negotiated rates. Second in the

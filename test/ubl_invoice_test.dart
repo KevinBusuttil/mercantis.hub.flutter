@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_hub_app/einvoicing/hub_einvoice_actions.dart';
 import 'package:mercantis_hub_app/einvoicing/ubl_invoice.dart';
+import 'package:mercantis_hub_app/modules/common/countries.dart';
 import 'package:mercantis_hub_app/ledger/hub_interceptors.dart';
 import 'package:mercantis_hub_app/ledger/ledger_values.dart' hide isTrue;
 import 'package:mercantis_hub_app/manifest/hub_manifest.dart';
@@ -275,5 +276,14 @@ void main() {
     expect(UblInvoiceBuilder.countryCode('DE'), 'DE');
     expect(UblInvoiceBuilder.countryCode('', vatId: 'FR123456'), 'FR');
     expect(UblInvoiceBuilder.countryCode('Atlantis'), isNull);
+  });
+
+  test('every country pick-list entry resolves to an ISO code', () {
+    // The select list and the UBL map must never drift apart: a country
+    // a user can pick MUST export as a valid seller/buyer country.
+    for (final name in kCountryOptions.split('\n')) {
+      expect(UblInvoiceBuilder.countryCode(name), isNotNull,
+          reason: '"$name" has no ISO mapping');
+    }
   });
 }

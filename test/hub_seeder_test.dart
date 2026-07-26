@@ -117,6 +117,26 @@ void main() {
     expect(company.payload['default_expense_account'], 'COGS');
     expect(company.payload['default_cash_account'], 'Bank');
     expect(company.payload['default_vat_account'], 'VAT');
+    // The onboarding jurisdiction lands on the record as the country —
+    // the e-invoice seller country and VAT box mapping read it.
+    expect(company.payload['country'], 'Malta');
+
+    // The majors are all present and enabled, not just the chosen code.
+    for (final code in ['USD', 'GBP', 'CHF', 'PLN']) {
+      final currency = (await engine.fetch('Currency', code))!;
+      expect(currency.payload['symbol'],
+          HubSeeder.majorCurrencies[code]!.$2);
+    }
+    expect((await engine.list('Currency', userRoles: roles)).length,
+        HubSeeder.majorCurrencies.length);
+
+    // Everyday UOMs seed with whole-number flags on the count units.
+    final uoms = await engine.list('UOM', userRoles: roles);
+    expect(uoms.length, HubSeeder.defaultUoms.length);
+    expect((await engine.fetch('UOM', 'Nos'))!
+        .payload['must_be_whole_number'], '1');
+    expect((await engine.fetch('UOM', 'Kg'))!
+        .payload['must_be_whole_number'], '0');
   });
 
   test('is idempotent — re-running creates nothing new', () async {

@@ -1,5 +1,7 @@
 import 'package:mercantis_core/mercantis_core.dart';
 
+import '../common/countries.dart';
+
 import '../common/line_items.dart';
 
 abstract final class BuyingModule {
@@ -54,7 +56,7 @@ abstract final class BuyingModule {
             defaultValue: 'Company',
           ),
           FieldDefinition(key: 'supplier_group', label: 'Supplier Group', type: FieldType.data),
-          FieldDefinition(key: 'country', label: 'Country', type: FieldType.data),
+          FieldDefinition(key: 'country', label: 'Country', type: FieldType.select, options: kCountryOptions),
           FieldDefinition(key: 'tax_id', label: 'Tax ID', type: FieldType.data),
           FieldDefinition(key: 'tax_code', label: 'Default Tax Code', type: FieldType.link, linkDocType: 'Tax Code', options: 'Tax Code'),
           FieldDefinition(key: 'default_currency', label: 'Default Currency', type: FieldType.link, linkDocType: 'Currency', options: 'Currency'),
