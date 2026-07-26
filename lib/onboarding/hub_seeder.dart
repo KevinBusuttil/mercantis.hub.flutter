@@ -268,11 +268,57 @@ class HubSeeder {
   Future<bool> companyExists() async =>
       (await engine.list('Company', userRoles: roles)).isNotEmpty;
 
+  /// Re-runs the starter seeding against the EXISTING company, so a book
+  /// created before the seed list grew (major currencies, default UOMs,
+  /// company country) picks up the additions. Name, currency, and
+  /// jurisdiction all come from the record: the stored country label is
+  /// authoritative when it names a preset; otherwise the book's current
+  /// default tax band identifies the preset it was seeded from. Only a
+  /// confident match may re-enforce that preset's default band — a guessed
+  /// fallback must not unseat whatever default the operator has chosen.
+  Future<SeedSummary> reseed() async {
+    final companies = await engine.list('Company', userRoles: roles);
+    if (companies.isEmpty) {
+      throw StateError('No company on file — run onboarding first.');
+    }
+    final company = companies.first;
+    final country = '${company.payload['country'] ?? ''}'.trim();
+
+    JurisdictionPreset? match;
+    for (final j in JurisdictionPreset.all) {
+      if (j.label == country) {
+        match = j;
+        break;
+      }
+    }
+    if (match == null) {
+      final defaults = (await engine.list('Tax Code', userRoles: roles))
+          .where((c) => '${c.payload['is_default'] ?? '0'}' == '1')
+          .map((c) => c.id)
+          .toSet();
+      for (final j in JurisdictionPreset.all) {
+        if (j.taxCodes.any((t) => t.isDefault && defaults.contains(t.id))) {
+          match = j;
+          break;
+        }
+      }
+    }
+    final jurisdiction = match ?? JurisdictionPreset.malta;
+    final currency = '${company.payload['default_currency'] ?? ''}'.trim();
+    return seed(
+      businessName: '${company.payload['company_name'] ?? ''}',
+      currencyCode: currency.isEmpty ? jurisdiction.currencyCode : currency,
+      jurisdiction: jurisdiction,
+      enforceDefaultTaxCode: match != null,
+    );
+  }
+
   Future<SeedSummary> seed({
     required String businessName,
     required String currencyCode,
     int? year,
     JurisdictionPreset jurisdiction = JurisdictionPreset.malta,
+    bool enforceDefaultTaxCode = true,
   }) async {
     final code = currencyCode.trim().toUpperCase();
     final cy = year ?? DateTime.now().year;
@@ -361,7 +407,9 @@ class HubSeeder {
     }
     // Make this region's default the *sole* default — a re-run that switched
     // region would otherwise leave the previous region's default in place too.
-    if (defaultCode != null) {
+    // Skipped when the caller only inferred the jurisdiction ([reseed] without
+    // a confident match), so an operator-chosen default survives.
+    if (enforceDefaultTaxCode && defaultCode != null) {
       for (final c in await engine.list('Tax Code', userRoles: roles)) {
         final want = c.id == defaultCode ? '1' : '0';
         if ('${c.payload['is_default'] ?? '0'}' != want) {

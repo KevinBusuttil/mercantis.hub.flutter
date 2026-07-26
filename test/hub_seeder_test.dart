@@ -151,6 +151,104 @@ void main() {
     expect(await seeder.companyExists(), isTrue);
   });
 
+  group('reseed (re-run starter setup)', () {
+    test('throws without a company — onboarding must run first', () async {
+      expect(HubSeeder(engine, roles: roles).reseed(),
+          throwsA(isA<StateError>()));
+    });
+
+    test('an older book gains the missing starters and a country', () async {
+      // A book created before major currencies / default UOMs / country
+      // existed: a bare company and its one currency, nothing else.
+      await engine.save(
+          Document(id: 'EUR', docType: 'Currency', payload: {
+            'currency_name': 'Euro',
+            'symbol': '€',
+            'enabled': '1',
+          }),
+          roles);
+      await engine.save(
+          Document(id: '', docType: 'Company', payload: {
+            'company_name': 'Acme Ltd',
+            'abbr': 'AL',
+            'default_currency': 'EUR',
+          }),
+          roles);
+
+      final summary = await HubSeeder(engine, roles: roles).reseed();
+
+      expect(summary.created, greaterThan(0));
+      final company = (await engine.list('Company', userRoles: roles)).single;
+      expect(company.payload['company_name'], 'Acme Ltd');
+      expect(company.payload['default_currency'], 'EUR'); // kept, not re-based
+      expect(company.payload['country'], 'Malta'); // backfilled
+      expect((await engine.list('Currency', userRoles: roles)).length,
+          HubSeeder.majorCurrencies.length);
+      expect((await engine.list('UOM', userRoles: roles)).length,
+          HubSeeder.defaultUoms.length);
+      expect((await engine.fetch('Tax Code', 'VAT 18%'))!.payload['is_default'],
+          '1');
+    });
+
+    test('recovers the jurisdiction from the stored country', () async {
+      final seeder = HubSeeder(engine, roles: roles);
+      await seeder.seed(
+        businessName: 'Acme UK',
+        currencyCode: 'GBP',
+        year: 2026,
+        jurisdiction: JurisdictionPreset.unitedKingdom,
+      );
+
+      final summary = await seeder.reseed();
+
+      expect(summary.created, 0); // fully seeded already — nothing to add
+      final company = (await engine.list('Company', userRoles: roles)).single;
+      expect(company.payload['default_currency'], 'GBP');
+      expect(company.payload['country'], 'United Kingdom');
+      expect(await engine.fetch('Tax Code', 'VAT 18%'), isNull); // no Malta
+      final defaults = (await engine.list('Tax Code', userRoles: roles))
+          .where((c) => '${c.payload['is_default']}' == '1')
+          .map((c) => c.id)
+          .toList();
+      expect(defaults, ['VAT 20%']);
+    });
+
+    test('an unrecognised country never unseats an operator default',
+        () async {
+      final seeder = HubSeeder(engine, roles: roles);
+      await seeder.seed(
+          businessName: 'Acme DE', currencyCode: 'EUR', year: 2026);
+      // The operator moved abroad: their own band is the default, the
+      // country names no preset.
+      await engine.save(
+          Document(id: 'VAT 19%', docType: 'Tax Code', payload: {
+            'tax_code_name': 'VAT 19%',
+            'tax_type': 'VAT',
+            'rate': 19,
+            'tax_account': 'VAT',
+            'is_default': '1',
+            'enabled': '1',
+          }),
+          roles);
+      final malta = (await engine.fetch('Tax Code', 'VAT 18%'))!;
+      malta.payload['is_default'] = '0';
+      await engine.save(malta, roles);
+      final company = (await engine.list('Company', userRoles: roles)).single;
+      company.payload['country'] = 'Germany';
+      await engine.save(company, roles);
+
+      await seeder.reseed();
+
+      // The fallback (Malta) band set is ensured, but the guessed
+      // jurisdiction must not flip the default back.
+      final defaults = (await engine.list('Tax Code', userRoles: roles))
+          .where((c) => '${c.payload['is_default']}' == '1')
+          .map((c) => c.id)
+          .toList();
+      expect(defaults, ['VAT 19%']);
+    });
+  });
+
   group('jurisdiction templates (H9)', () {
     test('byId resolves known regions and falls back to Malta', () {
       expect(JurisdictionPreset.byId('GB'), JurisdictionPreset.unitedKingdom);
