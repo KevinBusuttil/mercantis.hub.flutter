@@ -234,6 +234,20 @@ class TeamAccountClient {
         authToken: authToken);
   }
 
+  /// Rotate the presented USER token: the server mints a replacement for
+  /// the same user and invalidates the one used to authenticate this
+  /// call. Returns the new token — the caller must persist it
+  /// immediately; the old one is already dead.
+  Future<String> rotateUserToken({
+    required String companyId,
+    required String authToken,
+  }) async {
+    final body = await _post(
+        '/companies/$companyId/tokens/rotate', const {},
+        authToken: authToken);
+    return '${body['token']}';
+  }
+
   /// Everyone in the company and their role.
   Future<List<TeamMember>> listMembers({
     required String companyId,

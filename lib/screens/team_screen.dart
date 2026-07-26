@@ -210,6 +210,12 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
       ),
       const SizedBox(height: MercantisSpacing.sm),
       OutlinedButton.icon(
+        onPressed: () => _rotateToken(session),
+        icon: const Icon(Icons.key_outlined),
+        label: const Text('Rotate sign-in token'),
+      ),
+      const SizedBox(height: MercantisSpacing.sm),
+      OutlinedButton.icon(
         onPressed: () async {
           final sure = await showDialog<bool>(
             context: context,
@@ -237,6 +243,49 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
         label: const Text('Disconnect'),
       ),
     ];
+  }
+
+  /// Rotate this user's account token: the server mints a replacement
+  /// and kills the presented one; the stored session updates in place so
+  /// admin calls keep working. Sync is untouched — that runs on the
+  /// device token. This is how a leaked or long-lived owner credential
+  /// is retired without any database surgery.
+  Future<void> _rotateToken(TeamSession session) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Rotate sign-in token?'),
+        content: const Text(
+            'Your current account token stops working immediately and a '
+            'fresh one replaces it on this device. Anywhere else the old '
+            'token was saved (scripts, notes, other tools) will need the '
+            'new one. Sync is not affected.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Rotate')),
+        ],
+      ),
+    );
+    if (sure != true) return;
+    try {
+      final client = TeamAccountClient(baseUrl: session.baseUrl);
+      final newToken = await client.rotateUserToken(
+        companyId: session.companyId,
+        authToken: session.userToken,
+      );
+      await ref
+          .read(teamSessionProvider.notifier)
+          .connect(session.withUserToken(newToken));
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Token rotated — the old one no longer works.')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Rotation failed: $e')));
+    }
   }
 
   /// Live sync state (Team milestone 3): the same background machinery as

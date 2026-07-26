@@ -36,6 +36,18 @@ class TeamSession {
   final String deviceToken;
   final String deviceName;
 
+  /// Same connection with a replaced account credential (token rotation).
+  TeamSession withUserToken(String newToken) => TeamSession(
+        baseUrl: baseUrl,
+        companyId: companyId,
+        companyName: companyName,
+        userId: userId,
+        userToken: newToken,
+        deviceId: deviceId,
+        deviceToken: deviceToken,
+        deviceName: deviceName,
+      );
+
   Map<String, dynamic> toJson() => {
         'baseUrl': baseUrl,
         'companyId': companyId,
