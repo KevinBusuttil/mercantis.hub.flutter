@@ -124,6 +124,23 @@ void main() {
       expect(invitation.token, 'inv-tok-1');
     });
 
+    test('rotateUserToken posts under the presented token and returns the '
+        'replacement', () async {
+      http.Request? seen;
+      final client = MockClient((req) async {
+        seen = req;
+        return http.Response(
+            jsonEncode(
+                {'token': 'fresh-tok', 'expiresAt': '2026-08-11T00:00:00Z'}),
+            200);
+      });
+      final rotated = await TeamAccountClient(baseUrl: base, client: client)
+          .rotateUserToken(companyId: 'comp-1', authToken: 'old-tok');
+      expect(seen!.url.path, '/companies/comp-1/tokens/rotate');
+      expect(seen!.headers['Authorization'], 'Bearer old-tok');
+      expect(rotated, 'fresh-tok');
+    });
+
     test('createPortalLink posts kind + party under the user token',
         () async {
       http.Request? seen;
