@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
+import 'package:flutter/services.dart';
+
 import '../booking/booking_service.dart';
 import '../ledger/ledger_values.dart';
+import '../scheduling/appointment_reminder.dart';
 import '../scheduling/scheduling_service.dart';
 
 const _systemRoles = {'System Manager'};
@@ -16,6 +19,7 @@ class BookingData {
     required this.services,
     required this.customers,
     required this.today,
+    required this.needReminder,
   });
 
   final List<Document> resources;
@@ -25,9 +29,20 @@ class BookingData {
   /// Today's appointments, soonest first.
   final List<Document> today;
 
+  /// Upcoming appointments (48h window) whose visit reminder hasn't
+  /// gone out yet — the front desk's nudge list (B-3).
+  final List<Document> needReminder;
+
   String resourceName(String id) {
     for (final r in resources) {
       if (r.id == id) return '${r.payload['resource_name']}';
+    }
+    return id;
+  }
+
+  String customerName(String id) {
+    for (final c in customers) {
+      if (c.id == id) return '${c.payload['customer_name']}';
     }
     return id;
   }
@@ -49,11 +64,14 @@ final bookingDataProvider =
   final customers =
       await engine.list('Customer', userRoles: _systemRoles);
   final today = await SchedulingService(engine).forDay(DateTime.now());
+  final needReminder =
+      await AppointmentReminderService(engine).dueReminders(DateTime.now());
   return BookingData(
     resources: resources,
     services: services.isEmpty ? items : services,
     customers: customers,
     today: today,
+    needReminder: needReminder,
   );
 });
 
@@ -143,6 +161,10 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
           padding: const EdgeInsets.all(MercantisSpacing.lg),
           children: [
             _bookingForm(data),
+            if (data.needReminder.isNotEmpty) ...[
+              const SizedBox(height: MercantisSpacing.lg),
+              _remindersCard(data),
+            ],
             const SizedBox(height: MercantisSpacing.lg),
             Text('Today', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: MercantisSpacing.sm),
@@ -275,6 +297,91 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
     );
   }
 
+  /// The nudge list (B-3): upcoming appointments whose visit reminder
+  /// hasn't gone out. One tap copies the neutral message and stamps the
+  /// appointment sent.
+  Widget _remindersCard(BookingData data) {
+    final theme = Theme.of(context);
+    String when(Document apt) {
+      final t = DateTime.tryParse('${apt.payload['starts_at']}');
+      if (t == null) return '—';
+      return '${t.day.toString().padLeft(2, '0')}/'
+          '${t.month.toString().padLeft(2, '0')} '
+          '${t.hour.toString().padLeft(2, '0')}:'
+          '${t.minute.toString().padLeft(2, '0')}';
+    }
+
+    return AtlasSectionCard(
+      name: 'Reminders to send (next 48h)',
+      child: Column(
+        children: [
+          for (final apt in data.needReminder)
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${when(apt)}  ${apt.payload['subject']} · '
+                    '${data.customerName('${apt.payload['customer']}')}',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Copy reminder & mark sent',
+                  icon: const Icon(Icons.notifications_active_outlined),
+                  onPressed: () => _sendReminder(apt, data),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _sendReminder(Document apt, BookingData data) async {
+    try {
+      final engine = await ref.read(documentEngineProvider.future);
+      final starts = DateTime.tryParse('${apt.payload['starts_at']}');
+      if (starts == null) return;
+      String? companyName;
+      final companies =
+          await engine.list('Company', userRoles: _systemRoles);
+      if (companies.isNotEmpty) {
+        companyName =
+            asNonEmpty(companies.first.payload['company_name']);
+      }
+      final text = buildAppointmentReminder(
+        customerName: data.customerName('${apt.payload['customer']}'),
+        subject: '${apt.payload['subject']}',
+        startsAt: starts,
+        location: asNonEmpty(apt.payload['location']),
+        companyName: companyName,
+      );
+      await Clipboard.setData(ClipboardData(text: text));
+      await AppointmentReminderService(engine).markSent(apt.id);
+      _toast('Reminder copied and marked sent — paste it into an email '
+          'or message');
+    } catch (e) {
+      _toast(e);
+    } finally {
+      ref.invalidate(bookingDataProvider);
+    }
+  }
+
+  Future<void> _markNoShow(Document apt) async {
+    try {
+      final engine = await ref.read(documentEngineProvider.future);
+      final fresh = await engine.fetch('Appointment', apt.id);
+      if (fresh == null) return;
+      fresh.payload['status'] = 'No Show';
+      await engine.save(fresh, _systemRoles);
+      _toast('${apt.id} marked as no-show');
+    } catch (e) {
+      _toast(e);
+    } finally {
+      ref.invalidate(bookingDataProvider);
+    }
+  }
+
   Widget _todayRow(Document apt, BookingData data) {
     final theme = Theme.of(context);
     final starts = DateTime.tryParse('${apt.payload['starts_at']}');
@@ -307,11 +414,17 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
               ],
             ),
           ),
-          if (open)
+          if (open) ...[
+            IconButton(
+              tooltip: 'Mark no-show',
+              icon: const Icon(Icons.person_off_outlined),
+              onPressed: () => _markNoShow(apt),
+            ),
             FilledButton.tonal(
               onPressed: () => _complete(apt),
               child: const Text('Complete & invoice'),
             ),
+          ],
         ],
       ),
     );

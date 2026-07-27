@@ -27,6 +27,7 @@ void main() {
             'customer_name': 'Maria',
           }),
         ],
+        needReminder: const [],
         today: [
           Document(id: 'APT-1', docType: 'Appointment', payload: {
             'subject': 'Haircut',
