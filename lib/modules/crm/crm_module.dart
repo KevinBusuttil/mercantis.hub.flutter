@@ -152,6 +152,10 @@ abstract final class CrmModule {
           // resolution order, after a document's explicit price list.
           FieldDefinition(key: 'default_price_list', label: 'Default Price List', type: FieldType.link, linkDocType: 'Price List', options: 'Price List'),
           FieldDefinition(key: 'website', label: 'Website', type: FieldType.data),
+          // GDPR erasure (Clinic Pack B-4): stamped when this record was
+          // anonymised — the identity is gone, the record survives as the
+          // pseudonymised party posted documents keep referencing.
+          FieldDefinition(key: 'anonymised_at', label: 'Anonymised', type: FieldType.dateTime, readOnly: true),
         ],
       );
 }
