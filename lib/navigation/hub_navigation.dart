@@ -9,6 +9,7 @@ import '../modules/projects/hub_project_actions.dart';
 import '../modules/accounting/hub_compliance_actions.dart';
 import '../modules/selling/hub_conversion_actions.dart';
 import '../modules/selling/hub_quotation_actions.dart';
+import '../modules/crm/hub_privacy_actions.dart';
 import '../modules/selling/hub_reminder_actions.dart';
 import '../modules/selling/hub_lineage_actions.dart';
 import '../einvoicing/hub_einvoice_actions.dart';
@@ -87,6 +88,8 @@ void wireHubNavigation(WidgetRef ref) {
     registerHubQuotationActions(ref);
     // Overdue-invoice reminder (Phase 1A): copy a ready-to-send message.
     registerHubReminderActions(ref);
+    // GDPR erasure (B-4): anonymise a Customer, ledger retention intact.
+    registerHubPrivacyActions(ref);
     // Compliance (HU1): a "Prepare return" action on a Tax Filing.
     registerHubComplianceActions(ref);
     // Conversion lineage (HU4): a "Related" action listing up/downstream docs.

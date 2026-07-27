@@ -123,13 +123,18 @@ keep visit reasons out of appointment subjects and invoice line
 descriptions ("Consultation", never the complaint). Pack-seeded
 defaults + a line in the operator guide.
 
-### 6.2 Erasure vs the immutable ledger
+### 6.2 Erasure vs the immutable ledger — ✅ SHIPPED (B-4)
 Statutory retention (10y Maltese accounting records) lawfully overrides
-erasure for posted invoices. Design note to implement WITH the pack:
-an anonymise-party action that scrubs the Customer master and expired
-appointment history while posted documents survive with a pseudonymised
-party reference. Painful to retrofit under a live request — build it
-up front.
+erasure for posted invoices. Delivered as "Anonymise (GDPR erasure)" on
+the Customer (CustomerAnonymiseService):
+- The master is scrubbed to a deterministic pseudonym (name, email,
+  tax id, website); `anonymised_at` stamps it; linked Contacts and
+  Addresses are deleted outright; appointment history keeps its slots
+  but loses subject/notes/location.
+- Posted invoices survive untouched, referencing the pseudonymised
+  party id. Refused while live obligations exist: an outstanding
+  balance or an open upcoming appointment. Irreversible by design,
+  behind a typed confirmation.
 
 ### 6.3 Roles and papers
 GP = controller under Art. 9(2)(h) (care provision under professional
