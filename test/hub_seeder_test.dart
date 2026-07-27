@@ -71,10 +71,10 @@ void main() {
 
     // The chart is a two-level tree: a group per root type, leaves parented.
     final assets = (await engine.fetch('Account', 'Assets'))!;
-    expect(assets.payload['is_group'], '1');
+    expect('${assets.payload['is_group']}', '1');
     expect(assets.payload['parent_account'], anyOf(isNull, ''));
     final bank = (await engine.fetch('Account', 'Bank'))!;
-    expect(bank.payload['is_group'], '0');
+    expect('${bank.payload['is_group']}', '0');
     expect(bank.payload['parent_account'], 'Assets');
     expect(vat.payload['parent_account'], 'Liabilities');
 
@@ -82,10 +82,10 @@ void main() {
     // Ids are namespaced (documents.id is a single global key), so "Services"
     // can appear under both Item Group and Supplier Group without colliding.
     final itemRoot = (await engine.fetch('Item Group', 'IG-All'))!;
-    expect(itemRoot.payload['is_group'], '1');
+    expect('${itemRoot.payload['is_group']}', '1');
     expect(itemRoot.payload['item_group_name'], 'All Item Groups');
     final products = (await engine.fetch('Item Group', 'IG-Products'))!;
-    expect(products.payload['is_group'], '0');
+    expect('${products.payload['is_group']}', '0');
     expect(products.payload['item_group_name'], 'Products');
     expect(products.payload['parent_item_group'], 'IG-All');
     expect(
@@ -105,7 +105,7 @@ void main() {
     final std = (await engine.fetch('Tax Code', 'VAT 18%'))!;
     expect(std.payload['rate'], 18);
     expect(std.payload['tax_account'], 'VAT');
-    expect(std.payload['is_default'], '1');
+    expect('${std.payload['is_default']}', '1');
 
     final company = (await engine.list('Company', userRoles: roles)).single;
     expect(company.payload['company_name'], 'Acme Ltd');
@@ -133,10 +133,10 @@ void main() {
     // Everyday UOMs seed with whole-number flags on the count units.
     final uoms = await engine.list('UOM', userRoles: roles);
     expect(uoms.length, HubSeeder.defaultUoms.length);
-    expect((await engine.fetch('UOM', 'Nos'))!
-        .payload['must_be_whole_number'], '1');
-    expect((await engine.fetch('UOM', 'Kg'))!
-        .payload['must_be_whole_number'], '0');
+    expect('${(await engine.fetch('UOM', 'Nos'))!.payload['must_be_whole_number']}',
+        '1');
+    expect('${(await engine.fetch('UOM', 'Kg'))!.payload['must_be_whole_number']}',
+        '0');
   });
 
   test('is idempotent — re-running creates nothing new', () async {
@@ -186,7 +186,7 @@ void main() {
           HubSeeder.majorCurrencies.length);
       expect((await engine.list('UOM', userRoles: roles)).length,
           HubSeeder.defaultUoms.length);
-      expect((await engine.fetch('Tax Code', 'VAT 18%'))!.payload['is_default'],
+      expect('${(await engine.fetch('Tax Code', 'VAT 18%'))!.payload['is_default']}',
           '1');
     });
 
@@ -262,7 +262,7 @@ void main() {
           .seed(businessName: 'Acme', currencyCode: 'EUR', year: 2026);
       final codes = await engine.list('Tax Code', userRoles: roles);
       expect(codes.length, 5);
-      expect((await engine.fetch('Tax Code', 'VAT 18%'))!.payload['is_default'],
+      expect('${(await engine.fetch('Tax Code', 'VAT 18%'))!.payload['is_default']}',
           '1');
     });
 
@@ -278,7 +278,7 @@ void main() {
       expect(await engine.fetch('Tax Code', 'VAT 18%'), isNull); // not Malta
       final std = (await engine.fetch('Tax Code', 'VAT 20%'))!;
       expect(std.payload['rate'], 20);
-      expect(std.payload['is_default'], '1');
+      expect('${std.payload['is_default']}', '1');
     });
 
     test('a second jurisdiction re-seed is additive (adaptive re-run)', () async {
