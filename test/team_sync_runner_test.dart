@@ -89,14 +89,30 @@ void main() {
         syncVersion: version,
       ).toWireJson();
 
-  test('push → pull → apply foreign only → cursor advances → ack', () async {
-    // A real local change recorded through the engine.
+  test('pull → apply foreign only → cursor advances → ack → push', () async {
+    // A real local change recorded through the engine. It ships in the
+    // push phase, which runs AFTER the pull so conflict detection still
+    // sees local edits as unshipped when a foreign edit arrives.
     await engine.save(
         Document(id: 'CUST-A', docType: 'Customer', payload: {
           'customer_name': 'From device A',
           'customer_type': 'Company',
         }),
         roles);
+
+    // An echo of one of this device's own earlier mutations, as the
+    // backend log replays it (deviceId devA → must be filtered on apply).
+    final ownEcho = MutationRecord(
+      id: 'mut-devA-old',
+      type: MutationType.updateDocument,
+      docType: 'Customer',
+      documentId: 'CUST-A',
+      payload: const {'id': 'CUST-A', 'doctype': 'Customer'},
+      deviceId: 'devA',
+      userId: 'u',
+      localTimestamp: DateTime.fromMillisecondsSinceEpoch(1751800000000),
+      syncVersion: '5',
+    ).toWireJson();
 
     final pushes = <Map<String, dynamic>>[];
     final acks = <List<dynamic>>[];
@@ -108,7 +124,7 @@ void main() {
         final ids = [
           for (final m in body['mutations'] as List) '${(m as Map)['id']}',
         ];
-        var version = 4;
+        var version = 6;
         return http.Response(
             jsonEncode({
               'versions': {for (final id in ids) id: ++version},
@@ -117,17 +133,12 @@ void main() {
       }
       if (req.url.path.endsWith('/sync/pull')) {
         pullUrl = req.url;
-        // Echo back THIS device's customer mutation (deviceId devA) with its
-        // assigned version, plus a foreign device's customer.
-        final ownEcho = ((pushes.first['mutations'] as List)
-                .cast<Map<String, dynamic>>())
-            .firstWhere((m) => m['documentId'] == 'CUST-A');
+        expect(pushes, isEmpty,
+            reason: 'pull must run before push (conflict detection '
+                'depends on local edits still being unshipped)');
         return http.Response(
             jsonEncode({
-              'mutations': [
-                {...ownEcho, 'syncVersion': '5'},
-                foreignCustomer('6'),
-              ],
+              'mutations': [ownEcho, foreignCustomer('6')],
             }),
             200);
       }
@@ -141,6 +152,7 @@ void main() {
     final result = await runner(client).run();
 
     expect(result.pushed, greaterThanOrEqualTo(1));
+    expect(pushes, hasLength(1)); // the push phase did run, after the pull
     expect(result.pulled, 2);
     expect(result.applied, 1); // the own echo was filtered
 
