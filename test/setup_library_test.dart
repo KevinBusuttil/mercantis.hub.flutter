@@ -113,6 +113,34 @@ void main() {
       expect((await engine.list('Setup Rule', userRoles: roles)).length, 2);
     });
 
+    test('the clinic pack composes a GP practice onto a seeded book',
+        () async {
+      await applier.apply(appointmentsPack);
+      final result = await applier.apply(clinicPack);
+
+      // The medical exempt band carries its full e-invoice identity.
+      final exempt = (await engine.fetch('Tax Code', 'VAT-EX-MED'))!;
+      expect(exempt.payload['vat_category'], 'Exempt');
+      expect('${exempt.payload['exemption_reason']}',
+          contains('Article 132(1)'));
+
+      // Therapeutic services bill exempt; the certificate deliberately
+      // carries NO code so the book's default (standard) band applies.
+      final consult = (await engine.fetch('Item', 'CONSULT'))!;
+      expect(consult.payload['tax_code'], 'VAT-EX-MED');
+      expect(consult.payload['item_type'], 'Service');
+      expect(consult.payload['item_group'], 'IG-Medical');
+      final cert = (await engine.fetch('Item', 'MED-CERT'))!;
+      expect(asNonEmpty(cert.payload['tax_code']), isNull);
+
+      // A Doctor diary to book against, and the clinic module shape.
+      expect((await engine.fetch('Schedulable Resource', 'Doctor'))!
+          .payload['resource_type'], 'Person');
+      expect(result.moduleToggles['appointments'], isTrue);
+      expect(result.moduleToggles['stock'], isFalse);
+      expect(result.moduleToggles['pos'], isFalse);
+    });
+
     test('packs never overwrite existing documents or set defaults', () async {
       // The seeder already created the stock accounts AND the company
       // defaults — the pack must skip all of it.

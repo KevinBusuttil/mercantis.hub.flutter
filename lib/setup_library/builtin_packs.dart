@@ -10,7 +10,101 @@ final List<SetupPack> builtinSetupPacks = [
   posShopPack,
   bankRulesStarterPack,
   appointmentsPack,
+  clinicPack,
 ];
+
+/// V8 Clinic Pack (B-2): the business side of a medical GP practice,
+/// composed on the appointments machinery. Consultations bill VAT-exempt
+/// as medical care — the B-1 category so e-invoices export E with the
+/// Article 132(1) reason — while certificates/reports for third parties
+/// are NOT therapeutic care and deliberately carry no tax code, so the
+/// book's default (standard) band applies to them. No clinical data
+/// anywhere: the Customer record is billing identity only, and every
+/// seeded name stays neutral (GDPR §6.1 — "Consultation", never the
+/// complaint). Atlas is not an EMR; patient records live in a clinical
+/// system and reach Atlas only as integration events.
+const clinicPack = SetupPack(
+  id: 'clinic',
+  name: 'Clinic (Medical GP)',
+  version: '1.0.0',
+  dependsOn: ['appointments'],
+  description: 'Front desk and billing for a medical practice: '
+      'consultation and home-visit items billed VAT-exempt with the '
+      'Article 132(1) exemption stated on the e-invoice, a taxable '
+      'medical-certificate item, a Doctor diary, and deposits held as '
+      'a liability until the visit invoices. Patient clinical records '
+      'stay in your clinical system — Atlas holds billing identity '
+      'only.',
+  masters: [
+    PackMaster(docType: 'Account', id: 'Customer Deposits', payload: {
+      'account_name': 'Customer Deposits',
+      'root_type': 'Liability',
+    }),
+    PackMaster(docType: 'Tax Code', id: 'VAT-EX-MED', payload: {
+      'tax_code_name': 'Exempt — Medical Care',
+      'tax_type': 'VAT',
+      'rate': 0,
+      'vat_category': 'Exempt',
+      'exemption_reason': 'Exempt from VAT — medical care '
+          '(Article 132(1) of the VAT Directive)',
+      'enabled': 1,
+    }),
+    PackMaster(docType: 'Item Group', id: 'IG-Medical', payload: {
+      'item_group_name': 'Medical Services',
+    }),
+    // Exempt therapeutic services. Prices are the practice's to set.
+    PackMaster(docType: 'Item', id: 'CONSULT', payload: {
+      'item_code': 'CONSULT',
+      'item_name': 'Consultation',
+      'item_type': 'Service',
+      'stock_uom': 'Nos',
+      'item_group': 'IG-Medical',
+      'tax_code': 'VAT-EX-MED',
+    }),
+    PackMaster(docType: 'Item', id: 'CONSULT-FU', payload: {
+      'item_code': 'CONSULT-FU',
+      'item_name': 'Follow-up Consultation',
+      'item_type': 'Service',
+      'stock_uom': 'Nos',
+      'item_group': 'IG-Medical',
+      'tax_code': 'VAT-EX-MED',
+    }),
+    PackMaster(docType: 'Item', id: 'HOME-VISIT', payload: {
+      'item_code': 'HOME-VISIT',
+      'item_name': 'Home Visit',
+      'item_type': 'Service',
+      'stock_uom': 'Nos',
+      'item_group': 'IG-Medical',
+      'tax_code': 'VAT-EX-MED',
+    }),
+    // A certificate/report for an employer or insurer is not therapeutic
+    // care — it is standard-rated, so NO tax code here: the book's
+    // default (standard) band applies.
+    PackMaster(docType: 'Item', id: 'MED-CERT', payload: {
+      'item_code': 'MED-CERT',
+      'item_name': 'Medical Certificate / Report',
+      'item_type': 'Service',
+      'stock_uom': 'Nos',
+      'item_group': 'IG-Medical',
+    }),
+    PackMaster(docType: 'Schedulable Resource', id: 'Doctor', payload: {
+      'resource_name': 'Doctor',
+      'resource_type': 'Person',
+      'enabled': 1,
+    }),
+  ],
+  // The clinic shape: appointments on; trade/production surfaces off.
+  // POS stays off until the EXO fiscal-receipt question (spec §7) says
+  // otherwise — the operator can flip it any time in Settings.
+  moduleToggles: {
+    'appointments': true,
+    'stock': false,
+    'pos': false,
+    'projects': false,
+    'manufacturing': false,
+    'deliveries': false,
+  },
+);
 
 /// Phase 4: the appointments composition (salon / tutor / studio /
 /// clinic front desk). Books need a deposit liability account to hold

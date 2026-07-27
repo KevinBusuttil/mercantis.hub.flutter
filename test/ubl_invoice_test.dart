@@ -6,6 +6,8 @@ import 'package:mercantis_hub_app/modules/common/countries.dart';
 import 'package:mercantis_hub_app/ledger/hub_interceptors.dart';
 import 'package:mercantis_hub_app/ledger/ledger_values.dart' hide isTrue;
 import 'package:mercantis_hub_app/manifest/hub_manifest.dart';
+import 'package:mercantis_hub_app/setup_library/builtin_packs.dart';
+import 'package:mercantis_hub_app/setup_library/setup_pack_applier.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// S13: a submitted Sales Invoice renders as EN 16931-compliant UBL 2.1
@@ -201,6 +203,36 @@ void main() {
     expect(xml, contains('<cbc:TaxAmount currencyID="EUR">0.00'));
     // The whole invoice owes exactly its net.
     expect(xml, contains('<cbc:PayableAmount currencyID="EUR">40.00'));
+  });
+
+  // B-2 acceptance: pack-seeded masters carry everything the export
+  // needs — apply the pack, invoice a consultation, get a compliant
+  // exempt e-invoice, no manual tax setup in between.
+  test('a clinic-pack consultation exports exempt with the medical reason',
+      () async {
+    await SetupPackApplier(engine: engine).apply(clinicPack);
+
+    final invoice = Document(id: '', docType: 'Sales Invoice', payload: {
+      'customer': 'CUST-IT',
+      'posting_date': '2026-07-12',
+      'currency': 'EUR',
+    });
+    invoice.children['items'] = [
+      ChildRow(
+        id: '', parentId: '', parentDocType: 'Sales Invoice',
+        tableName: 'items', rowIndex: 0,
+        payload: {'item': 'CONSULT', 'qty': 1, 'rate': 25, 'uom': 'Nos'},
+      ),
+    ];
+    final submitted =
+        await engine.submit(await engine.save(invoice, roles), roles);
+
+    final xml = await ubl.buildFor(submitted.id);
+
+    expect(xml, contains('<cbc:ID>E</cbc:ID>'));
+    expect(xml, contains('Article 132(1) of the VAT Directive'));
+    expect(xml, isNot(contains('<cbc:ID>Z</cbc:ID>')));
+    expect(xml, contains('<cbc:PayableAmount currencyID="EUR">25.00'));
   });
 
   test('two 0% codes (Exempt vs Zero-Rated) never merge in the fallback',
