@@ -46,6 +46,16 @@ abstract final class TaxModule {
           // HubTaxEngine.
           FieldDefinition(key: 'tax_type', label: 'Tax Type', type: FieldType.select, options: 'VAT\nSalesTax\nExcise\nWithholding', defaultValue: 'VAT', required: true),
           FieldDefinition(key: 'rate', label: 'Rate (%)', type: FieldType.float, required: true, defaultValue: '0'),
+          // EN 16931 VAT category for e-invoicing. Blank = derive from the
+          // rate (rate > 0 → Standard, else Zero-Rated). Exempt vs
+          // Zero-Rated is a legal distinction two 0% codes can't express by
+          // rate alone: exempt supplies (e.g. medical care) export as
+          // category E with the exemption reason, zero-rated as Z.
+          FieldDefinition(key: 'vat_category', label: 'VAT Category (e-invoice)', type: FieldType.select, options: '\nStandard\nZero-Rated\nExempt\nReverse Charge\nOut of Scope'),
+          // Mandated on e-invoices for exempt supplies (EN 16931 BT-120):
+          // WHY no VAT is charged, e.g. "Exempt from VAT — medical care
+          // (Article 132(1) of the VAT Directive)".
+          FieldDefinition(key: 'exemption_reason', label: 'Exemption Reason', type: FieldType.data),
           FieldDefinition(key: 'tax_category', label: 'Tax Category', type: FieldType.link, linkDocType: 'Tax Category', options: 'Tax Category'),
           FieldDefinition(key: 'tax_account', label: 'Tax Account', type: FieldType.link, linkDocType: 'Account', options: 'Account'),
           FieldDefinition(key: 'is_default', label: 'Default', type: FieldType.check),

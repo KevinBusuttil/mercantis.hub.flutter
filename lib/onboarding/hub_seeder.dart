@@ -54,11 +54,21 @@ class SeedTreeMaster {
 
 /// One tax band seeded so the tax engine works out of the box.
 class SeedTaxCode {
-  const SeedTaxCode(this.id, this.rate, {this.isDefault = false, this.type = 'VAT'});
+  const SeedTaxCode(this.id, this.rate,
+      {this.isDefault = false,
+      this.type = 'VAT',
+      this.vatCategory,
+      this.exemptionReason});
   final String id;
   final num rate;
   final bool isDefault;
   final String type; // VAT / SalesTax / Excise / Withholding
+
+  /// EN 16931 category label for e-invoicing (Exempt / Zero-Rated / …);
+  /// null = derive from the rate. Exempt bands carry [exemptionReason] —
+  /// e-invoices must state WHY no VAT is charged.
+  final String? vatCategory;
+  final String? exemptionReason;
 }
 
 /// A tax jurisdiction (country) the onboarding wizard can pick: its starter tax
@@ -87,8 +97,9 @@ class JurisdictionPreset {
       SeedTaxCode('VAT 18%', 18, isDefault: true),
       SeedTaxCode('VAT 7%', 7),
       SeedTaxCode('VAT 5%', 5),
-      SeedTaxCode('Zero-Rated', 0),
-      SeedTaxCode('Exempt', 0),
+      SeedTaxCode('Zero-Rated', 0, vatCategory: 'Zero-Rated'),
+      SeedTaxCode('Exempt', 0,
+          vatCategory: 'Exempt', exemptionReason: 'Exempt from VAT'),
     ],
   );
 
@@ -99,8 +110,9 @@ class JurisdictionPreset {
     taxCodes: [
       SeedTaxCode('VAT 20%', 20, isDefault: true),
       SeedTaxCode('VAT 5%', 5),
-      SeedTaxCode('Zero-Rated', 0),
-      SeedTaxCode('Exempt', 0),
+      SeedTaxCode('Zero-Rated', 0, vatCategory: 'Zero-Rated'),
+      SeedTaxCode('Exempt', 0,
+          vatCategory: 'Exempt', exemptionReason: 'Exempt from VAT'),
     ],
   );
 
@@ -112,8 +124,9 @@ class JurisdictionPreset {
       SeedTaxCode('VAT 23%', 23, isDefault: true),
       SeedTaxCode('VAT 13.5%', 13.5),
       SeedTaxCode('VAT 9%', 9),
-      SeedTaxCode('Zero-Rated', 0),
-      SeedTaxCode('Exempt', 0),
+      SeedTaxCode('Zero-Rated', 0, vatCategory: 'Zero-Rated'),
+      SeedTaxCode('Exempt', 0,
+          vatCategory: 'Exempt', exemptionReason: 'Exempt from VAT'),
     ],
   );
 
@@ -125,7 +138,8 @@ class JurisdictionPreset {
     currencyCode: 'USD',
     taxCodes: [
       SeedTaxCode('Standard Tax', 0, isDefault: true),
-      SeedTaxCode('Exempt', 0),
+      SeedTaxCode('Exempt', 0,
+          vatCategory: 'Exempt', exemptionReason: 'Exempt from VAT'),
     ],
   );
 
@@ -403,7 +417,26 @@ class HubSeeder {
         'tax_account': 'VAT',
         'is_default': t.isDefault ? '1' : '0',
         'enabled': '1',
+        if (t.vatCategory != null) 'vat_category': t.vatCategory,
+        if (t.exemptionReason != null) 'exemption_reason': t.exemptionReason,
       });
+      // Backfill: books seeded before the e-invoice VAT category existed
+      // have the code without it — a re-run adds the category (and the
+      // exemption reason) without touching anything the operator set.
+      if (t.vatCategory != null) {
+        final existing = await engine.fetch('Tax Code', t.id);
+        if (existing != null &&
+            '${existing.payload['vat_category'] ?? ''}'.trim().isEmpty) {
+          existing.payload['vat_category'] = t.vatCategory;
+          if (t.exemptionReason != null &&
+              '${existing.payload['exemption_reason'] ?? ''}'
+                  .trim()
+                  .isEmpty) {
+            existing.payload['exemption_reason'] = t.exemptionReason;
+          }
+          await engine.save(existing, roles);
+        }
+      }
     }
     // Make this region's default the *sole* default — a re-run that switched
     // region would otherwise leave the previous region's default in place too.

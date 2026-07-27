@@ -83,6 +83,36 @@ void main() {
       expect(byNumber['M7']!.amount, 108);
       expect(byNumber['M8']!.amount, 100); // 208 − 108
     });
+
+    test('Malta separates exempt supplies from the rated sections (B-1)',
+        () {
+      // A GP's book: consultations exempt, a little standard-rated
+      // merchandise. Exempt is a category, not a rate — it must not
+      // inflate "reduced / other rates".
+      final r = TaxReturnBuilder.build(const [
+        TaxReturnRow(
+            partyType: 'Customer',
+            baseAmount: 900,
+            taxAmount: 0,
+            rate: 0,
+            category: 'Exempt'),
+        TaxReturnRow(partyType: 'Customer', baseAmount: 100, taxAmount: 18, rate: 18),
+        TaxReturnRow(
+            partyType: 'Customer',
+            baseAmount: 50,
+            taxAmount: 0,
+            rate: 0,
+            category: 'Zero-Rated'),
+      ], jurisdiction: 'Malta');
+      final byNumber = {for (final b in r.boxes) b.number: b};
+      expect(byNumber['M1']!.amount, 100);
+      expect(byNumber['M3']!.amount, 50); // zero-rated stays a rated supply
+      expect(byNumber['M4a']!.amount, 900); // exempt in its own section
+      expect(byNumber['M4a']!.isTax, isFalse);
+      expect(byNumber['M5']!.amount, 18);
+      // Headline sales still count everything the practice invoiced.
+      expect(r.taxableSales, 1050);
+    });
   });
 
   group('TaxReturnService (engine)', () {

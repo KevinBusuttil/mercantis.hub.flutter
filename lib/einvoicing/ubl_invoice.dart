@@ -109,6 +109,16 @@ abstract final class UblInvoiceBuilder {
   /// contained tax was already extracted at posting time.
   /// Throws a StateError listing EVERY missing mandatory element at
   /// once, so the user fixes the record in one pass.
+  /// EN 16931 category letters for a Tax Code master's `vat_category`
+  /// label. Codes without a label fall back to rate>0 → S, else Z.
+  static const _categoryLetters = <String, String>{
+    'Standard': 'S',
+    'Zero-Rated': 'Z',
+    'Exempt': 'E',
+    'Reverse Charge': 'AE',
+    'Out of Scope': 'O',
+  };
+
   static String build({
     required Document invoice,
     required Document seller,
@@ -116,6 +126,8 @@ abstract final class UblInvoiceBuilder {
     Map<String, num> taxRateByCode = const {},
     Map<String, String> itemTaxCodeByItem = const {},
     String? partyTaxCode,
+    Map<String, ({String category, String? reason})> vatClassByCode =
+        const {},
   }) {
     final problems = <String>[];
     if (invoice.docStatus != 1) {
@@ -158,12 +170,37 @@ abstract final class UblInvoiceBuilder {
     final inclusive = isTrue(invoice.payload['prices_include_tax']);
 
     // The interceptor's fallback chain, mirrored exactly.
+    String? codeFor(ChildRow row) =>
+        asNonEmpty(row.payload['tax_code']) ??
+        itemTaxCodeByItem['${row.payload['item']}'] ??
+        docTaxCode ??
+        partyTaxCode;
+
     num rateFor(ChildRow row) {
-      final code = asNonEmpty(row.payload['tax_code']) ??
-          itemTaxCodeByItem['${row.payload['item']}'] ??
-          docTaxCode ??
-          partyTaxCode;
+      final code = codeFor(row);
       return code == null ? 0 : (taxRateByCode[code] ?? 0);
+    }
+
+    // The EN 16931 category (+ exemption reason where the category
+    // mandates one, BT-120) for a tax code. Exempt (E) is a LEGAL state
+    // two 0% codes can't express by rate alone — a GP's consultation is
+    // exempt medical care, not zero-rated — so the Tax Code master's
+    // vat_category wins; rate is only the fallback for unlabelled codes.
+    ({String id, String? reason}) categoryFor(String? code, num rate) {
+      final vatClass = code == null ? null : vatClassByCode[code];
+      if (vatClass != null) {
+        final letter = _categoryLetters[vatClass.category];
+        if (letter != null) {
+          final reason = switch (letter) {
+            'E' => asNonEmpty(vatClass.reason) ?? 'Exempt from VAT',
+            'AE' => asNonEmpty(vatClass.reason) ?? 'Reverse charge',
+            'O' => asNonEmpty(vatClass.reason) ?? 'Not subject to VAT',
+            _ => null,
+          };
+          return (id: letter, reason: reason);
+        }
+      }
+      return (id: rate > 0 ? 'S' : 'Z', reason: null);
     }
 
     // A line's NET extension: inclusive documents entered gross, and
@@ -193,16 +230,19 @@ abstract final class UblInvoiceBuilder {
 
     num taxTotal = 0;
     final subtotals = StringBuffer();
-    void subtotal(num taxable, num tax, num rate) {
+    void subtotal(
+        num taxable, num tax, num rate, ({String id, String? reason}) cat) {
       taxTotal = round2(taxTotal + tax);
+      // BR-O-5: an Out-of-scope (O) category carries no percent; E must
+      // carry its exemption reason (BR-E-10) — stated here in the
+      // breakdown, which is where EN 16931 wants it.
       subtotals.write('''
     <cac:TaxSubtotal>
       <cbc:TaxableAmount currencyID="$currency">${_money(taxable)}</cbc:TaxableAmount>
       <cbc:TaxAmount currencyID="$currency">${_money(tax)}</cbc:TaxAmount>
       <cac:TaxCategory>
-        <cbc:ID>${rate > 0 ? 'S' : 'Z'}</cbc:ID>
-        <cbc:Percent>${_money(rate)}</cbc:Percent>
-        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+        <cbc:ID>${cat.id}</cbc:ID>
+${cat.id == 'O' ? '' : '        <cbc:Percent>${_money(rate)}</cbc:Percent>\n'}${cat.reason == null ? '' : '        <cbc:TaxExemptionReason>${_esc(cat.reason!)}</cbc:TaxExemptionReason>\n'}        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
       </cac:TaxCategory>
     </cac:TaxSubtotal>
 ''');
@@ -212,23 +252,38 @@ abstract final class UblInvoiceBuilder {
       num coveredTaxable = 0;
       for (final t in taxRows) {
         final taxable = asNum(t.payload['taxable_amount']);
-        subtotal(taxable, asNum(t.payload['tax_amount']),
-            asNum(t.payload['rate']));
+        final rate = asNum(t.payload['rate']);
+        subtotal(taxable, asNum(t.payload['tax_amount']), rate,
+            categoryFor(asNonEmpty(t.payload['tax_code']), rate));
         coveredTaxable = round2(coveredTaxable + taxable);
       }
       // Lines no tax row covers are the zero-rated remainder.
       final zeroRated = round2(netTotal - coveredTaxable);
-      if (zeroRated > 0.005) subtotal(zeroRated, 0, 0);
+      if (zeroRated > 0.005) {
+        subtotal(zeroRated, 0, 0, (id: 'Z', reason: null));
+      }
     } else {
-      final taxableByRate = <num, num>{};
+      // Recompute fallback (pre-interceptor records): group by category
+      // AND rate — two 0% codes (Exempt vs Zero-Rated) must not merge
+      // into one subtotal.
+      final grouped = <String, ({num rate, ({String id, String? reason}) cat, num taxable})>{};
       for (final row in rows) {
         final rate = rateFor(row);
-        taxableByRate[rate] = (taxableByRate[rate] ?? 0) + lineNet(row);
+        final cat = categoryFor(codeFor(row), rate);
+        final key = '${cat.id}|$rate';
+        final prior = grouped[key];
+        grouped[key] = (
+          rate: rate,
+          cat: cat,
+          taxable: (prior?.taxable ?? 0) + lineNet(row),
+        );
       }
-      for (final rate in taxableByRate.keys.toList()
-        ..sort((a, b) => b.compareTo(a))) {
-        final taxable = round2(taxableByRate[rate]!);
-        subtotal(taxable, round2(taxable * rate / 100), rate);
+      final keys = grouped.keys.toList()
+        ..sort((a, b) => grouped[b]!.rate.compareTo(grouped[a]!.rate));
+      for (final key in keys) {
+        final g = grouped[key]!;
+        final taxable = round2(g.taxable);
+        subtotal(taxable, round2(taxable * g.rate / 100), g.rate, g.cat);
       }
     }
 
@@ -244,6 +299,7 @@ abstract final class UblInvoiceBuilder {
       final rate = qty == 0 ? 0 : round2(amount / qty);
       final unit = _unitCodes['${row.payload['uom']}'] ?? 'C62';
       final vatRate = rateFor(row);
+      final lineCat = categoryFor(codeFor(row), vatRate);
       final name = asNonEmpty(row.payload['description']) ??
           '${row.payload['item']}';
       lines.write('''
@@ -254,9 +310,8 @@ abstract final class UblInvoiceBuilder {
     <cac:Item>
       <cbc:Name>${_esc(name)}</cbc:Name>
       <cac:ClassifiedTaxCategory>
-        <cbc:ID>${vatRate > 0 ? 'S' : 'Z'}</cbc:ID>
-        <cbc:Percent>${_money(vatRate)}</cbc:Percent>
-        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+        <cbc:ID>${lineCat.id}</cbc:ID>
+${lineCat.id == 'O' ? '' : '        <cbc:Percent>${_money(vatRate)}</cbc:Percent>\n'}        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
       </cac:ClassifiedTaxCategory>
     </cac:Item>
     <cac:Price>
@@ -374,13 +429,27 @@ class UblExportService {
       for (final row in invoice.children['items'] ?? const <ChildRow>[])
         if (asNonEmpty(row.payload['tax_code']) != null)
           '${row.payload['tax_code']}',
+      // The persisted taxes rows are what the breakdown classifies from —
+      // their codes must resolve too (an exempt row exports category E).
+      for (final row in invoice.children['taxes'] ?? const <ChildRow>[])
+        if (asNonEmpty(row.payload['tax_code']) != null)
+          '${row.payload['tax_code']}',
       ...itemTaxCodeByItem.values,
       if (partyTaxCode != null) partyTaxCode,
     };
     final rates = <String, num>{};
+    final vatClasses = <String, ({String category, String? reason})>{};
     for (final code in codes) {
       final taxCode = await _engine.fetch('Tax Code', code);
-      if (taxCode != null) rates[code] = asNum(taxCode.payload['rate']);
+      if (taxCode == null) continue;
+      rates[code] = asNum(taxCode.payload['rate']);
+      final category = asNonEmpty(taxCode.payload['vat_category']);
+      if (category != null) {
+        vatClasses[code] = (
+          category: category,
+          reason: asNonEmpty(taxCode.payload['exemption_reason']),
+        );
+      }
     }
 
     return UblInvoiceBuilder.build(
@@ -390,6 +459,7 @@ class UblExportService {
       taxRateByCode: rates,
       itemTaxCodeByItem: itemTaxCodeByItem,
       partyTaxCode: partyTaxCode,
+      vatClassByCode: vatClasses,
     );
   }
 }

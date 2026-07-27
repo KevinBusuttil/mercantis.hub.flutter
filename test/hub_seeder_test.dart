@@ -106,6 +106,14 @@ void main() {
     expect(std.payload['rate'], 18);
     expect(std.payload['tax_account'], 'VAT');
     expect('${std.payload['is_default']}', '1');
+    // The 0% pair carries its legal identity for e-invoicing: exempt is
+    // category E with a stated reason, zero-rated is Z — not two
+    // interchangeable zero rates.
+    final exempt = (await engine.fetch('Tax Code', 'Exempt'))!;
+    expect(exempt.payload['vat_category'], 'Exempt');
+    expect(exempt.payload['exemption_reason'], 'Exempt from VAT');
+    expect((await engine.fetch('Tax Code', 'Zero-Rated'))!
+        .payload['vat_category'], 'Zero-Rated');
 
     final company = (await engine.list('Company', userRoles: roles)).single;
     expect(company.payload['company_name'], 'Acme Ltd');
@@ -211,6 +219,46 @@ void main() {
           .map((c) => c.id)
           .toList();
       expect(defaults, ['VAT 20%']);
+    });
+
+    test('re-seeding backfills the VAT category on a pre-category book',
+        () async {
+      // A book seeded before vat_category existed: the Exempt code is
+      // there but carries no e-invoice identity.
+      await engine.save(
+          Document(id: 'Exempt', docType: 'Tax Code', payload: {
+            'tax_code_name': 'Exempt',
+            'tax_type': 'VAT',
+            'rate': 0,
+            'enabled': '1',
+          }),
+          roles);
+
+      await HubSeeder(engine, roles: roles)
+          .seed(businessName: 'Acme', currencyCode: 'EUR', year: 2026);
+
+      final exempt = (await engine.fetch('Tax Code', 'Exempt'))!;
+      expect(exempt.payload['vat_category'], 'Exempt');
+      expect(exempt.payload['exemption_reason'], 'Exempt from VAT');
+    });
+
+    test('the backfill never overwrites an operator-set category or reason',
+        () async {
+      await engine.save(
+          Document(id: 'Exempt', docType: 'Tax Code', payload: {
+            'tax_code_name': 'Exempt',
+            'tax_type': 'VAT',
+            'rate': 0,
+            'vat_category': 'Exempt',
+            'exemption_reason': 'Exempt — medical care (Art 132(1))',
+          }),
+          roles);
+
+      await HubSeeder(engine, roles: roles)
+          .seed(businessName: 'Acme', currencyCode: 'EUR', year: 2026);
+
+      expect((await engine.fetch('Tax Code', 'Exempt'))!
+          .payload['exemption_reason'], 'Exempt — medical care (Art 132(1))');
     });
 
     test('an unrecognised country never unseats an operator default',
