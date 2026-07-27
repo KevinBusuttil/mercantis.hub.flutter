@@ -45,13 +45,19 @@ A dedicated AppManifest (working name `app.mercantis.clinic`) or a
   read "Patients" (Customer), "Consultations" (Appointment/Invoice),
   "Doctors" (Schedulable Resource). Renaming is configuration, not code.
 
-### Clinic Setup Pack contents
-- Items: Consultation (standard rate), Home Visit, Medical Certificate.
-- Tax: `VAT-EX-MED` exempt code (see §4.1) as the default sales code.
+### Clinic Setup Pack contents — ✅ SHIPPED (B-2, built-in pack `clinic`)
+- Items: Consultation, Follow-up Consultation, Home Visit (all exempt
+  via `VAT-EX-MED`), Medical Certificate / Report (deliberately NO
+  code — certificates are not therapeutic care, so the book's default
+  standard band applies).
+- Tax: `VAT-EX-MED` exempt code with the Article 132(1) exemption
+  reason (B-1 categories carry it onto the e-invoice as category E).
 - Accounts: Customer Deposits liability (procedure deposits).
-- Resource type seed: "Doctor"; module toggles: appointments on,
-  everything excluded above off.
-- Field guidance defaults per §6.1 (neutral appointment subjects).
+- Resource seed: "Doctor" (Person); module toggles: appointments on;
+  stock, POS, projects, manufacturing, deliveries off (POS returns if
+  §7 answers yes).
+- Field guidance per §6.1: the Appointment subject field now carries
+  the neutral-wording guidance platform-wide.
 
 ## 4. New platform builds (small, priced into the pack)
 

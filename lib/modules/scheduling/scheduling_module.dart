@@ -45,7 +45,10 @@ abstract final class SchedulingModule {
         module: _module,
         namingRule: 'APT-.YYYY.-.####',
         fields: [
-          FieldDefinition(key: 'subject', label: 'Subject', type: FieldType.data, required: true),
+          // Data-protection guidance (Clinic Pack §6.1, but sound for any
+          // trade): the subject names the SERVICE, never the reason for
+          // the visit — an appointment book can itself be sensitive data.
+          FieldDefinition(key: 'subject', label: 'Subject', type: FieldType.data, required: true, description: 'Name the service (e.g. "Consultation") — keep the reason for the visit out of the diary.'),
           FieldDefinition(key: 'resource', label: 'Resource', type: FieldType.link, linkDocType: 'Schedulable Resource', options: 'Schedulable Resource', required: true),
           FieldDefinition(key: 'customer', label: 'Customer', type: FieldType.link, linkDocType: 'Customer', options: 'Customer'),
           FieldDefinition(key: 'starts_at', label: 'Starts', type: FieldType.dateTime, required: true),
