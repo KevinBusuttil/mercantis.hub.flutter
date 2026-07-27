@@ -74,6 +74,9 @@ abstract final class SchedulingModule {
           // Phase 4: the S4 deposit taken at booking, auto-applied when
           // the appointment completes to invoice.
           FieldDefinition(key: 'deposit', label: 'Booking Deposit', type: FieldType.link, linkDocType: 'Customer Deposit', options: 'Customer Deposit', readOnly: true),
+          // B-3: stamped when a visit reminder went out for this
+          // appointment, so due-reminder queries never nag twice.
+          FieldDefinition(key: 'reminder_sent_at', label: 'Reminder Sent', type: FieldType.dateTime, readOnly: true),
         ],
       );
 }

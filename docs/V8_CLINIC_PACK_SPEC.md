@@ -75,12 +75,19 @@ Delivered platform-wide, ahead of the pack build:
   starter setup backfills them into existing books. The clinic Setup
   Pack still owes the medical-specific reason wording (Article 132(1)).
 
-### 4.2 Appointment reminders (required)
-A reminder primitive on Appointments (the invoice-reminder machinery is
-the pattern): N days/hours before `starts_at`, produce a reminder
-(email first; SMS via provider integration later). Marked sent on the
-appointment; no-shows visible on the day board.
-- Estimate: 1 increment.
+### 4.2 Appointment reminders (required) — ✅ SHIPPED (B-3)
+Delivered on the payment-reminder pattern (copy-first; in-app sending
+remains a later platform step):
+- Neutral visit-reminder text (service + slot, never the reason — §6.1
+  enforced by construction: the builder has no field for a reason).
+- `AppointmentReminderService.dueReminders` — open appointments in the
+  next 48h whose reminder hasn't gone out; `reminder_sent_at` stamps
+  the appointment so nobody is nagged twice.
+- Booking screen: a "Reminders to send" card (one tap copies + stamps)
+  and a mark-no-show action on today's open rows; No Show was already
+  a first-class status.
+- "Copy visit reminder" is also a document action on any open,
+  upcoming Appointment.
 
 ### 4.3 S7 batch/expiry (OPTIONAL — only if the practice stocks vaccines)
 Vaccines demand batch numbers + expiry on receipt, issue and count.
