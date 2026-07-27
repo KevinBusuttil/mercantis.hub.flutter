@@ -55,16 +55,19 @@ A dedicated AppManifest (working name `app.mercantis.clinic`) or a
 
 ## 4. New platform builds (small, priced into the pack)
 
-### 4.1 VAT exemption category (required)
-Medical services are VAT-**exempt** in Malta (not zero-rated). Today the
-tax engine handles a 0% rate but the UBL export emits only S/Z
-categories.
-- Tax Code gains an `exemption` flavour (or `tax_category` link use):
-  category code **E** with a mandatory exemption reason text
-  (BT-120/BT-121 in EN 16931).
-- UBL builder: emit category E + ExemptionReason for such codes; VAT
-  box mapping review so exempt turnover lands in the right filing box.
-- Estimate: 1 increment.
+### 4.1 VAT exemption category (required) — ✅ SHIPPED (B-1)
+Medical services are VAT-**exempt** in Malta (not zero-rated).
+Delivered platform-wide, ahead of the pack build:
+- Tax Code carries `vat_category` (Standard / Zero-Rated / Exempt /
+  Reverse Charge / Out of Scope) + `exemption_reason` (BT-120). Blank
+  category still derives S/Z from the rate.
+- UBL export emits the category per line and per subtotal — E carries
+  its TaxExemptionReason; two 0% codes never merge into one subtotal.
+- Malta VAT return reports exempt supplies in their own box (M4a),
+  outside the rated-supplies sections; UK box 6 keeps including them.
+- Seeded Exempt/Zero-Rated bands carry their categories; re-running
+  starter setup backfills them into existing books. The clinic Setup
+  Pack still owes the medical-specific reason wording (Article 132(1)).
 
 ### 4.2 Appointment reminders (required)
 A reminder primitive on Appointments (the invoice-reminder machinery is

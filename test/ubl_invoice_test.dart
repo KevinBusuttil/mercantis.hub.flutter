@@ -153,6 +153,104 @@ void main() {
     expect(xml, contains('<cbc:PriceAmount currencyID="EUR">100.00'));
   });
 
+  // B-1 (Clinic Pack): exempt is a LEGAL state, not a 0% rate. A GP's
+  // consultation must export as category E with the exemption reason —
+  // exporting it zero-rated (Z) misstates the supply.
+  test('an exempt invoice exports category E with the exemption reason',
+      () async {
+    await engine.save(
+        Document(id: 'EXEMPT', docType: 'Tax Code', payload: {
+          'tax_code_name': 'Exempt',
+          'tax_type': 'VAT',
+          'rate': 0,
+          'vat_category': 'Exempt',
+          'exemption_reason':
+              'Exempt from VAT — medical care (Article 132(1) of the '
+                  'VAT Directive)',
+        }),
+        roles);
+    final invoice = Document(id: '', docType: 'Sales Invoice', payload: {
+      'customer': 'CUST-IT',
+      'posting_date': '2026-07-12',
+      'currency': 'EUR',
+    });
+    invoice.children['items'] = [
+      ChildRow(
+        id: '', parentId: '', parentDocType: 'Sales Invoice',
+        tableName: 'items', rowIndex: 0,
+        payload: {
+          'item': 'WIDGET', 'qty': 1, 'rate': 40, 'uom': 'Nos',
+          'description': 'Consultation',
+          'tax_code': 'EXEMPT',
+        },
+      ),
+    ];
+    final submitted =
+        await engine.submit(await engine.save(invoice, roles), roles);
+
+    final xml = await ubl.buildFor(submitted.id);
+
+    // Breakdown: one E subtotal carrying the reason — and no Z at all.
+    expect(xml, contains('<cbc:ID>E</cbc:ID>'));
+    expect(
+        xml,
+        contains('<cbc:TaxExemptionReason>Exempt from VAT — medical care '
+            '(Article 132(1) of the VAT Directive)</cbc:TaxExemptionReason>'));
+    expect(xml, isNot(contains('<cbc:ID>Z</cbc:ID>')));
+    expect(xml, contains('<cbc:TaxableAmount currencyID="EUR">40.00'));
+    expect(xml, contains('<cbc:TaxAmount currencyID="EUR">0.00'));
+    // The whole invoice owes exactly its net.
+    expect(xml, contains('<cbc:PayableAmount currencyID="EUR">40.00'));
+  });
+
+  test('two 0% codes (Exempt vs Zero-Rated) never merge in the fallback',
+      () {
+    // No persisted taxes rows → the recompute fallback groups lines; the
+    // two legally different 0% codes must yield SEPARATE subtotals.
+    final invoice = Document(
+        id: 'SI-F', docType: 'Sales Invoice', docStatus: 1, payload: {
+      'customer': 'CUST-IT',
+      'posting_date': '2026-07-12',
+      'currency': 'EUR',
+    });
+    invoice.children['items'] = [
+      ChildRow(
+        id: '', parentId: 'SI-F', parentDocType: 'Sales Invoice',
+        tableName: 'items', rowIndex: 0,
+        payload: {'item': 'A', 'qty': 1, 'rate': 30, 'tax_code': 'EXEMPT'},
+      ),
+      ChildRow(
+        id: '', parentId: 'SI-F', parentDocType: 'Sales Invoice',
+        tableName: 'items', rowIndex: 1,
+        payload: {'item': 'B', 'qty': 1, 'rate': 20, 'tax_code': 'ZR'},
+      ),
+    ];
+    final xml = UblInvoiceBuilder.build(
+      invoice: invoice,
+      seller: Document(id: 'BTL', docType: 'Company', payload: {
+        'company_name': 'Busuttil Technologies Ltd',
+        'tax_id': 'MT12345678',
+        'country': 'Malta',
+      }),
+      buyer: Document(id: 'CUST-IT', docType: 'Customer', payload: {
+        'customer_name': 'Rossi & Figli SRL',
+        'country': 'Italy',
+      }),
+      taxRateByCode: const {'EXEMPT': 0, 'ZR': 0},
+      vatClassByCode: const {
+        'EXEMPT': (category: 'Exempt', reason: 'Exempt from VAT'),
+        'ZR': (category: 'Zero-Rated', reason: null),
+      },
+    );
+
+    expect(xml, contains('<cbc:ID>E</cbc:ID>'));
+    expect(xml, contains('<cbc:ID>Z</cbc:ID>'));
+    expect(xml, contains('<cbc:TaxableAmount currencyID="EUR">30.00'));
+    expect(xml, contains('<cbc:TaxableAmount currencyID="EUR">20.00'));
+    expect(xml,
+        contains('<cbc:TaxExemptionReason>Exempt from VAT</cbc:TaxExemptionReason>'));
+  });
+
   // Codex P1 (PR #169): the export must mirror the POSTED tax calc.
   test('item-master and customer fallback rates reach the UBL breakdown',
       () async {

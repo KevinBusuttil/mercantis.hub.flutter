@@ -12,6 +12,7 @@ class TaxReturnRow {
     required this.baseAmount,
     required this.taxAmount,
     this.rate = 0,
+    this.category,
   });
   final String? partyType;
   final num baseAmount;
@@ -21,6 +22,12 @@ class TaxReturnRow {
   /// split supplies by (e.g. Malta's standard-vs-reduced sections). 0 when
   /// the source didn't record it.
   final num rate;
+
+  /// The tax code's VAT category label (Exempt / Zero-Rated / …), resolved
+  /// from the Tax Code master. Exempt is the one rate can't express: two
+  /// 0% codes report in DIFFERENT places on returns that separate exempt
+  /// supplies (Malta). Null = classify by rate alone.
+  final String? category;
 }
 
 /// One line of the computed return.
@@ -70,14 +77,23 @@ abstract final class TaxReturnBuilder {
       {String jurisdiction = 'Generic'}) {
     num outputTax = 0, inputTax = 0, salesBase = 0, purchasesBase = 0;
     // Output split by rate, for layouts with per-rate sections (Malta).
+    // Exempt supplies are tracked apart: they belong in their own section
+    // on returns that separate them, never inside "reduced/other rates".
+    num exemptSalesBase = 0;
     final outputTaxByRate = <num, num>{};
     final salesBaseByRate = <num, num>{};
     for (final r in rows) {
       if (r.partyType == 'Customer') {
         outputTax += r.taxAmount;
         salesBase += r.baseAmount;
-        outputTaxByRate[r.rate] = (outputTaxByRate[r.rate] ?? 0) + r.taxAmount;
-        salesBaseByRate[r.rate] = (salesBaseByRate[r.rate] ?? 0) + r.baseAmount;
+        if (r.category == 'Exempt') {
+          exemptSalesBase += r.baseAmount;
+        } else {
+          outputTaxByRate[r.rate] =
+              (outputTaxByRate[r.rate] ?? 0) + r.taxAmount;
+          salesBaseByRate[r.rate] =
+              (salesBaseByRate[r.rate] ?? 0) + r.baseAmount;
+        }
       } else if (r.partyType == 'Supplier') {
         inputTax += r.taxAmount;
         purchasesBase += r.baseAmount;
@@ -119,6 +135,9 @@ abstract final class TaxReturnBuilder {
           TaxReturnBoxLine('M2', 'Output VAT at the standard rate (18%)', round2(standardTax), true),
           TaxReturnBoxLine('M3', 'Supplies at reduced / other rates — value', round2(otherBase), false),
           TaxReturnBoxLine('M4', 'Output VAT at reduced / other rates', round2(otherTax), true),
+          // Exempt supplies (e.g. medical care) carry no output VAT and
+          // report in their own section — not among the rated supplies.
+          TaxReturnBoxLine('M4a', 'Exempt supplies — value', round2(exemptSalesBase), false),
           TaxReturnBoxLine('M5', 'Total output VAT', outputTax, true),
           TaxReturnBoxLine('M6', 'Purchases — value', purchasesBase, false),
           TaxReturnBoxLine('M7', 'Input VAT claimed', inputTax, true),
@@ -164,6 +183,14 @@ class TaxReturnService {
     final to = '${filing.payload['to_date']}';
     final taxType = '${filing.payload['tax_type']}';
 
+    // Tax Transactions carry the tax code (`tax`); the code's VAT category
+    // decides where a return that separates exempt supplies reports it.
+    final categoryByCode = <String, String>{
+      for (final c in await engine.list('Tax Code', userRoles: roles))
+        if (asNonEmpty(c.payload['vat_category']) != null)
+          c.id: '${c.payload['vat_category']}',
+    };
+
     final txns = await engine.list('Tax Transaction',
         filters: {'tax_type': taxType}, userRoles: roles);
     final rows = [
@@ -176,6 +203,7 @@ class TaxReturnService {
             baseAmount: asNum(t.payload['base_amount']),
             taxAmount: asNum(t.payload['tax_amount']),
             rate: asNum(t.payload['rate']),
+            category: categoryByCode[asNonEmpty(t.payload['tax']) ?? ''],
           ),
     ];
 
