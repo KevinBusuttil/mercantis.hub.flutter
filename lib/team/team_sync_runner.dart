@@ -82,11 +82,11 @@ class TeamSyncRunner {
       attachmentStore: attachmentStore,
     );
     try {
-      final pushed = await sync.pendingCount();
-      // Throws on transport/backend failure; the engine returns the batch to
-      // pending, so nothing strands and the next run retries.
-      await sync.pushPendingMutations();
-
+      // Pull BEFORE push: conflict detection keys on the local document
+      // still carrying its unshipped edits (`sync_state=local`) when the
+      // foreign edit arrives. Pushing first would flip those documents to
+      // `synced` and a genuinely concurrent remote edit would fast-forward
+      // over them — exactly the silent loss the policy exists to prevent.
       var cursor = await cursorStore.load(companyId);
       var pulled = 0;
       var applied = 0;
@@ -124,6 +124,13 @@ class TeamSyncRunner {
         // refuse to spin even if the server claims there's more.
         if (!progressed) break;
       }
+
+      final pushed = await sync.pendingCount();
+      // Throws on transport/backend failure; the engine returns the batch to
+      // pending, so nothing strands and the next run retries. Mutations for
+      // documents now sitting in conflict are held back by the engine.
+      await sync.pushPendingMutations();
+
       return TeamSyncResult(
         pushed: pushed,
         pulled: pulled,

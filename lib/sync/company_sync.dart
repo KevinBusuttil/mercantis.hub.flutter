@@ -257,13 +257,16 @@ class CompanySyncNotifier extends AsyncNotifier<SyncStatus> {
           cloudAdapter: adapter,
         );
         try {
-          pushed = await _pendingCount();
-          await sync.pushPendingMutations();
+          // Pull before push (same reasoning as TeamSyncRunner): conflict
+          // detection needs local edits still unshipped when the foreign
+          // edit arrives.
           final remote = await adapter.pull(null);
           pulled = remote.length;
           applied = remote.length;
           await sync.applyRemoteMutations(remote);
           await adapter.acknowledge([for (final m in remote) m.id]);
+          pushed = await _pendingCount();
+          await sync.pushPendingMutations();
         } finally {
           sync.dispose();
         }
