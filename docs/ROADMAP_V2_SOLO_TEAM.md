@@ -1,9 +1,12 @@
 # Neuradix Atlas Roadmap V2 — Solo / Team, Rust Backend, Setup Library, Rule-First AI
 
-**Status:** Accepted direction (pre-implementation)
-**Date:** 2026-07-06
-**Supersedes:** Sections 9 (MVP scope) and 12 (roadmap) of `docs/FUNCTIONAL_GAP_ROADMAP.md`. The audit's findings (§1–8), requirements (§10–11), risks (§13) and technical appendix (§15) remain the factual baseline and are unchanged except for the POS correction below.
+**Status:** Accepted strategic direction; implementation sequencing superseded on 2026-09-13  
+**Date:** 2026-07-06  
+**Supersedes:** Sections 9 (MVP scope) and 12 (roadmap) of `docs/FUNCTIONAL_GAP_ROADMAP.md`. The audit's findings (§1–8), requirements (§10–11), risks (§13) and technical appendix (§15) remain the factual baseline and are unchanged except for the POS correction below.  
+**Current execution roadmap:** [`docs/COMMERCIALISATION_IMPLEMENTATION_PLAN.md`](COMMERCIALISATION_IMPLEMENTATION_PLAN.md)  
 **Companion documents:** `docs/ATLAS_SOLO_TEAM_BACKEND_DECISION.md` · `docs/STOCK_COGS_IMPLEMENTATION_PLAN.md` · `docs/ATLAS_SETUP_LIBRARY_AND_RULE_FIRST_AI.md`
+
+> **For implementation agents:** this document remains authoritative for the Solo/Team product architecture and edition boundaries. Do **not** use the eight phases below as the current work queue. Several former gaps have landed since July 2026. Read `COMMERCIALISATION_IMPLEMENTATION_PLAN.md`, re-verify current `main`, and implement the earliest incomplete commercialisation work package.
 
 ---
 
@@ -33,7 +36,7 @@ POS completion therefore has **two** prerequisites: Phase 1B (COGS/inventory GL)
 Legend: ✔ = in edition · ✔📦 = Solo via optional downloaded setup packs · ✔🛡 = Team with backend authority · ✖ = not in edition
 
 | Area | Solo | Team | Notes |
-|---|---|---|---|
+|---|---|---|
 | Company setup (guided, checklist) | ✔ | ✔ | Same setup library UX in both |
 | Setup packs | ✔📦 signed download, offline apply | ✔🛡 central catalogue, versioned, synced | |
 | Customers / suppliers / items | ✔ | ✔ | Team: synced masters, safe-edit conflict policy |
@@ -75,6 +78,8 @@ Presets become setup-pack compositions (see setup library doc) and must state wh
 | **Mixed Small Business** | gradual module enablement locally | as per enabled modules above |
 
 ## 5. Revised phases
+
+> **Historical sequencing:** retained for context only. For active implementation use `COMMERCIALISATION_IMPLEMENTATION_PLAN.md`.
 
 Sequencing logic: **product-business accounting correctness (1B) is pulled ahead of everything expansionary** — it is not allowed to queue behind online store, POS expansion, or the backend. 1A and 1B are Solo-codebase work that also ships in the Team client; Phases 2–3 build the Team backend; 4+ each unlock a persona. 1A ∥ 1B can proceed in parallel (different layers: product surface vs posting spine); Phase 2 design can start alongside, informed by the fixture suite from 1B.
 
@@ -160,6 +165,8 @@ Each criterion is tagged with the phase whose completion it gates: **[P2]** = Ph
 | "Payment links" / "connect your store (automated)" | Phase 4 / 5 + Team |
 | "Run your shop on Atlas" (POS) | Phase 1B + Phase 6 |
 | "Invite your accountant" | Phase 8 (portal) on Team |
+
+> These historical release gates are retained to explain V2's architecture. Current commercial release gates are M1–M4 in `COMMERCIALISATION_IMPLEMENTATION_PLAN.md`.
 
 ## 8. What changed vs the audit's roadmap (V1 → V2)
 
