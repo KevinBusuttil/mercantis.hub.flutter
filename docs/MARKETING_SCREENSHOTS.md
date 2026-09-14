@@ -19,6 +19,8 @@ The generated image is:
 test/marketing/goldens/atlas_owner_dashboard_1440x900.png
 ```
 
+The PNG is committed to version control so the normal test suite verifies that the marketing image still matches the product UI.
+
 ## CI generation
 
 `.github/workflows/marketing-screenshots.yml` regenerates the canonical image on relevant pull requests and can also be run manually. On same-repository branches it commits a changed golden back to the source branch so the screenshot stays versioned alongside the UI that produced it.
