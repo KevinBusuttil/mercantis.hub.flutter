@@ -144,7 +144,7 @@ class _AtlasMarketingSurface extends StatelessWidget {
                             Text(
                               'Good morning, Aster Trading Ltd',
                               style: theme.textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.w750,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                             const SizedBox(height: 5),
