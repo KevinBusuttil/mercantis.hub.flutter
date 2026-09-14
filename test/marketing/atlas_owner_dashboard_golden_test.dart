@@ -27,9 +27,11 @@ Future<void> _loadReadableMarketingFont() async {
     throw StateError('No readable CI font found for Atlas marketing capture.');
   }
 
-  final bytes = await fontFile.readAsBytes();
+  // Keep filesystem access synchronous, then load the font outside the widget
+  // test's fake-async zone via tester.runAsync() below.
+  final bytes = fontFile.readAsBytesSync();
   final loader = FontLoader(_marketingFontFamily)
-    ..addFont(Future.value(ByteData.sublistView(Uint8List.fromList(bytes))));
+    ..addFont(Future.value(ByteData.sublistView(bytes)));
   await loader.load();
 }
 
@@ -335,7 +337,9 @@ class _AtlasMarketingSurface extends StatelessWidget {
 
 void main() {
   testWidgets('marketing owner dashboard is deterministic', (tester) async {
-    await _loadReadableMarketingFont();
+    await tester.runAsync(
+      () => _loadReadableMarketingFont().timeout(const Duration(seconds: 15)),
+    );
 
     tester.view.physicalSize = const Size(1440, 900);
     tester.view.devicePixelRatio = 1.0;
@@ -353,7 +357,7 @@ void main() {
       ),
     );
     // This surface is intentionally static. A fixed pump makes the golden
-    // deterministic and avoids pumpAndSettle waiting on framework animations.
+    // deterministic without waiting for unrelated framework animations.
     await tester.pump(const Duration(milliseconds: 100));
 
     await expectLater(
