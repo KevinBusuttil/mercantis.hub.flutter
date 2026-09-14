@@ -2,6 +2,11 @@ name: Marketing screenshots
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - codex/atlas-screenshot-artifact-review
+    paths:
+      - ".github/workflows/marketing-screenshots.yml"
   pull_request:
     paths:
       - "test/marketing/**"
@@ -19,7 +24,7 @@ concurrency:
 jobs:
   generate:
     name: Generate Atlas product screenshots
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Check out source branch
