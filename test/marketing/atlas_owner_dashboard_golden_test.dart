@@ -270,12 +270,12 @@ class _AtlasMarketingSurface extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 14),
-                  SizedBox(
+                  const SizedBox(
                     height: 319,
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Expanded(
+                        Expanded(
                           flex: 7,
                           child: ListCard(
                             title: 'Recent invoices',
@@ -306,8 +306,8 @@ class _AtlasMarketingSurface extends StatelessWidget {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        const Expanded(
+                        SizedBox(width: 12),
+                        Expanded(
                           flex: 5,
                           child: Column(
                             children: [
