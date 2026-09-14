@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -165,8 +164,8 @@ class _AtlasMarketingSurface extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 22),
-                  Row(
-                    children: const [
+                  const Row(
+                    children: [
                       Expanded(
                         child: KpiCard(
                           title: 'Cash position',
@@ -288,7 +287,7 @@ class _AtlasMarketingSurface extends StatelessWidget {
                                       children: [
                                         Row(
                                           children: [
-                                            Icon(
+                                            const Icon(
                                               Icons.fact_check_outlined,
                                               color: MercantisBrandColors.accentApprovals,
                                             ),
