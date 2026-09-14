@@ -352,7 +352,9 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    // This surface is intentionally static. A fixed pump makes the golden
+    // deterministic and avoids pumpAndSettle waiting on framework animations.
+    await tester.pump(const Duration(milliseconds: 100));
 
     await expectLater(
       find.byKey(_captureKey),
