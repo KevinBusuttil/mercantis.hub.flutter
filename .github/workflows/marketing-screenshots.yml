@@ -1,0 +1,54 @@
+name: Marketing screenshots
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "test/marketing/**"
+      - ".github/workflows/marketing-screenshots.yml"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: marketing-screenshots-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    name: Generate Atlas product screenshots
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.0"
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: Render deterministic product screenshots
+        run: flutter test test/marketing/atlas_owner_dashboard_golden_test.dart --update-goldens
+
+      - name: Commit refreshed screenshots
+        env:
+          TARGET_BRANCH: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          if [[ -z "$(git status --porcelain -- test/marketing/goldens)" ]]; then
+            echo "Marketing screenshots are already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add test/marketing/goldens
+          git commit -m "chore: refresh Atlas marketing screenshots"
+          git push origin "HEAD:${TARGET_BRANCH}"
