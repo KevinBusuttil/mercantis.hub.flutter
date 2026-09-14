@@ -39,6 +39,14 @@ jobs:
       - name: Render deterministic product screenshots
         run: flutter test test/marketing/atlas_owner_dashboard_golden_test.dart --update-goldens
 
+      - name: Upload screenshots for visual review
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-marketing-screenshots
+          path: test/marketing/goldens/*.png
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Commit refreshed screenshots
         env:
           TARGET_BRANCH: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
