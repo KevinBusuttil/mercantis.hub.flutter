@@ -271,7 +271,7 @@ class _AtlasMarketingSurface extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
                   SizedBox(
-                    height: 286,
+                    height: 320,
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
