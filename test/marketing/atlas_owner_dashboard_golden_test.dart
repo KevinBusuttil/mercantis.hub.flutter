@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
+const _captureKey = Key('atlas-marketing-capture');
+
 const _marketingDashboard = DashboardResult(
   dashboardId: 'marketing-owner-dashboard',
   name: 'Owner dashboard',
@@ -96,8 +98,11 @@ void main() {
         theme: MercantisTheme.light(),
         debugShowCheckedModeBanner: false,
         home: const Scaffold(
-          body: SafeArea(
-            child: DashboardResultGrid(result: _marketingDashboard),
+          body: RepaintBoundary(
+            key: _captureKey,
+            child: SafeArea(
+              child: DashboardResultGrid(result: _marketingDashboard),
+            ),
           ),
         ),
       ),
@@ -105,7 +110,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await expectLater(
-      find.byType(MaterialApp),
+      find.byKey(_captureKey),
       matchesGoldenFile('goldens/atlas_owner_dashboard_1440x900.png'),
     );
   });
