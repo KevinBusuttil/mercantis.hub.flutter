@@ -27,19 +27,77 @@ Future<void> _loadReadableMarketingFont() async {
     throw StateError('No readable CI font found for Atlas marketing capture.');
   }
 
-  // Keep filesystem access synchronous, then load the font outside the widget
-  // test's fake-async zone via tester.runAsync() below.
   final bytes = fontFile.readAsBytesSync();
   final loader = FontLoader(_marketingFontFamily)
     ..addFont(Future.value(ByteData.sublistView(bytes)));
   await loader.load();
 }
 
+String _flutterRootFromExecutable() {
+  var directory = File(Platform.resolvedExecutable).parent;
+  for (var i = 0; i < 4; i++) {
+    directory = directory.parent;
+  }
+  return directory.path;
+}
+
+Future<void> _loadMaterialIcons() async {
+  final candidates = <String>[];
+  final environmentRoot = Platform.environment['FLUTTER_ROOT'];
+  if (environmentRoot != null && environmentRoot.isNotEmpty) {
+    candidates.add(
+      '$environmentRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+    );
+  }
+  candidates.add(
+    '${_flutterRootFromExecutable()}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+  );
+
+  File? iconFile;
+  for (final path in candidates) {
+    final candidate = File(path);
+    if (candidate.existsSync()) {
+      iconFile = candidate;
+      break;
+    }
+  }
+
+  if (iconFile == null) {
+    throw StateError('Material Icons font was not found in the Flutter SDK.');
+  }
+
+  final bytes = iconFile.readAsBytesSync();
+  final loader = FontLoader('MaterialIcons')
+    ..addFont(Future.value(ByteData.sublistView(bytes)));
+  await loader.load();
+}
+
+Future<void> _loadMarketingFonts() async {
+  await Future.wait([
+    _loadReadableMarketingFont(),
+    _loadMaterialIcons(),
+  ]);
+}
+
 ThemeData _marketingTheme() {
   final base = MercantisTheme.light();
+  final textTheme = base.textTheme.apply(fontFamily: _marketingFontFamily);
+  final primaryTextTheme =
+      base.primaryTextTheme.apply(fontFamily: _marketingFontFamily);
+  final colorScheme = base.colorScheme;
+
   return base.copyWith(
-    textTheme: base.textTheme.apply(fontFamily: _marketingFontFamily),
-    primaryTextTheme: base.primaryTextTheme.apply(fontFamily: _marketingFontFamily),
+    textTheme: textTheme,
+    primaryTextTheme: primaryTextTheme,
+    navigationRailTheme: base.navigationRailTheme.copyWith(
+      selectedLabelTextStyle: textTheme.labelMedium?.copyWith(
+        color: colorScheme.primary,
+        fontWeight: FontWeight.w700,
+      ),
+      unselectedLabelTextStyle: textTheme.labelMedium?.copyWith(
+        color: colorScheme.onSurfaceVariant,
+      ),
+    ),
   );
 }
 
@@ -69,6 +127,11 @@ const _destinations = <AtlasNavDestination>[
     selectedIcon: Icons.account_balance,
     label: 'Finance',
   ),
+  AtlasNavDestination(
+    icon: Icons.assessment_outlined,
+    selectedIcon: Icons.assessment,
+    label: 'Reports',
+  ),
 ];
 
 class _AtlasMarketingSurface extends StatelessWidget {
@@ -93,10 +156,10 @@ class _AtlasMarketingSurface extends StatelessWidget {
               selectedIndex: 0,
               onSelected: (_) {},
               extended: true,
-              minExtendedWidth: 210,
+              minExtendedWidth: 198,
               accentColor: MercantisBrandColors.accentFinance,
               leading: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 18, 12, 20),
+                padding: const EdgeInsets.fromLTRB(14, 18, 14, 22),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -131,41 +194,24 @@ class _AtlasMarketingSurface extends StatelessWidget {
           ),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(30, 24, 30, 26),
+              padding: const EdgeInsets.fromLTRB(26, 22, 26, 22),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Good morning, Aster Trading Ltd',
-                              style: theme.textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              'Your business today · 14 September 2026',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      FilledButton.tonalIcon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.add),
-                        label: const Text('New transaction'),
-                      ),
-                    ],
+                  Text(
+                    'Aster Trading Ltd',
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Owner overview · 14 September 2026',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
                   const Row(
                     children: [
                       Expanded(
@@ -179,7 +225,7 @@ class _AtlasMarketingSurface extends StatelessWidget {
                           trendLabel: '+8.2%',
                         ),
                       ),
-                      SizedBox(width: 12),
+                      SizedBox(width: 10),
                       Expanded(
                         child: KpiCard(
                           title: 'Sales this month',
@@ -191,42 +237,52 @@ class _AtlasMarketingSurface extends StatelessWidget {
                           trendLabel: '+11.4%',
                         ),
                       ),
-                      SizedBox(width: 12),
+                      SizedBox(width: 10),
                       Expanded(
                         child: KpiCard(
-                          title: 'Receivables',
-                          value: '€26,410',
-                          subtitle: '€6,930 overdue',
-                          icon: Icons.south_west,
+                          title: 'Overdue',
+                          value: '€6,930',
+                          subtitle: '8 customer invoices',
+                          icon: Icons.schedule_outlined,
                           accentColor: MercantisBrandColors.accentFinance,
                         ),
                       ),
-                      SizedBox(width: 12),
+                      SizedBox(width: 10),
                       Expanded(
                         child: KpiCard(
-                          title: 'Payables',
-                          value: '€15,780',
-                          subtitle: '€4,120 due this week',
-                          icon: Icons.north_east,
+                          title: 'Bills due',
+                          value: '€4,120',
+                          subtitle: 'Next 7 days',
+                          icon: Icons.receipt_long_outlined,
                           accentColor: MercantisBrandColors.accentPurchase,
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: KpiCard(
+                          title: 'VAT estimate',
+                          value: '€4,280',
+                          subtitle: 'Current quarter',
+                          icon: Icons.account_balance_wallet_outlined,
+                          accentColor: MercantisBrandColors.accentFinance,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 14),
-                  Expanded(
+                  SizedBox(
+                    height: 286,
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
+                        const Expanded(
                           flex: 7,
                           child: ListCard(
                             title: 'Recent invoices',
                             subtitle: 'Latest customer activity',
                             icon: Icons.receipt_long_outlined,
                             accentColor: MercantisBrandColors.accentSales,
-                            onSeeAll: () {},
-                            rows: const [
+                            rows: [
                               ListCardRow(
                                 title: 'INV-2026-0148 · Harbour Office Supplies',
                                 subtitle: 'Paid · 14 Sep 2026',
@@ -250,74 +306,134 @@ class _AtlasMarketingSurface extends StatelessWidget {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          flex: 4,
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          flex: 5,
                           child: Column(
                             children: [
-                              const Expanded(
-                                child: KpiCard(
-                                  title: 'Open sales orders',
-                                  value: '14',
-                                  subtitle: '€31,640 committed',
-                                  icon: Icons.shopping_cart_outlined,
-                                  accentColor: MercantisBrandColors.accentSales,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              const Expanded(
-                                child: KpiCard(
-                                  title: 'VAT estimate',
-                                  value: '€4,280',
-                                  subtitle: 'Current filing period',
-                                  icon: Icons.account_balance_wallet_outlined,
-                                  accentColor: MercantisBrandColors.accentFinance,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
                               Expanded(
-                                child: Material(
-                                  color: cs.surface,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                    side: BorderSide(color: cs.outlineVariant),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(18),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.fact_check_outlined,
-                                              color: MercantisBrandColors.accentApprovals,
-                                            ),
-                                            const SizedBox(width: 9),
-                                            Text(
-                                              'Pending approvals',
-                                              style: theme.textTheme.titleMedium,
-                                            ),
-                                          ],
-                                        ),
-                                        const Spacer(),
-                                        Text(
-                                          '3',
-                                          style: theme.textTheme.displaySmall?.copyWith(
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Purchases and payment requests waiting for review',
-                                          style: theme.textTheme.bodySmall?.copyWith(
-                                            color: cs.onSurfaceVariant,
-                                          ),
-                                        ),
-                                      ],
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: KpiCard(
+                                        title: 'Open sales orders',
+                                        value: '14',
+                                        subtitle: '€31,640 committed',
+                                        icon: Icons.shopping_cart_outlined,
+                                        accentColor:
+                                            MercantisBrandColors.accentSales,
+                                      ),
                                     ),
-                                  ),
+                                    SizedBox(width: 10),
+                                    Expanded(
+                                      child: KpiCard(
+                                        title: 'Receivables',
+                                        value: '€26,410',
+                                        subtitle: '18 open invoices',
+                                        icon: Icons.south_west,
+                                        accentColor:
+                                            MercantisBrandColors.accentFinance,
+                                      ),
+                                    ),
+                                  ],
                                 ),
+                              ),
+                              SizedBox(height: 10),
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: KpiCard(
+                                        title: 'Payables',
+                                        value: '€15,780',
+                                        subtitle: '11 supplier bills',
+                                        icon: Icons.north_east,
+                                        accentColor:
+                                            MercantisBrandColors.accentPurchase,
+                                      ),
+                                    ),
+                                    SizedBox(width: 10),
+                                    Expanded(
+                                      child: KpiCard(
+                                        title: 'Stock value',
+                                        value: '€62,480',
+                                        subtitle: 'Across 2 warehouses',
+                                        icon: Icons.inventory_2_outlined,
+                                        accentColor:
+                                            MercantisBrandColors.accentInventory,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: ListCard(
+                            title: 'Recent sales orders',
+                            subtitle: 'Orders moving through fulfilment',
+                            icon: Icons.shopping_cart_outlined,
+                            accentColor: MercantisBrandColors.accentSales,
+                            rows: [
+                              ListCardRow(
+                                title: 'SO-2026-0092 · Coastline Catering',
+                                subtitle: 'Delivery 16 Sep · Confirmed',
+                                trailing: Text('€4,860.00'),
+                              ),
+                              ListCardRow(
+                                title: 'SO-2026-0091 · Portside Interiors',
+                                subtitle: 'Delivery 18 Sep · Draft',
+                                trailing: Text('€8,120.00'),
+                              ),
+                              ListCardRow(
+                                title: 'SO-2026-0090 · Greenline Retail',
+                                subtitle: 'Delivery 15 Sep · To deliver',
+                                trailing: Text('€2,745.60'),
+                              ),
+                              ListCardRow(
+                                title: 'SO-2026-0089 · Meridian Services',
+                                subtitle: 'Delivery 21 Sep · Confirmed',
+                                trailing: Text('€6,380.00'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: ListCard(
+                            title: 'Recent stock movements',
+                            subtitle: 'Live inventory activity',
+                            icon: Icons.swap_horiz,
+                            accentColor: MercantisBrandColors.accentInventory,
+                            rows: [
+                              ListCardRow(
+                                title: 'SKU-1044 · Main Warehouse',
+                                subtitle: 'Receipt · 14 Sep 2026',
+                                trailing: Text('+48 pcs'),
+                              ),
+                              ListCardRow(
+                                title: 'SKU-2031 · Main Warehouse',
+                                subtitle: 'Delivery · 14 Sep 2026',
+                                trailing: Text('−12 pcs'),
+                              ),
+                              ListCardRow(
+                                title: 'SKU-1008 · Transit Warehouse',
+                                subtitle: 'Transfer · 13 Sep 2026',
+                                trailing: Text('+20 pcs'),
+                              ),
+                              ListCardRow(
+                                title: 'SKU-3050 · Main Warehouse',
+                                subtitle: 'Adjustment · 13 Sep 2026',
+                                trailing: Text('−2 pcs'),
                               ),
                             ],
                           ),
@@ -338,7 +454,7 @@ class _AtlasMarketingSurface extends StatelessWidget {
 void main() {
   testWidgets('marketing owner dashboard is deterministic', (tester) async {
     await tester.runAsync(
-      () => _loadReadableMarketingFont().timeout(const Duration(seconds: 15)),
+      () => _loadMarketingFonts().timeout(const Duration(seconds: 15)),
     );
 
     tester.view.physicalSize = const Size(1440, 900);
@@ -356,8 +472,6 @@ void main() {
         ),
       ),
     );
-    // This surface is intentionally static. A fixed pump makes the golden
-    // deterministic without waiting for unrelated framework animations.
     await tester.pump(const Duration(milliseconds: 100));
 
     await expectLater(
