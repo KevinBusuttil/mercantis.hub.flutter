@@ -270,6 +270,41 @@ void main() {
     await h.close();
   });
 
+  test('stock documents wait while an earlier stock posting is owed',
+      () async {
+    var h = await BooksHarness.open(path);
+    await masters(h);
+    await h.saveAndSubmit(purchase10At5());
+    await h.db.db.execute(
+        'CREATE TEMP TRIGGER fail_sle BEFORE INSERT ON documents '
+        "WHEN NEW.doctype = 'Stock Ledger Entry' "
+        "BEGIN SELECT RAISE(ABORT, 'injected write failure'); END");
+    final si = await h.saveAndSubmit(sale3At12());
+    await h.db.db.execute('DROP TRIGGER fail_sle');
+    expect(
+        await batchStatus(
+            h, postingBatchId('Sales Invoice', si.id, LifecycleAction.submit)),
+        'failed');
+
+    // A later stock movement would be costed without the owed sale.
+    final dearer = purchase10At5();
+    dearer.children['items'] = [
+      itemLine('Purchase Invoice', {'item': 'ITEM-A', 'qty': 10, 'rate': 20}),
+    ];
+    final draft = await h.save(dearer);
+    await expectLater(h.submit(draft), throwsA(isA<DocumentEngineError>()));
+    expect((await h.engine.fetch('Purchase Invoice', draft.id))!.docStatus, 0);
+    await h.close();
+
+    // The next start posts the sale; then the purchase goes through and the
+    // sale is costed at the stock it met.
+    h = await BooksHarness.open(path);
+    await h.submit((await h.engine.fetch('Purchase Invoice', draft.id))!);
+    expect(await h.balance('COGS'), 15);
+    expect(await h.trialBalanceDifference(), 0);
+    await h.close();
+  });
+
   test('legacy vouchers without an outbox batch are never re-posted',
       () async {
     var h = await BooksHarness.open(path);
