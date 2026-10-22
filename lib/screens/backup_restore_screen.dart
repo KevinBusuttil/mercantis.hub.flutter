@@ -379,12 +379,17 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
         // Folder sync stays off: an error this late may come after the
         // restored books were installed, and sync must never push them into
         // the previous shared folder.
+        // Not a verification refusal: the error may have come before or
+        // after the restored books were committed, so do not claim either.
         return RestartNotice(
           success: false,
-          title: 'Restore stopped, nothing changed',
-          body: 'Atlas put your previous data back exactly as it was. '
-              'Folder sync is off; turn it on again in Settings if you use '
-              'it. Details: $e',
+          title: 'Restore interrupted',
+          body: 'Atlas hit an error while installing the backup, and the '
+              'books on this device are either your previous books or the '
+              'restored ones, never a mix. Before entering anything, check '
+              'the dashboard and trial balance to see which, and restore '
+              'again if needed. Folder sync is off; turn it on again in '
+              'Settings if you use it. Details: $e',
         );
       }
     });
