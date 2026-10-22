@@ -3,6 +3,7 @@ import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'package:sqflite_common/sqflite.dart';
 
+import '../support/diagnostic_log.dart';
 import 'derived_doc.dart';
 import 'ledger_derivation.dart';
 import 'ledger_values.dart';
@@ -189,6 +190,9 @@ class LedgerDerivationService {
       await _derive(doc, reversal: reversal);
       await _markBatch(doc, reversal);
     } catch (e, s) {
+      DiagnosticLog.instance.record(
+          'posting', '${doc.docType} ${reversal ? 'reversal' : 'posting'} '
+          'failed: $e', s);
       try {
         await _markBatch(doc, reversal, error: e);
       } catch (_) {

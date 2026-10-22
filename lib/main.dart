@@ -8,9 +8,13 @@ import 'ledger/hub_interceptors.dart';
 import 'navigation/hub_navigation.dart';
 import 'navigation/hub_shell.dart';
 import 'printing/hub_print_formats.dart';
+import 'support/diagnostic_log.dart';
 import 'team/team_posting_service.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Uncaught errors are kept (redacted) for Settings › Help & diagnostics.
+  DiagnosticLog.instance.install();
   runApp(
     // A restore restarts everything below this from boot (see HubBackup).
     AtlasRestartScope(builder: (_) => ProviderScope(
