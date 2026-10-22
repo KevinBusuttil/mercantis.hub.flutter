@@ -34,10 +34,12 @@ windows/flutter/ephemeral/
 *.env.*
 
 # Generated at build/pub-get time — never commit.
-pubspec.lock
 ios/Flutter/ephemeral/
 macos/Flutter/GeneratedPluginRegistrant.swift
 macos/Flutter/ephemeral/
 windows/flutter/generated_plugin_registrant.cc
 windows/flutter/generated_plugin_registrant.h
 windows/flutter/generated_plugins.cmake
+
+# Golden-test failure images (written by flutter test on a mismatch).
+**/failures/

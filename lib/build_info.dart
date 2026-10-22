@@ -22,6 +22,11 @@ class BuildInfo {
   static const appVersion =
       String.fromEnvironment('APP_VERSION', defaultValue: '1.0.0');
 
+  /// Platform build number (Android versionCode, iOS/macOS CFBundleVersion),
+  /// stamped by the release pipeline; empty when not injected.
+  static const buildNumber =
+      String.fromEnvironment('BUILD_NUMBER', defaultValue: '');
+
   /// Short git SHA of the built commit, or `dev` when not injected.
   static const commit = String.fromEnvironment('GIT_COMMIT', defaultValue: 'dev');
 
@@ -45,6 +50,7 @@ class BuildInfo {
   static String get commitLabel =>
       hasCommit ? commit.trim() : 'dev build (not stamped)';
 
-  /// One-line summary, e.g. `v1.0.0 · a1b2c3d`.
-  static String get summary => 'v$appVersion · $commitLabel';
+  /// One-line summary, e.g. `v1.0.0 (412) · a1b2c3d`.
+  static String get summary =>
+      'v$appVersion${buildNumber.isEmpty ? '' : ' ($buildNumber)'} · $commitLabel';
 }

@@ -115,6 +115,7 @@ class SupportDiagnostics {
 
     sections['Application'] = {
       'version': BuildInfo.appVersion,
+      if (BuildInfo.buildNumber.isNotEmpty) 'build': BuildInfo.buildNumber,
       'commit': BuildInfo.commitLabel,
       if (BuildInfo.ref.isNotEmpty) 'branch': BuildInfo.ref,
       if (BuildInfo.buildTime.isNotEmpty) 'built': BuildInfo.buildTime,
