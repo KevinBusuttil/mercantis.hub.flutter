@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
+import 'package:sqflite_common/sqflite.dart';
 
 import 'derived_doc.dart';
 import 'ledger_derivation.dart';
 import 'ledger_values.dart';
+import 'posting_outbox.dart';
 import 'stock_balance.dart';
 import 'stock_costing.dart';
 
@@ -16,12 +18,19 @@ import 'stock_costing.dart';
 ///
 /// Saves run with a System Manager role so the engine's permission gate is
 /// satisfied. Errors are isolated per event (a bad voucher must not crash the
-/// app or block later postings).
+/// app or block later postings), but never silent: when [database] is given,
+/// each voucher's posting-outbox batch (see `PostingOutboxInterceptor`) is
+/// marked `posted` on success or `failed` with the error, and
+/// [recoverPendingPostings] re-runs whatever is still owed.
 class LedgerDerivationService {
   final DocumentEngine engine;
   final EventEmitter emitter;
   final Set<String> systemRoles;
   final void Function(Object error, StackTrace stack)? onError;
+
+  /// The business database, for posting-outbox bookkeeping. Null disables it
+  /// (pure derivation tests).
+  final DatabaseExecutor? database;
 
   final List<SubscriptionToken> _tokens = [];
 
@@ -30,6 +39,7 @@ class LedgerDerivationService {
     required this.emitter,
     this.systemRoles = const {'System Manager'},
     this.onError,
+    this.database,
   });
 
   void start() {
@@ -46,45 +56,119 @@ class LedgerDerivationService {
     _tokens.clear();
   }
 
+  /// Re-run derivation for every voucher whose posting-outbox batch is not
+  /// `posted`: a submit or cancel whose ledger rows were never (fully)
+  /// written because the app was killed, the disk filled or a write failed.
+  /// Safe to call repeatedly, because derived rows have deterministic ids.
+  /// Returns the batches still not posted afterwards (shown to the user).
+  Future<List<PostingBatch>> recoverPendingPostings() async {
+    final db = database;
+    if (db == null) return const [];
+    for (final batch in await outstandingPostings()) {
+      final ref = parsePostingBatchId(batch.id);
+      if (ref == null) continue;
+      final source = await engine.fetch(ref.docType, ref.id);
+      // The marker commits with the status flip, so a missing or Draft source
+      // means the voucher was deleted afterwards: nothing is owed.
+      if (source == null || source.docStatus == 0) {
+        await PostingBatchWriter.upsert(
+            db,
+            batch.copyWith(
+                status: PostingStatus.posted,
+                errorCode: 'source-gone',
+                postedAt: DateTime.now()));
+        continue;
+      }
+      await _handle(source, reversal: ref.action == LifecycleAction.cancel);
+    }
+    return outstandingPostings();
+  }
+
+  /// Vouchers that still owe ledger postings (pending or failed), for the
+  /// books-health check.
+  Future<List<PostingBatch>> outstandingPostings() async {
+    final db = database;
+    if (db == null) return const [];
+    final rows = await db.query('posting_batches',
+        where: "status != ? AND id LIKE 'LEDGER:%'",
+        whereArgs: [PostingStatus.posted.name],
+        orderBy: 'id');
+    return [for (final r in rows) PostingBatch.fromDbRow(r)];
+  }
+
+  /// Record the outcome on the voucher's outbox batch. Vouchers submitted
+  /// before the outbox existed carry no batch and are left alone.
+  Future<void> _markBatch(Document doc, bool reversal, {Object? error}) async {
+    final db = database;
+    if (db == null) return;
+    final id = postingBatchId(doc.docType, doc.id,
+        reversal ? LifecycleAction.cancel : LifecycleAction.submit);
+    if (!await PostingBatchWriter.exists(db, id)) return;
+    await PostingBatchWriter.upsert(
+      db,
+      PostingBatch(
+        id: id,
+        sourceType: doc.docType,
+        sourceId: doc.id,
+        status: error == null ? PostingStatus.posted : PostingStatus.failed,
+        errorCode: error == null ? null : 'derivation-failed',
+        errorMessage: error?.toString(),
+        postedAt: error == null ? DateTime.now() : null,
+        postedBy: 'ledger',
+      ),
+    );
+  }
+
   Future<void> _handle(Document doc, {required bool reversal}) async {
     try {
-      // Re-fetch for authoritative payload + child rows; the event document may
-      // be a lighter copy.
-      final source = await engine.fetch(doc.docType, doc.id) ?? doc;
-      await _resolveAccounts(source);
-      var derived = LedgerDerivation.derive(source, reversal: reversal);
-      derived = await _dropNonStockMovements(derived);
-      if (derived.isEmpty) return;
-      await _costStockMovements(derived, source: source, reversal: reversal);
-      // Perpetual inventory (Phase 1B): every costed stock movement posts its
-      // GL counterpart (COGS / Inventory / GRNI / Adjustment)…
-      derived.addAll(await _stockGlLegs(derived, source: source));
-      // …and a Purchase Invoice's stock lines debit GRNI, not expense, so the
-      // clearing account nets to zero once goods and bill are both in.
-      if (source.docType == 'Purchase Invoice') {
-        await _splitGrniFromExpense(derived, source, reversal: reversal);
-      }
-
-      for (final row in derived) {
-        await engine.save(
-          Document(
-            id: row.id,
-            docType: row.docType,
-            company: source.company,
-            payload: Map<String, dynamic>.from(row.payload),
-          ),
-          systemRoles,
-        );
-      }
-
-      if (LedgerDerivation.stockSources.contains(source.docType) ||
-          isTrue(source.payload['update_stock'])) {
-        await _recomputeBins(derived, source.company);
-      }
-      await _maintainOutstanding(source, derived, reversal);
+      await _derive(doc, reversal: reversal);
+      await _markBatch(doc, reversal);
     } catch (e, s) {
+      try {
+        await _markBatch(doc, reversal, error: e);
+      } catch (_) {
+        // The store itself is failing (e.g. disk full). The batch stays
+        // pending and is retried at the next start.
+      }
       onError?.call(e, s);
     }
+  }
+
+  Future<void> _derive(Document doc, {required bool reversal}) async {
+    // Re-fetch for authoritative payload + child rows; the event document may
+    // be a lighter copy.
+    final source = await engine.fetch(doc.docType, doc.id) ?? doc;
+    await _resolveAccounts(source);
+    var derived = LedgerDerivation.derive(source, reversal: reversal);
+    derived = await _dropNonStockMovements(derived);
+    if (derived.isEmpty) return;
+    await _costStockMovements(derived, source: source, reversal: reversal);
+    // Perpetual inventory (Phase 1B): every costed stock movement posts its
+    // GL counterpart (COGS / Inventory / GRNI / Adjustment)…
+    derived.addAll(await _stockGlLegs(derived, source: source));
+    // …and a Purchase Invoice's stock lines debit GRNI, not expense, so the
+    // clearing account nets to zero once goods and bill are both in.
+    if (source.docType == 'Purchase Invoice') {
+      await _splitGrniFromExpense(derived, source, reversal: reversal);
+    }
+
+    for (final row in derived) {
+      await engine.save(
+        Document(
+          id: row.id,
+          docType: row.docType,
+          company: source.company,
+          payload: Map<String, dynamic>.from(row.payload),
+        ),
+        systemRoles,
+      );
+    }
+
+    if (LedgerDerivation.stockSources.contains(source.docType) ||
+        isTrue(source.payload['update_stock'])) {
+      await _recomputeBins(derived, source.company);
+    }
+    await _maintainOutstanding(source, derived, reversal);
   }
 
   /// Drops Stock Ledger Entry rows for non-stock (service) items so they never
@@ -181,7 +265,12 @@ class LedgerDerivationService {
       // so break same-day ties by creation order (the true save sequence) and
       // finally by id, giving a fully deterministic replay.
       docs.sort(_byPostingThenCreation);
-      final rows = [for (final d in docs) d.payload];
+      // A re-run after an interrupted posting may find this voucher's own rows
+      // already saved. They are not prior stock and must not cost it.
+      final rows = [
+        for (final d in docs)
+          if (d.payload['voucher_no'] != source.id) d.payload,
+      ];
       ledgers[key] = rows;
       return rows;
     }
@@ -321,6 +410,11 @@ class LedgerDerivationService {
       } else if (purchaseVouchers.contains(docType)) {
         counter =
             asNonEmpty(company?.payload['default_grni_account']) ?? 'GRNI';
+      } else if (isTrue(source.payload['is_opening'])) {
+        // Opening stock from the previous system (M1.3): the other side of
+        // the take-on is equity, exactly like the opening GL journal.
+        counter = asNonEmpty(company?.payload['default_opening_equity_account']) ??
+            'Opening Balance Equity';
       } else {
         counter = resolve(itemDoc, 'stock_adjustment_account',
             'default_stock_adjustment_account', 'Stock Adjustment');
@@ -660,8 +754,12 @@ final ledgerDerivationServiceProvider =
     FutureProvider<LedgerDerivationService>((ref) async {
   final engine = await ref.watch(documentEngineProvider.future);
   final emitter = ref.watch(eventEmitterProvider);
-  final service = LedgerDerivationService(engine: engine, emitter: emitter);
+  final db = await ref.watch(mercantisDatabaseProvider.future);
+  final service =
+      LedgerDerivationService(engine: engine, emitter: emitter, database: db.db);
   service.start();
+  // Finish any posting a crash interrupted before the user can work.
+  await service.recoverPendingPostings();
   ref.onDispose(service.dispose);
   return service;
 });

@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 // Import only isStockItem: ledger_values also exports an `isTrue` helper that
 // would collide with flutter_test's `isTrue` matcher.
-import 'package:mercantis_hub_app/ledger/ledger_values.dart' show isStockItem;
+import 'package:mercantis_hub_app/ledger/ledger_values.dart'
+    show isStockItem, outstandingAmount;
 
 /// `isStockItem` now reads the single `item_type` select that replaced the
 /// is_stock_item / is_service_item checkbox pair, while still honouring the
@@ -27,6 +28,15 @@ void main() {
       expect(isStockItem({'is_service_item': 1}), isFalse);
       expect(isStockItem({'is_stock_item': 0}), isFalse);
       expect(isStockItem({'is_stock_item': 1}), isTrue);
+    });
+  });
+
+  group('outstandingAmount', () {
+    test('is exact to the cent after part payments', () {
+      expect(outstandingAmount(141.60, [100]), 41.60);
+      expect(outstandingAmount(141.60, [100, 41.60]), 0);
+      expect(outstandingAmount(0.3, [0.1, 0.2]), 0);
+      expect(outstandingAmount(100, [30, -30]), 100);
     });
   });
 }

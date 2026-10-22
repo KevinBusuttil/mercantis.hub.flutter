@@ -7,6 +7,7 @@ import 'deposit_service.dart';
 import 'hub_tax_engine.dart';
 import 'ledger_derivation.dart';
 import 'ledger_values.dart';
+import 'posting_outbox.dart';
 
 /// Riverpod override that registers the Hub's document lifecycle hooks. Added to
 /// the app's [ProviderScope] so [documentEngineProvider] picks them up.
@@ -15,7 +16,11 @@ import 'ledger_values.dart';
 /// leaves `grand_total` to [TaxCalculationInterceptor], which derives its own
 /// net base from the lines — so the two are order-independent.
 final hubInterceptorsOverride =
-    documentInterceptorsProvider.overrideWithValue(const [
+    documentInterceptorsProvider.overrideWithValue(hubInterceptors);
+
+/// Every Hub lifecycle hook, in order. Shared by the app and by tests that
+/// build a production-shaped engine.
+const hubInterceptors = <DocumentInterceptor>[
   BusinessProfileDefaultsInterceptor(),
   ItemNameDefaultInterceptor(),
   // Before totals: resolution fills blank rates, totals turns rates into
@@ -34,7 +39,10 @@ final hubInterceptorsOverride =
   ExpenseDefaultsInterceptor(),
   DepositApplicationInterceptor(),
   AppointmentConflictInterceptor(),
-]);
+  // Commits a "postings owed" marker with every submit/cancel of a voucher,
+  // so a crash before the ledger rows are written is repaired at startup.
+  PostingOutboxInterceptor(),
+];
 
 const _systemRoles = {'System Manager'};
 
@@ -114,6 +122,21 @@ class TaxCalculationInterceptor extends DocumentInterceptor {
     if (!keys.contains(_taxesTable)) return; // not a tax-bearing document
     final rows = doc.children[_itemsTable];
     if (rows == null) return;
+
+    // An opening balance brought over from the previous system carries the
+    // amount still owed, VAT included and already declared there: no tax is
+    // computed or posted again.
+    if (isTrue(doc.payload['is_opening'])) {
+      num net = 0;
+      for (final row in rows) {
+        net += asNum(row.payload['qty']) * asNum(row.payload['rate']);
+      }
+      if (keys.contains('total')) doc.payload['total'] = net;
+      if (keys.contains('tax_total')) doc.payload['tax_total'] = 0;
+      if (keys.contains('grand_total')) doc.payload['grand_total'] = net;
+      doc.children[_taxesTable] = const [];
+      return;
+    }
 
     // Default VAT account fallback from the active Company (business profile).
     final company = await _activeCompany(engine, doc.company);

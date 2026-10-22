@@ -111,6 +111,10 @@ abstract final class BuyingModule {
           // return_against; the ledger spine reverses the GL/subledger from the
           // negative amounts.
           FieldDefinition(key: 'is_return', label: 'Is Return (Debit Note)', type: FieldType.check),
+          // Opening-data import (M1.3): an open payable brought over from the
+          // previous system. Posts Dr Opening Balance Equity / Cr Payable,
+          // with no VAT.
+          FieldDefinition(key: 'is_opening', label: 'Opening Balance Bill', type: FieldType.check, readOnly: true),
           FieldDefinition(key: 'return_against', label: 'Return Against', type: FieldType.link, linkDocType: 'Purchase Invoice', options: 'Purchase Invoice'),
           // Phase 1B: a one-document business can receive stock (Dr Inventory /
           // Cr GRNI) straight from the bill instead of raising a Purchase Receipt.

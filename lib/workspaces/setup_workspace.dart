@@ -32,6 +32,10 @@ WorkspaceDescriptor setupWorkspace(HubSurface s) => WorkspaceDescriptor(
                 'safely and recorded'),
         ]),
         const WorkspaceSection(label: 'Preferences', items: [
+          CustomWorkspaceItem(routeName: 'backup',
+            label: 'Backup & restore', icon: Icons.backup_outlined,
+            description: 'Encrypted backup of the whole business, and '
+                'restore onto this or a new device'),
           CustomWorkspaceItem(routeName: 'settings',
             label: 'Settings', icon: Icons.settings_outlined,
             description: 'Operator, view (Owner / Accountant), appearance '
@@ -49,6 +53,11 @@ WorkspaceDescriptor setupWorkspace(HubSurface s) => WorkspaceDescriptor(
             label: 'Opening balances',
             icon: Icons.playlist_add_check_outlined,
             description: 'Bring balances over from your previous system'),
+          const CustomWorkspaceItem(routeName: 'opening-data',
+            label: 'Move from another system',
+            icon: Icons.drive_file_move_outlined,
+            description: 'Import customers, suppliers, items, stock and '
+                'opening balances from files, then reconcile'),
           const CustomWorkspaceItem(routeName: 'numbering-series',
             label: 'Document numbering', icon: Icons.tag,
             description: 'Invoice and document number sequences'),
