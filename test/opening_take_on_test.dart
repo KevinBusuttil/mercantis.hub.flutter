@@ -509,6 +509,23 @@ void main() {
           hasLength(1));
     });
 
+    test('a rejected stock row with no usable figures is still an exception',
+        () async {
+      final inputs = templates();
+      inputs[TakeOnSection.openingStock] = TakeOnInput(csv([
+        'item_code,warehouse_code,qty,value',
+        'NOPE,Main Store,x,y',
+      ]));
+      final plan = await OpeningTakeOn(h.engine)
+          .plan(openingDate: openingDate, inputs: inputs);
+      final rec = await OpeningReconciliation.compute(h.engine, plan);
+      final line = rec
+          .area(ReconciliationArea.stock)
+          .singleWhere((l) => l.key == 'NOPE@Main Store');
+      expect(line.note, startsWith('Line 2:'));
+      expect(rec.exceptions, contains(line));
+    });
+
     test('rows that did not import show as differences', () async {
       final inputs = templates();
       inputs[TakeOnSection.receivables] = TakeOnInput(csv([

@@ -305,6 +305,39 @@ void main() {
     await h.close();
   });
 
+  test('a posting left pending (even its failure mark was lost) also pauses '
+      'stock documents once it is stale', () async {
+    final h = await BooksHarness.open(path);
+    await masters(h);
+    await h.saveAndSubmit(purchase10At5());
+    // Storage refuses the stock row and the failure mark alike.
+    await h.db.db.execute(
+        'CREATE TEMP TRIGGER fail_sle BEFORE INSERT ON documents '
+        "WHEN NEW.doctype = 'Stock Ledger Entry' "
+        "BEGIN SELECT RAISE(ABORT, 'injected write failure'); END");
+    await h.db.db.execute(
+        'CREATE TEMP TRIGGER fail_mark BEFORE INSERT ON posting_batches '
+        "WHEN NEW.status = 'failed' "
+        "BEGIN SELECT RAISE(ABORT, 'injected write failure'); END");
+    final si = await h.saveAndSubmit(sale3At12());
+    await h.db.db.execute('DROP TRIGGER fail_sle');
+    await h.db.db.execute('DROP TRIGGER fail_mark');
+    expect(
+        await batchStatus(
+            h, postingBatchId('Sales Invoice', si.id, LifecycleAction.submit)),
+        'pending');
+
+    final draft = await h.save(purchase10At5());
+    // Just committed: its derivation may still be running, so not yet.
+    // Once stale, it is stuck and stock documents wait.
+    await h.db.db.rawUpdate(
+        'UPDATE audit_log SET timestamp = timestamp - ? '
+        'WHERE doctype = ? AND document_id = ?',
+        [const Duration(minutes: 2).inMilliseconds, 'Sales Invoice', si.id]);
+    await expectLater(h.submit(draft), throwsA(isA<DocumentEngineError>()));
+    await h.close();
+  });
+
   test('legacy vouchers without an outbox batch are never re-posted',
       () async {
     var h = await BooksHarness.open(path);

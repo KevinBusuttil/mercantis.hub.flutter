@@ -251,6 +251,20 @@ class OpeningReconciliation {
       final expValue = <String, int>{};
       for (final r in stock.rows) {
         final k = '${r.v('item_code')}@${r.v('warehouse_code')}';
+        if (r.status == TakeOnRowStatus.rejected) {
+          // Never imported: its own exception with the reason, at the
+          // figures the file states (zero where they are not numbers).
+          lines.add(ReconciliationLine(
+              area: ReconciliationArea.stock,
+              key: k,
+              label: k.replaceFirst('@', ' in '),
+              expectedCents: parseCents(r.v('value')) ?? 0,
+              actualCents: 0,
+              expectedQty: num.tryParse(r.v('qty')) ?? 0,
+              actualQty: 0,
+              note: 'Line ${r.line}: ${r.problems.join(' ')}'));
+          continue;
+        }
         expQty[k] = (expQty[k] ?? 0) + r.qty;
         expValue[k] = (expValue[k] ?? 0) + r.cents;
       }

@@ -30,14 +30,14 @@ class PostingOutboxInterceptor extends DocumentInterceptor {
       DocType docType, UnitOfWork uow, LifecycleAction action) async {
     if (!LedgerDerivation.postingSources.contains(doc.docType)) return;
     if (_movesStock(doc.docType, doc.payload)) {
-      final blocker = await _failedStockPosting(uow.db, doc);
+      final blocker = await _owedStockPosting(uow.db, doc);
       if (blocker != null) {
         throw DocumentEngineError.validationFailed([
           ValidationError(
             stage: 'owed_postings',
             fieldKey: 'docstatus',
             message: 'The ledger postings of ${blocker.docType} ${blocker.id} '
-                'failed and are still owed. Stock documents are paused until '
+                'did not complete and are still owed. Stock documents are paused until '
                 'they post, so every movement is costed against the stock it '
                 'really met. Close and reopen Atlas to retry them.',
           ),
@@ -57,21 +57,40 @@ bool _movesStock(String docType, Map<String, dynamic> payload) =>
     LedgerDerivation.stockSources.contains(docType) ||
     isTrue(payload['update_stock']);
 
+/// How long a just-committed voucher's posting may stay `pending` before it
+/// counts as stuck. Derivation runs right after the submit commits and takes
+/// milliseconds; a batch still pending well after that was not completed
+/// (for instance, storage failed for the rows and for the failure mark too).
+const stalePendingPosting = Duration(seconds: 60);
+
 /// The first stock-moving voucher, other than [doc], whose ledger posting
-/// failed and is still owed. Recovery replays it at the next start; a stock
-/// movement posted before then would have been costed without it (the
-/// moving average it met would be wrong), so such movements wait.
-Future<({String docType, String id})?> _failedStockPosting(
+/// failed or is stuck and is still owed. Recovery replays it at the next
+/// start; a stock movement posted before then would have been costed
+/// without it (the moving average it met would be wrong), so such movements
+/// wait.
+Future<({String docType, String id})?> _owedStockPosting(
     DatabaseExecutor db, Document doc) async {
+  final stuckBefore = DateTime.now()
+      .subtract(stalePendingPosting)
+      .millisecondsSinceEpoch;
   final rows = await db.rawQuery(
-      'SELECT b.source_type, b.source_id, d.payload FROM posting_batches b '
+      'SELECT b.source_type, b.source_id, b.status, d.payload, '
+      '(SELECT MAX(a.timestamp) FROM audit_log a WHERE a.doctype = '
+      'b.source_type AND a.document_id = b.source_id AND a.action IN '
+      "('submitted', 'cancelled')) AS at "
+      'FROM posting_batches b '
       'LEFT JOIN documents d ON d.doctype = b.source_type AND d.id = b.source_id '
-      "WHERE b.status = ? AND b.id LIKE 'LEDGER:%'",
-      [PostingStatus.failed.name]);
+      "WHERE b.status != ? AND b.id LIKE 'LEDGER:%'",
+      [PostingStatus.posted.name]);
   for (final r in rows) {
     final type = '${r['source_type']}';
     final id = '${r['source_id']}';
     if (type == doc.docType && id == doc.id) continue;
+    final at = r['at'] as int?;
+    final stuck = r['status'] == PostingStatus.failed.name ||
+        at == null ||
+        at < stuckBefore;
+    if (!stuck) continue; // its derivation is still running
     Map<String, dynamic> payload = const {};
     try {
       payload = Map<String, dynamic>.from(
