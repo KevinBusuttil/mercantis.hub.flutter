@@ -15,7 +15,12 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   // Uncaught errors are kept (redacted) for Settings › Help & diagnostics.
   DiagnosticLog.instance.install();
-  runApp(
+  runApp(buildAtlasApp());
+}
+
+/// The production widget tree, as [main] runs it. Also pumped by the device
+/// benchmark (integration_test/device_benchmark_test.dart) to time boot.
+Widget buildAtlasApp() =>
     // A restore restarts everything below this from boot (see HubBackup).
     AtlasRestartScope(builder: (_) => ProviderScope(
       overrides: [
@@ -35,6 +40,4 @@ void main() {
         ...hubShellOverrides,
       ],
       child: const MercantisHubApp(),
-    )),
-  );
-}
+    ));

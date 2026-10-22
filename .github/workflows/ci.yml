@@ -89,7 +89,15 @@ jobs:
       - name: Golden (marketing dashboard render)
         run: flutter test test/marketing
       - name: Host performance baselines (not device results)
+        env:
+          ATLAS_PERF: "1"
         run: flutter test test/perf --reporter expanded
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: host-perf-baseline
+          path: build/perf/host_results.json
+          if-no-files-found: ignore
 
   security:
     name: Secret and dependency scan
