@@ -14,6 +14,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite_common/sqflite.dart';
 
 import '../build_info.dart';
+import '../ledger/bin_identity.dart';
 import '../settings/hub_settings.dart';
 import '../sync/company_sync.dart';
 import 'diagnostic_log.dart';
@@ -147,6 +148,7 @@ class SupportDiagnostics {
           includeIntegrityCheck: includeIntegrityCheck));
       sections['Postings'] = await _probe(() => _postings(database));
       sections['Records'] = await _probe(() => _records(database));
+      sections['Data checks'] = await _probe(() => _dataChecks(database));
     } else {
       sections['Database'] = {'status': 'not open'};
     }
@@ -299,6 +301,21 @@ class SupportDiagnostics {
       'by type': [
         for (final e in perType.entries) '${e.key}: ${e.value.join(', ')}',
       ],
+    };
+  }
+
+  static Future<Map<String, Object?>> _dataChecks(Database db) async {
+    Future<List<String>> ids(String docType) async => [
+          for (final r in await db.rawQuery(
+              'SELECT id FROM documents WHERE doctype = ?', [docType]))
+            '${r['id']}',
+        ];
+    final collisions =
+        findBinCollisions(await ids('Item'), await ids('Warehouse'));
+    return {
+      // Codes are not shown: they can be customer-specific. Support asks
+      // for them if this is not zero (R14).
+      'stock positions sharing one balance record': collisions.length,
     };
   }
 

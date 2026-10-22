@@ -4,6 +4,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'package:sqflite_common/sqflite.dart';
 
 import '../support/diagnostic_log.dart';
+import 'bin_identity.dart';
 import 'derived_doc.dart';
 import 'ledger_derivation.dart';
 import 'ledger_values.dart';
@@ -756,7 +757,7 @@ class LedgerDerivationService {
     // keeps sync from churning: an unconditional re-save would re-queue an
     // identical Bin mutation on every pull, which the peer would pull and
     // re-push forever. Recomputed-but-equal balances must not produce traffic.
-    final id = 'BIN-$item-$warehouse';
+    final id = binId(item, warehouse);
     final existing = await engine.fetch(LedgerDerivation.bin, id);
     if (existing != null &&
         asNum(existing.payload['actual_qty']) == snap.actualQty &&

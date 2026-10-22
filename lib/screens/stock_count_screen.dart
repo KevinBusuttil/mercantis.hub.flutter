@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
+import '../ledger/bin_identity.dart';
 import '../ledger/ledger_values.dart';
 import '../modules/stock/stock_count.dart';
 
@@ -22,7 +23,7 @@ final _countContextProvider = FutureProvider.autoDispose
   final lines = <StockCountLine>[];
   for (final item in items) {
     if (!isStockItem(item.payload)) continue;
-    final bin = await engine.fetch('Bin', 'BIN-${item.id}-$warehouse');
+    final bin = await engine.fetch('Bin', binId(item.id, warehouse));
     lines.add(StockCountLine(
       item: item.id,
       onHand: asNum(bin?.payload['actual_qty']),

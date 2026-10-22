@@ -1,5 +1,6 @@
 import 'package:mercantis_core/mercantis_core.dart';
 
+import '../ledger/bin_identity.dart';
 import '../ledger/ledger_values.dart';
 import '../modules/accounting/opening_balance_builder.dart';
 import 'take_on_templates.dart';
@@ -624,7 +625,7 @@ class OpeningTakeOn {
             'or choose an opening date after those movements.');
         continue;
       }
-      final bin = await engine.fetch('Bin', 'BIN-$item-$wh');
+      final bin = await engine.fetch('Bin', binId(item, wh));
       final onHand = asNum(bin?.payload['actual_qty']);
       if (onHand != 0) {
         r.reject('Atlas already holds $onHand of $item in $wh from other '
