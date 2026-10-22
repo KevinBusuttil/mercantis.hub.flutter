@@ -320,6 +320,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const Divider(height: 1),
                 ListTile(
+                  leading: const Icon(Icons.backup_outlined),
+                  title: const Text('Backup & restore'),
+                  subtitle: const Text(
+                      'Encrypted backup of the whole business, and restore'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/w/setup/backup'),
+                ),
+                const Divider(height: 1),
+                ListTile(
                   leading: const Icon(Icons.cloud_sync_outlined),
                   title: const Text('Company sync'),
                   subtitle:

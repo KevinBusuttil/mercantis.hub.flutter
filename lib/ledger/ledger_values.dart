@@ -78,5 +78,8 @@ double round3(num v) => (v * 1000).round() / 1000;
 /// against it. Settlement allocations are already signed (reversals carry a
 /// negative `allocated_amount`), so a plain sum nets cancellations correctly —
 /// making this idempotent no matter how many times derivation re-fires.
+/// Rounded to the cent: binary floating point would otherwise leave 141.60 −
+/// 100 as 41.599999999999994, and a fully paid invoice settled in parts as a
+/// tiny non-zero balance that the "Mark as Paid" guard never accepts.
 num outstandingAmount(num grandTotal, Iterable<num> settledAllocations) =>
-    grandTotal - settledAllocations.fold<num>(0, (sum, a) => sum + a);
+    round2(grandTotal - settledAllocations.fold<num>(0, (sum, a) => sum + a));

@@ -13,6 +13,7 @@ import '../settings/hub_settings.dart';
 import '../team/team_account_client.dart';
 import '../team/team_session.dart';
 import '../team/team_sync_runner.dart';
+import 'backup_restore_screen.dart';
 
 /// First-run wizard: name the business, pick a currency + a business preset,
 /// then seed the chart of accounts, fiscal year, VAT bands, and a wired Company
@@ -342,6 +343,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 onPressed: _seeding ? null : _joinTeam,
                 icon: const Icon(Icons.group_add_outlined),
                 label: const Text('Join an Atlas Team company instead'),
+              ),
+              const SizedBox(height: 8),
+              // A replacement device: bring the books back from a backup
+              // instead of starting a new company.
+              OutlinedButton.icon(
+                onPressed: _seeding
+                    ? null
+                    : () => Navigator.of(context).push(MaterialPageRoute<void>(
+                        builder: (_) => const BackupRestoreScreen())),
+                icon: const Icon(Icons.restore_outlined),
+                label: const Text('Restore from a backup instead'),
               ),
               if (_error != null)
                 Padding(

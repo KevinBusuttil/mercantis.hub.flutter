@@ -400,6 +400,22 @@ Use a documented rounding tolerance only where the source data itself requires o
 
 **Exit criterion:** a fresh Atlas Solo company can be taken from legacy/opening data to a reconciled opening position without manual database edits.
 
+#### M1.3 status (October 2026)
+
+Evidence: [SOLO_OPENING_DATA_MIGRATION_GUIDE.md](SOLO_OPENING_DATA_MIGRATION_GUIDE.md) and [SOLO_ACCEPTANCE_MATRIX.md](SOLO_ACCEPTANCE_MATRIX.md).
+
+- **Done, automated:**
+  - Setup › Move from another system, with nine CSV templates: customers, suppliers, warehouses, items/UOM/prices, opening stock qty/value, open AR, open AP, trial balance, bank/cash.
+  - Column mapping with aliases.
+  - A dry run that writes nothing, with row-level verdicts and a downloadable rejected-rows file.
+  - Duplicate and conflict detection that never overwrites.
+  - All-or-nothing posting sections.
+  - Idempotent re-import and resume after an interrupted run, using deterministic ids, so a retry never posts twice.
+  - Exact cents, with no invented values.
+  - Reconciliation as at the opening date: TB per account, AR/AP per party, stock per item and warehouse, bank against statement, Opening Balance Equity must net to zero, and drill-down to vouchers.
+  - Tests: `test/opening_take_on_test.dart`, `test/opening_data_screen_test.dart`, `test/solo_acceptance_test.dart`.
+- **Owed:** the same flow run on a **real legacy dataset** from the first design partner (M2.2). Optional open sales/purchase documents (item 11) are not supported. Open invoices come over as balances only.
+
 ---
 
 ### M1.4 — Backup, restore and disaster recovery
@@ -434,6 +450,18 @@ Restore must fail safely on incompatible/corrupt backups and must never partiall
 
 **Exit criterion:** the full drill succeeds from a clean installation and is documented for customers/support.
 
+#### M1.4 status (October 2026)
+
+Evidence: [SOLO_BACKUP_AND_RECOVERY.md](SOLO_BACKUP_AND_RECOVERY.md) and [SOLO_DATA_INTEGRITY_AND_THREAT_MODEL.md](SOLO_DATA_INTEGRITY_AND_THREAT_MODEL.md).
+
+- **Done, automated:**
+  - Setup › Preferences › Backup & restore, plus "Restore from a backup instead" on the first-run screen.
+  - Encrypted `.atlasbackup` (Argon2id + AES-256-GCM STREAM, `package:cryptography`). The passphrase is never stored.
+  - Consistent DB snapshot, attachments verified by SHA-256, non-secret preferences, schema/app/build metadata, and a business summary.
+  - Staged restore with typed confirmation, a journalled atomic swap, verification to the cent, rollback at every step, recovery at startup, and a safety copy.
+  - The drill from a representative business into an **empty data folder** reproduces every table, report and attachment exactly, and normal use resumes (`test/solo_acceptance_test.dart`).
+- **Owed (BLOCKER-SOLO-RC):** run the same drill on a physical Android and iOS device (uninstall, reinstall, restore from cloud storage) and record it. Until then, disaster recovery on mobile is not claimed as proven.
+
 ---
 
 ### M1.5 — Offline and adversarial reliability
@@ -462,6 +490,16 @@ Core invariant:
 > After every supported failure scenario, the books remain mathematically correct and no user-entered information disappears silently.
 
 **Exit criterion:** the documented failure matrix is green or every known exception is explicitly excluded from the supported commercial behaviour.
+
+#### M1.5 status (October 2026, Solo scope)
+
+Evidence: [SOLO_ACCEPTANCE_MATRIX.md](SOLO_ACCEPTANCE_MATRIX.md) (scenario by scenario).
+
+- Saves, submits, cancels, deletes and migrations are now transactional.
+- A **posting outbox** guarantees that no submitted document is left without its GL, stock and party postings: they are completed at the next start after a crash, write failure or full disk.
+- Attachments are written atomically. Newer-schema databases are refused.
+- Fault injection uses real SQLite failures (`RAISE` triggers, `max_page_count`) and SIGKILL of child processes. It covers save and submit kills, write failures, low storage, repeated restart, long offline periods, double submit, attachment interruption, interrupted backup and restore, and an upgrade across every schema version.
+- Multi-device scenarios (two devices editing the same master, replayed remote mutations) belong to Atlas Team (M3) and were not changed.
 
 ---
 
@@ -1164,6 +1202,8 @@ Do **not** start a new vertical or Team feature in this increment.
 - So a lost or reset device loses the books, and the canonical M1.1 journey cannot complete its last two steps ("back up → restore into a clean installation").
 
 This is `BLOCKER-SOLO-RC`. The recommended order is unchanged (M1.1 first), but M1.1's inventory must record this gap, and M1.4 (§ "Backup, restore and disaster recovery") should follow immediately after.
+
+**Update (Solo data-safety increment, October 2026):** backup and restore now exist and pass an automated clean-folder drill (see M1.4 status). The blocker is **narrowed, not closed**. The physical-device drill remains `BLOCKER-SOLO-RC` until it is executed and recorded in [SOLO_ACCEPTANCE_MATRIX.md](SOLO_ACCEPTANCE_MATRIX.md). The other residual issues from that increment are classified there.
 
 ---
 

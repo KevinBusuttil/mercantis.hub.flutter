@@ -97,6 +97,10 @@ abstract final class SellingModule {
           // automatically from the negative amounts.
           FieldDefinition(key: 'is_return', label: 'Is Return (Credit Note)', type: FieldType.check),
           FieldDefinition(key: 'return_against', label: 'Return Against', type: FieldType.link, linkDocType: 'Sales Invoice', options: 'Sales Invoice'),
+          // Opening-data import (M1.3): an open receivable brought over from
+          // the previous system. Posts Dr Receivable / Cr Opening Balance
+          // Equity with no VAT (the tax was declared in the old system).
+          FieldDefinition(key: 'is_opening', label: 'Opening Balance Invoice', type: FieldType.check, readOnly: true),
           // Phase 1B: an invoice-only business can issue stock (and post COGS)
           // straight from the invoice instead of raising a Delivery Note.
           FieldDefinition(key: 'update_stock', label: 'Update Stock', type: FieldType.check),

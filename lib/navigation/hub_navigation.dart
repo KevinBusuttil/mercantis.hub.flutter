@@ -19,6 +19,8 @@ import '../screens/accountant_export_screen.dart';
 import '../screens/dashboards_screen.dart';
 import '../screens/approvals_inbox_screen.dart';
 import '../screens/audit_trail_screen.dart';
+import '../screens/backup_restore_screen.dart';
+import '../screens/opening_data_screen.dart';
 import '../screens/bank_reconcile_screen.dart';
 import '../screens/assets_screen.dart';
 import '../screens/booking_screen.dart';
@@ -172,6 +174,10 @@ void wireHubNavigation(WidgetRef ref) {
         'setup-checklist', (c, s) => const SetupChecklistScreen());
     registry.registerRoute(
         'opening-balances', (c, s) => const OpeningBalancesScreen());
+    registry.registerRoute(
+        'backup', (c, s) => const BackupRestoreScreen());
+    registry.registerRoute(
+        'opening-data', (c, s) => const OpeningDataScreen());
     registry.registerRoute(
         'stock-count', (c, s) => const StockCountScreen());
     registry.registerRoute(

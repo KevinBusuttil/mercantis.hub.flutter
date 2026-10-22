@@ -34,6 +34,22 @@ abstract final class LedgerDerivation {
   static const stockLedger = 'Stock Ledger Entry';
   static const bin = 'Bin';
 
+  /// Every DocType [derive] produces ledger rows for. Submitting or cancelling
+  /// one of these owes postings, which the posting outbox tracks until they
+  /// are written (see `PostingOutboxInterceptor`).
+  static const postingSources = {
+    'Sales Invoice',
+    'Purchase Invoice',
+    'Expense',
+    'POS Invoice',
+    'Payment Entry',
+    'Customer Deposit',
+    'Journal Entry',
+    'Stock Entry',
+    'Purchase Receipt',
+    'Delivery Note',
+  };
+
   /// Source DocTypes that move stock and therefore require a Bin recompute.
   static const stockSources = {'Stock Entry', 'Purchase Receipt', 'Delivery Note', 'POS Invoice'};
 

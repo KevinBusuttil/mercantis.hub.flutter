@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'auth/auth_store.dart';
+import 'backup/app_restart.dart';
 import 'hub_app.dart';
 import 'ledger/hub_interceptors.dart';
 import 'navigation/hub_navigation.dart';
@@ -11,7 +12,8 @@ import 'team/team_posting_service.dart';
 
 void main() {
   runApp(
-    ProviderScope(
+    // A restore restarts everything below this from boot (see HubBackup).
+    AtlasRestartScope(builder: (_) => ProviderScope(
       overrides: [
         hubCurrentUserOverride,
         // Business-profile defaults + fiscal-year posting guard.
@@ -29,6 +31,6 @@ void main() {
         ...hubShellOverrides,
       ],
       child: const MercantisHubApp(),
-    ),
+    )),
   );
 }

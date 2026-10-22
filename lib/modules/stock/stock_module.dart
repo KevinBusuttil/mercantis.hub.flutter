@@ -163,6 +163,9 @@ abstract final class StockModule {
           FieldDefinition(key: 'to_warehouse', label: 'To Warehouse', type: FieldType.link, linkDocType: 'Warehouse', options: 'Warehouse'),
           FieldDefinition(key: 'items', label: 'Items', type: FieldType.table, tableDocType: 'Stock Entry Detail', options: 'Stock Entry Detail'),
           FieldDefinition(key: 'total_amount', label: 'Total Amount', type: FieldType.currency, readOnly: true),
+          // Opening-data import (M1.3): opening stock brought over from the
+          // previous system credits Opening Balance Equity, not Stock Adjustment.
+          FieldDefinition(key: 'is_opening', label: 'Opening Stock', type: FieldType.check, readOnly: true),
           FieldDefinition(key: 'remarks', label: 'Remarks', type: FieldType.smallText),
         ],
       );
