@@ -124,6 +124,7 @@ A clean-installation restore **has been executed and verified** in the automated
 | R11 | Restore is blocked while Team-connected. Folder sync is cleared on restore. | By design | Team books are restored server-side (M3.8) |
 | R12 | `test/marketing/atlas_owner_dashboard_golden_test.dart` fails on `main` too | Out of scope | Unrelated golden |
 | R13 | Core `tool/check_no_hub_leakage.sh` reports pre-existing hits on the base branch. This work adds none. | Out of scope | — |
+| R14 | Bin ids are `BIN-<item>-<warehouse>` (pre-existing), so codes containing `-` can collide (item `A-B` in `C` and item `A` in `B-C`). One Bin then overwrites the other. | **PILOT** | Needs an unambiguous Bin id and a migration of existing Bins. Until then, avoid `-` in codes where a collision is possible. |
 
 ## Next incomplete commercial-release gate
 

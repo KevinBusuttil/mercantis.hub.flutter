@@ -190,9 +190,23 @@ class OpeningReconciliation {
       if (sp.rows.isEmpty) continue;
       final type = receivable ? 'Receivable' : 'Payable';
       final partyKey = receivable ? 'customer_code' : 'supplier_code';
+      final area =
+          receivable ? ReconciliationArea.receivables : ReconciliationArea.payables;
       final expected = <String, int>{};
       for (final r in sp.rows) {
         final party = r.v(partyKey);
+        if (r.status == TakeOnRowStatus.rejected) {
+          // Never imported: its own exception with the reason, at the
+          // amount the file states (zero when it is not a number).
+          lines.add(ReconciliationLine(
+              area: area,
+              key: party,
+              label: party,
+              expectedCents: parseCents(r.v('outstanding')) ?? 0,
+              actualCents: 0,
+              note: 'Line ${r.line}: ${r.problems.join(' ')}'));
+          continue;
+        }
         expected[party] = (expected[party] ?? 0) + r.cents;
       }
       final parties = {
@@ -205,9 +219,7 @@ class OpeningReconciliation {
       for (final party in parties) {
         final bal = partyBalance['$type:$party'] ?? 0;
         lines.add(ReconciliationLine(
-          area: receivable
-              ? ReconciliationArea.receivables
-              : ReconciliationArea.payables,
+          area: area,
           key: party,
           label: party,
           expectedCents: expected[party] ?? 0,

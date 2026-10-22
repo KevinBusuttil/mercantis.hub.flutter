@@ -524,5 +524,21 @@ void main() {
           {'C001': -59000, 'C404': -1000});
       expect(rec.reconciled, isFalse);
     });
+
+    test('a rejected invoice row with no usable amount is still an exception',
+        () async {
+      final inputs = templates();
+      inputs[TakeOnSection.receivables] = TakeOnInput(csv([
+        'invoice_no,customer_code,invoice_date,outstanding',
+        'INV-9,C001,$year-09-15,0',
+      ]));
+      final plan = await OpeningTakeOn(h.engine)
+          .plan(openingDate: openingDate, inputs: inputs);
+      final rec = await OpeningReconciliation.compute(h.engine, plan);
+      final line = rec.area(ReconciliationArea.receivables).single;
+      expect(line.differenceCents, 0);
+      expect(line.note, startsWith('Line 2:'));
+      expect(rec.exceptions, contains(line));
+    });
   });
 }
