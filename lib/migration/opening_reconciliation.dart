@@ -67,6 +67,19 @@ class OpeningReconciliation {
   List<ReconciliationLine> area(ReconciliationArea a) =>
       [for (final l in lines) if (l.area == a) l];
 
+  /// A posting date as `YYYY-MM-DD`, whether stored as an ISO string or as
+  /// epoch milliseconds (both are accepted by the ledger).
+  static String? _day(Object? v) {
+    final DateTime? d = v is int
+        ? DateTime.fromMillisecondsSinceEpoch(v)
+        : v is String
+            ? DateTime.tryParse(v.trim())
+            : null;
+    if (d == null) return null;
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${d.year.toString().padLeft(4, '0')}-${two(d.month)}-${two(d.day)}';
+  }
+
   /// Totals per area as (expected, actual) cents.
   (int, int) totals(ReconciliationArea a) {
     var e = 0, x = 0;
@@ -83,8 +96,10 @@ class OpeningReconciliation {
   static Future<OpeningReconciliation> compute(
       DocumentEngine engine, TakeOnPlan plan) async {
     final date = plan.openingDate;
-    bool asAt(Document d) =>
-        '${d.payload['posting_date'] ?? ''}'.compareTo(date) <= 0;
+    bool asAt(Document d) {
+      final day = _day(d.payload['posting_date']);
+      return day != null && day.compareTo(date) <= 0;
+    }
 
     final gl = [
       for (final d in await engine.list('GL Entry', userRoles: _roles))

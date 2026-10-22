@@ -249,6 +249,7 @@ class OpeningTakeOn {
       sp.problems.add('The file is not valid CSV: $e');
       return;
     }
+    final widths = _recordWidths(input.csv);
     final map = autoMap(sp.template, table.headers, input.mapping);
     for (final c in sp.template.columns) {
       if (c.required && !map.containsKey(c.key)) {
@@ -263,6 +264,14 @@ class OpeningTakeOn {
       final row = TakeOnRow(i + 2, {
         for (final e in map.entries) e.key: (raw[e.value] ?? '').trim(),
       });
+      final width = i + 1 < widths.length ? widths[i + 1] : 0;
+      if (width > table.headers.length) {
+        // The CSV decoder drops surplus fields, so "1,234.00" unquoted would
+        // otherwise import as 1.
+        row.reject('Line ${i + 2} has $width values but the header has '
+            '${table.headers.length}. Put quotes around a value that '
+            'contains a comma, or remove the thousands separator.');
+      }
       for (final c in sp.template.columns) {
         if (c.required && row.v(c.key).isEmpty) {
           row.reject('${c.label} is missing.');
@@ -270,6 +279,39 @@ class OpeningTakeOn {
       }
       sp.rows.add(row);
     }
+  }
+
+  /// The number of fields in each CSV record, using the same quoting and
+  /// line rules as [CsvCodec.decode] (one record per line break outside
+  /// quotes).
+  static List<int> _recordWidths(String text) {
+    final widths = <int>[];
+    var fields = 1, inQuotes = false, pending = false;
+    for (var i = 0; i < text.length; i++) {
+      final ch = text[i];
+      if (inQuotes) {
+        if (ch == '"') {
+          if (i + 1 < text.length && text[i + 1] == '"') {
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        }
+        continue;
+      }
+      pending = true;
+      if (ch == '"') {
+        inQuotes = true;
+      } else if (ch == ',') {
+        fields++;
+      } else if (ch == '\n') {
+        widths.add(fields);
+        fields = 1;
+        pending = false;
+      }
+    }
+    if (pending) widths.add(fields);
+    return widths;
   }
 
   Future<void> _checkPeriod(TakeOnPlan plan) async {

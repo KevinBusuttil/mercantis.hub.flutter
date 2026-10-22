@@ -195,9 +195,10 @@ void main() {
         ])),
         TakeOnSection.items: TakeOnInput(csv([
           'item_code,item_name,item_type,uom,selling_price',
-          'A,Apple,Stock,Nos,1,234.00',
+          'A,Apple,Stock,Nos,1.00',
           'B,Banana,Stock,Nos,1.234',
           'S,Service,Service,Hour,10',
+          'Z,Zest,Stock,Nos,1,234.00',
         ])),
         TakeOnSection.openingStock: TakeOnInput(csv([
           'item_code,warehouse_code,qty,value',
@@ -229,8 +230,9 @@ void main() {
     expect(customers.blocked, isFalse, reason: 'masters import valid rows');
 
     final items = plan[TakeOnSection.items]!;
-    // "1,234.00" splits into extra CSV fields: parsed as 1 → accepted, so
-    // the important check is that 3-decimal prices are refused.
+    // Unquoted "1,234.00" is two fields: the row is refused, never read as 1.
+    expect(items.rows[3].status, TakeOnRowStatus.rejected);
+    expect(items.rows[3].problems.single, contains('6 values'));
     expect(items.rows[1].status, TakeOnRowStatus.rejected);
     expect(items.rows[1].problems.single, contains('2 decimals'));
 
@@ -434,6 +436,18 @@ void main() {
       final rec = await OpeningReconciliation.compute(h.engine, plan);
       expect(rec.reconciled, isTrue,
           reason: rec.exceptions.map((l) => l.key).join(', '));
+
+      // Ledger rows may carry the posting date as epoch milliseconds; those
+      // must be compared as dates, not as text.
+      final changed = await h.db.db.rawUpdate(
+          "UPDATE documents SET payload = json_set(payload, '\$.posting_date', ?) "
+          "WHERE doctype = 'GL Entry' "
+          "AND json_extract(payload, '\$.posting_date') > ?",
+          [DateTime(year, 10, 2).millisecondsSinceEpoch, openingDate]);
+      expect(changed, greaterThan(0));
+      final epoch = await OpeningReconciliation.compute(h.engine, plan);
+      expect(epoch.reconciled, isTrue,
+          reason: epoch.exceptions.map((l) => l.key).join(', '));
     });
 
     test('differences are reported, never absorbed', () async {
