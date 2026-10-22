@@ -7,6 +7,8 @@ import 'package:mercantis_hub_app/modules/projects/project_billing.dart';
 import 'package:mercantis_hub_app/onboarding/business_preset.dart';
 import 'package:mercantis_hub_app/onboarding/hub_seeder.dart';
 import 'package:mercantis_hub_app/reports/aggregating_reports.dart';
+import 'package:mercantis_hub_app/features/hub_feature.dart';
+import 'package:mercantis_hub_app/navigation/hub_surface.dart';
 import 'package:mercantis_hub_app/settings/hub_settings.dart';
 import 'package:mercantis_hub_app/workspaces/hub_workspaces.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -179,8 +181,11 @@ void main() {
 
   test('projects workspace follows the preset', () {
     Set<String> ids(HubSettings s) =>
-        hubWorkspaces(s).map((w) => w.id).toSet();
-    expect(ids(const HubSettings().applyingPreset(BusinessPreset.services)),
+        hubWorkspaces(HubSurface(s)).map((w) => w.id).toSet();
+    final services = const HubSettings().applyingPreset(BusinessPreset.services);
+    // Projects is a suggested extra for services, not switched on by default.
+    expect(ids(services), isNot(contains('projects')));
+    expect(ids(services.withFeature(HubFeature.projects, true)),
         contains('projects'));
     expect(ids(const HubSettings().applyingPreset(BusinessPreset.retail)),
         isNot(contains('projects')));

@@ -5,6 +5,7 @@ import 'auth/auth_store.dart';
 import 'hub_app.dart';
 import 'ledger/hub_interceptors.dart';
 import 'navigation/hub_navigation.dart';
+import 'navigation/hub_shell.dart';
 import 'printing/hub_print_formats.dart';
 import 'team/team_posting_service.dart';
 
@@ -22,6 +23,10 @@ void main() {
         // Team mode: official submits/cancels of the five posted doctypes
         // route to the backend posting authority (null while disconnected).
         teamOfficialPostingOverride,
+        // Business profile, optional features and Owner/Accountant view drive
+        // the shell: live navigation, the phone bar, deep-link gating and
+        // business language.
+        ...hubShellOverrides,
       ],
       child: const MercantisHubApp(),
     ),

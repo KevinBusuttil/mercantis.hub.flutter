@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
+import '../reports/money_format.dart';
 import '../reports/report_providers.dart';
 import 'owner_kpis.dart';
 
@@ -237,7 +238,7 @@ class _OwnerKpiCard extends ConsumerWidget {
     final value = async.when(
       loading: () => '…',
       error: (_, __) => '—',
-      data: (kpi) => '€${kpi.amount.toDouble().toStringAsFixed(2)}',
+      data: (kpi) => formatMoney(kpi.amount),
     );
     final caption = async.valueOrNull?.caption;
     return KpiCard(
@@ -338,7 +339,7 @@ class _DashboardListCard extends ConsumerWidget {
             subtitle: subtitle,
             trailing: (trailingKey == null || row[trailingKey] == null)
                 ? null
-                : Text(row[trailingKey]!,
+                : Text(_trailing(trailingKey!, row[trailingKey]!),
                     style: const TextStyle(fontWeight: FontWeight.w600)),
             onTap: (rowDocType == null ||
                     idKey == null ||
@@ -350,4 +351,12 @@ class _DashboardListCard extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// Amount columns read as money ("1850" → "€1,850.00"); quantities and
+/// anything else are shown as they are.
+String _trailing(String key, String cell) {
+  final money = key.contains('total') || key.contains('amount');
+  final n = money ? parseAmount(cell) : null;
+  return n == null ? cell : formatMoney(n);
 }
