@@ -556,6 +556,23 @@ class OpeningTakeOn {
     }
     _dedupe(sp, (r) => '${r.v('item_code')}@${r.v('warehouse_code')}',
         'item and warehouse');
+    // Positions with stock movements on or after the opening date. A
+    // backdated opening balance would not re-cost those movements, so their
+    // saved valuation and cost of sales would stay wrong even when the
+    // position is empty today.
+    final movedSince = <String, String>{};
+    if (sp.rows.isNotEmpty) {
+      for (final d
+          in await engine.list('Stock Ledger Entry', userRoles: _roles)) {
+        final p = d.payload;
+        // An unreadable date counts as a movement: it cannot be shown to
+        // fall before the opening date.
+        final day = _dayOf(p['posting_date']);
+        if (day != null && day.compareTo(openingDate) < 0) continue;
+        movedSince.putIfAbsent('${p['item']}@${p['warehouse']}',
+            () => '${p['voucher_type']} ${p['voucher_no']}');
+      }
+    }
     for (final r in sp.rows) {
       if (r.status == TakeOnRowStatus.rejected) continue;
       final item = r.v('item_code');
@@ -587,6 +604,14 @@ class OpeningTakeOn {
                 'before importing it again.');
           }
         }
+        continue;
+      }
+      final moved = movedSince['$item@$wh'];
+      if (moved != null) {
+        r.reject('$item in $wh already has stock movements on or after the '
+            'opening date (for example $moved). Opening stock cannot be '
+            'backdated under them; record it as a stock adjustment in Atlas, '
+            'or choose an opening date after those movements.');
         continue;
       }
       final bin = await engine.fetch('Bin', 'BIN-$item-$wh');
@@ -1184,6 +1209,19 @@ String formatCents(int cents) {
 }
 
 int _cents(num v) => (v * 100).round();
+
+/// The YYYY-MM-DD day of a stored date, which is an ISO string or epoch
+/// milliseconds.
+String? _dayOf(Object? v) {
+  final DateTime? d = v is int
+      ? DateTime.fromMillisecondsSinceEpoch(v)
+      : v is String
+          ? DateTime.tryParse(v.trim())
+          : null;
+  if (d == null) return null;
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${d.year.toString().padLeft(4, '0')}-${two(d.month)}-${two(d.day)}';
+}
 
 DateTime? _isoDate(String s) {
   if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(s)) return null;

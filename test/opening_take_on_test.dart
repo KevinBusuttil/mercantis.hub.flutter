@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mercantis_core/mercantis_core.dart';
+import 'package:mercantis_hub_app/ledger/ledger_values.dart' show asNum;
 import 'package:mercantis_hub_app/migration/opening_reconciliation.dart';
 import 'package:mercantis_hub_app/migration/opening_take_on.dart';
 import 'package:mercantis_hub_app/migration/take_on_templates.dart';
@@ -405,13 +406,13 @@ void main() {
       ])
         s: inputs[s]!,
     });
-    // Stock arrives by a normal receipt first.
+    // Stock arrives by a normal receipt before the opening date.
     await h.saveAndSubmit(Document(
         id: '',
         docType: 'Stock Entry',
         payload: {
           'stock_entry_type': 'Material Receipt',
-          'posting_date': openingDate,
+          'posting_date': '$year-09-01',
           'to_warehouse': 'MAIN',
         })
       ..children['items'] = [
@@ -426,6 +427,49 @@ void main() {
     final row = plan[TakeOnSection.openingStock]!.rows.single;
     expect(row.status, TakeOnRowStatus.rejected);
     expect(row.problems.single, contains('already holds'));
+  });
+
+  test('opening stock under later movements is refused even when the '
+      'position is empty today', () async {
+    final takeOn = OpeningTakeOn(h.engine);
+    final inputs = templates();
+    await takeOn.commit(openingDate: openingDate, inputs: {
+      for (final s in [
+        TakeOnSection.items,
+        TakeOnSection.warehouses,
+      ])
+        s: inputs[s]!,
+    });
+    // A receipt and a full issue after the opening date leave the Bin at
+    // zero, but backdating opening stock would not re-cost the issue.
+    for (final receipt in [true, false]) {
+      await h.saveAndSubmit(Document(
+          id: '',
+          docType: 'Stock Entry',
+          payload: {
+            'stock_entry_type':
+                receipt ? 'Material Receipt' : 'Material Issue',
+            'posting_date': '$year-10-0${receipt ? 1 : 2}',
+            if (receipt) 'to_warehouse': 'MAIN' else 'from_warehouse': 'MAIN',
+          })
+        ..children['items'] = [
+          itemLine('Stock Entry', {
+            'item': 'WIDGET-1',
+            'qty': 1,
+            if (receipt)
+              'target_warehouse': 'MAIN'
+            else
+              'source_warehouse': 'MAIN',
+            'valuation_rate': 5,
+          }),
+        ]);
+    }
+    final bin = await h.engine.fetch('Bin', 'BIN-WIDGET-1-MAIN');
+    expect(asNum(bin?.payload['actual_qty']), 0);
+    final plan = await takeOn.plan(openingDate: openingDate, inputs: inputs);
+    final row = plan[TakeOnSection.openingStock]!.rows.single;
+    expect(row.status, TakeOnRowStatus.rejected);
+    expect(row.problems.single, contains('stock movements on or after'));
   });
 
   test('money parsing is exact and refuses anything ambiguous', () {
