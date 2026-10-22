@@ -364,6 +364,8 @@ class OpeningTakeOn {
 
   /// Compare the file's non-blank values to an existing record. Blank cells
   /// never count as a difference (a blank never overwrites).
+  static const _numericMatchFields = {'standard_rate', 'standard_buying_rate'};
+
   void _matchExisting(TakeOnRow r, Document existing, Map<String, String> fields,
       String what) {
     final diffs = <String>[];
@@ -371,8 +373,12 @@ class OpeningTakeOn {
       final want = r.v(fileKey);
       if (want.isEmpty) return;
       final have = '${existing.payload[payloadKey] ?? ''}'.trim();
-      final numWant = num.tryParse(want);
-      final numHave = num.tryParse(have);
+      // Only amounts compare as numbers ("12" = "12.00"). Identifiers and
+      // other text compare as text, so "00123" and "123" differ.
+      final numWant =
+          _numericMatchFields.contains(payloadKey) ? num.tryParse(want) : null;
+      final numHave =
+          _numericMatchFields.contains(payloadKey) ? num.tryParse(have) : null;
       final same = numWant != null && numHave != null
           ? numWant == numHave
           : want.toLowerCase() == have.toLowerCase();

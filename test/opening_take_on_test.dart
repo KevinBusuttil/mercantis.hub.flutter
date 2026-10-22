@@ -341,6 +341,24 @@ void main() {
     expect(await h.balance('Debtors'), 590);
   });
 
+  test('identifiers compare as text on re-import: 00123 is not 123',
+      () async {
+    final takeOn = OpeningTakeOn(h.engine);
+    final inputs = templates();
+    inputs[TakeOnSection.customers] = TakeOnInput(csv([
+      'customer_code,customer_name,tax_id',
+      'C001,Blue Fig Café,00123',
+    ]));
+    await takeOn.commit(openingDate: openingDate, inputs: inputs);
+    inputs[TakeOnSection.customers] = TakeOnInput(csv([
+      'customer_code,customer_name,tax_id',
+      'C001,Blue Fig Café,123',
+    ]));
+    final plan = await takeOn.plan(openingDate: openingDate, inputs: inputs);
+    expect(plan[TakeOnSection.customers]!.rows.single.status,
+        TakeOnRowStatus.conflict);
+  });
+
   test('a re-import with a different due date is a conflict', () async {
     final takeOn = OpeningTakeOn(h.engine);
     final inputs = templates();
