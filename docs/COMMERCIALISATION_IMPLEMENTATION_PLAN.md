@@ -332,6 +332,26 @@ Critical flows must be tested for:
 
 **Exit criterion:** representative non-technical users can complete the critical daily tasks without developer coaching, and no critical workflow depends on hidden gestures, unexplained ERP jargon or desktop-only layout assumptions.
 
+#### M1.2 status (October 2026)
+
+Evidence: `docs/ux/SOLO_MOBILE_UX_AUDIT.md` (audit, before/after) and `docs/ux/UX_ACCEPTANCE_MATRIX.md` (row-by-row proof).
+
+- **Done, automated:**
+  - Product scope follows the business profile at workspace, section, item, quick-action and deep-link level, through an opt-in feature catalogue in Settings › Business type & features.
+  - Phone bar of at most five destinations per profile (Services: Today · Customers · Invoices · Money · More; Trade: Today · Sales · Stock · Money · More; Retail: Today · Till · Stock · Money · More).
+  - The Owner/Accountant view is now meaningful: business-language lifecycle words versus engine terms, with Ledger, trial balance, registers and report builder in the Accountant view only.
+  - Legacy installations keep every feature they could reach. Settings are migrated once to `settings_version: 2`.
+  - Save, submit and cancel are confirmed; empty states are guided.
+  - Summary-first phone reports for P&L, Balance Sheet, Cash flow, AR/AP ageing, stock valuation, gross margin and project profitability.
+  - Layout verified at 360–1440 px and at 200 % text.
+- **Owed (blocks the M1.2 exit criterion):**
+  - Observed sessions with non-technical users.
+  - TalkBack/VoiceOver and keyboard-only walkthroughs.
+  - Contrast audit.
+  - Phone-first customer statement and bank reconciliation.
+  - Field-layout review of the ten critical forms.
+- **Not claimed:** Maltese fiscal-POS approval. The till's own copy says certification is jurisdiction-specific.
+
 ---
 
 ### M1.3 — Opening data and migration
@@ -1134,6 +1154,16 @@ Deliver, in one bounded PR:
 7. End the PR with the exact next recommended M1 increment.
 
 Do **not** start a new vertical or Team feature in this increment.
+
+#### Blocker evidence recorded during the M1.2 increment (October 2026)
+
+**Atlas Solo has no backup or restore path.**
+
+- All of a Solo business's books live in one on-device SQLite file (`mercantis_core_ui/lib/src/providers/core_providers.dart`, `mercantis.db` in the app documents directory).
+- A search of both repositories finds no backup, export-database or restore code and no test (`grep -ri "backup\|restore"` matches only a Team-connection comment and the chart-of-accounts repair).
+- So a lost or reset device loses the books, and the canonical M1.1 journey cannot complete its last two steps ("back up → restore into a clean installation").
+
+This is `BLOCKER-SOLO-RC`. The recommended order is unchanged (M1.1 first), but M1.1's inventory must record this gap, and M1.4 (§ "Backup, restore and disaster recovery") should follow immediately after.
 
 ---
 
