@@ -124,7 +124,11 @@ A clean-installation restore **has been executed and verified** in the automated
 | R11 | Restore is blocked while Team-connected. Folder sync is cleared on restore. | By design | Team books are restored server-side (M3.8) |
 | R12 | `test/marketing/atlas_owner_dashboard_golden_test.dart` fails on `main` too | Out of scope | Unrelated golden |
 | R13 | Core `tool/check_no_hub_leakage.sh` reports pre-existing hits on the base branch. This work adds none. | Out of scope | — |
-| R14 | Bin ids are `BIN-<item>-<warehouse>` (pre-existing), so codes containing `-` can collide (item `A-B` in `C` and item `A` in `B-C`). One Bin then overwrites the other. | **PILOT** | Needs an unambiguous Bin id and a migration of existing Bins. Until then, avoid `-` in codes where a collision is possible. |
+| R14 | Bin ids are `BIN-<item>-<warehouse>` (pre-existing), so codes containing `-` can collide (item `A-B` in `C` and item `A` in `B-C`). One Bin then overwrites the other. **Verified (22 Oct 2026):** the stock valuation report then disagrees with the Stock GL with no warning (`bin_identity_test`). | **PILOT → guarded** | `BinIdentityGuardInterceptor` refuses a new item or warehouse code that would collide, naming both positions. The diagnostics report flags any existing collision. The id format is shared with the Team backend, so changing it is POST-GA with a migration. |
+
+## Release-candidate increment (22 Oct 2026)
+
+Gate-by-gate status, new residual issues (REL-1, A11Y-ANDROID, G-ICON, P-PERF-1, A11Y-FORMS, UX-BANKREC and others) and the RC verdict are in [release/SOLO_RELEASE_READINESS.md](release/SOLO_RELEASE_READINESS.md). This matrix keeps the data-safety evidence.
 
 ## Next incomplete commercial-release gate
 

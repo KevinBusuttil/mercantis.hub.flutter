@@ -13,12 +13,16 @@ Implementation agents (Claude Code, ChatGPT/Codex, or maintainers) should read t
 
 ## Platforms
 
-| Platform | Min version |
-|----------|-------------|
-| iOS | 17.0 |
-| iPadOS | 17.0 |
-| macOS | 14.0 |
-| Windows | 11 |
+Application id `com.neuradix.atlas` on every platform. Support levels are defined, with evidence, in [`docs/release/PLATFORM_MATRIX.md`](docs/release/PLATFORM_MATRIX.md). As of October 2026, **no platform is yet commercially supported**: each builds in CI, none has been tested on hardware.
+
+| Platform | Min version | Release build in CI | Commercially supported |
+|----------|-------------|---------------------|------------------------|
+| Android phone / tablet | 7.0 (API 24) | Yes (unsigned; signed job behind the `release` environment) | Not yet (pilot target) |
+| iOS / iPadOS | 17.0 | Yes (no codesign) | Not yet |
+| macOS | 14.0 | Yes (ad-hoc signed) | Not yet |
+| Windows | 11 (10 1809+ untested) | Yes (unsigned zip) | Not yet |
+
+Release, signing and readiness: [`docs/release/`](docs/release/) — start with [`SOLO_RELEASE_READINESS.md`](docs/release/SOLO_RELEASE_READINESS.md). User guides: [`docs/solo/`](docs/solo/README.md).
 
 ## Modules
 
@@ -34,7 +38,7 @@ Implementation agents (Claude Code, ChatGPT/Codex, or maintainers) should read t
 ## Getting started
 
 ```bash
-flutter pub get
+flutter pub get --enforce-lockfile
 flutter run
 ```
 

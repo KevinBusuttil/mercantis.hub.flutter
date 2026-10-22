@@ -539,27 +539,59 @@ The diagnostic mechanism must avoid leaking credentials, payment secrets or unne
 
 **Exit criterion:** a support case can be diagnosed without asking the customer to query SQLite manually or install a development environment.
 
+#### M1.6 status (October 2026)
+
+Evidence: [release/SOLO_RELEASE_READINESS.md](release/SOLO_RELEASE_READINESS.md), the gate-by-gate tracker. Per-gate detail and residual issues live there, not here.
+
+- **Done, automated:**
+  - **Platform matrix:** [release/PLATFORM_MATRIX.md](release/PLATFORM_MATRIX.md) gives four levels per platform (implemented, buildable, tested, commercially supported). Every platform is buildable and none is yet tested on hardware.
+  - **Permanent app id:** `com.neuradix.atlas` on every platform (product-owner decision, 22 Oct 2026).
+  - **Android:**
+    - release signing comes from `key.properties` or CI secrets, and is never the debug key;
+    - the signed build fails closed when the key is missing;
+    - OS Auto Backup is off, because it copied unencrypted books and cloned the device id;
+    - the `INTERNET` permission is declared.
+  - **iOS and macOS:** the Xcode projects are now in source control (a clone could not build before). The iOS camera and photo privacy strings are added.
+  - **Pipeline:**
+    - committed `pubspec.lock` with `--enforce-lockfile`;
+    - Solo acceptance gate in CI, including accessibility guidelines and the host performance baseline;
+    - gitleaks, OSV and committed-key checks;
+    - release builds for Android, iOS, macOS and Windows, with stamped version and build number and checksums;
+    - a signed Android job behind a protected `release` environment.
+    See [release/RELEASE_PROCESS.md](release/RELEASE_PROCESS.md) and [release/RELEASE_SIGNING_AND_SECRETS.md](release/RELEASE_SIGNING_AND_SECRETS.md).
+  - **Support diagnostics** are in Settings › Help & diagnostics, and on the start-up error screen. They cover version/build/commit, OS, schema and integrity, postings owed, record counts, modules, backup/recovery, sync and recent errors. The report is privacy-filtered, exportable and tested on a populated book (`test/support_diagnostics_test.dart`).
+  - **R14 (Bin id collision) verified and guarded.** New item and warehouse codes that would share a Bin are refused (`test/bin_identity_test.dart`).
+  - **Host performance baseline** measured on 10k customers and 5k items ([release/PERFORMANCE_BASELINES.md](release/PERFORMANCE_BASELINES.md)).
+  - **User guides** 1–8 in [solo/](solo/README.md), and draft commercial policies in [release/policies/](release/policies/COMMERCIAL_POLICY_CHECKLIST.md). These are **not legally reviewed**.
+- **Owed:**
+  - a production upload key and the first signed build (REL-1, product owner);
+  - device runs: R1, performance and TalkBack;
+  - Apple and Windows signing;
+  - a branded icon (G-ICON).
+
 ---
 
 ## 6. M1 release gate — Atlas Solo RC
 
 M1 is complete when all of the following are true:
 
-- [ ] Solo 1.0 scope is frozen.
-- [ ] Canonical commercial acceptance journey passes.
+- [ ] Solo 1.0 scope is frozen. *(No recorded freeze decision: tracker M1-1.)*
+- [ ] Canonical commercial acceptance journey passes. *(Automated and green in the CI acceptance gate; awaiting acceptance: M1-2.)*
 - [ ] No reachable mock/demo data is required for a core Solo workflow.
 - [ ] First-run setup reaches an explicit `ready to trade` state.
 - [ ] Critical tasks are usable on supported phone/tablet/desktop form factors.
 - [ ] Opening-data migration produces a reconciled opening position.
-- [ ] Backup -> clean install -> restore succeeds.
+- [ ] Backup -> clean install -> restore succeeds. *(Automated clean-folder restore passes. **Physical device not run: R1, BLOCKER-SOLO-RC.**)*
 - [ ] Offline/adversarial matrix has no unresolved data-loss/accounting blocker.
-- [ ] Accessibility checks are complete for critical workflows.
-- [ ] Platform support matrix is explicit.
-- [ ] Release builds and upgrade/migration checks are repeatable.
-- [ ] Support diagnostics are available.
-- [ ] There is no known `BLOCKER-SOLO-RC` issue.
+- [ ] Accessibility checks are complete for critical workflows. *(Automated guidelines on 15 screens pass. Manual TalkBack/VoiceOver matrix PENDING: M1-9.)*
+- [ ] Platform support matrix is explicit. *(Written: `release/PLATFORM_MATRIX.md`. Awaiting product-owner acceptance of the Android-first recommendation.)*
+- [ ] Release builds and upgrade/migration checks are repeatable. *(Four-platform CI release builds and the lockfile are in place. **No signed build yet: REL-1.**)*
+- [ ] Support diagnostics are available. *(Implemented and tested. Support process not yet exercised: M1-12.)*
+- [ ] There is no known `BLOCKER-SOLO-RC` issue. *(Open: R1, REL-1, A11Y-ANDROID.)*
 
 **Milestone output:** `Atlas Solo Release Candidate`.
+
+Gate-by-gate evidence: [release/SOLO_RELEASE_READINESS.md](release/SOLO_RELEASE_READINESS.md) §2. **Verdict (22 Oct 2026): not RC-ready.**
 
 ---
 
@@ -687,6 +719,16 @@ As applicable to the launch market and distribution model:
 - backup responsibility statement;
 - data-processing terms where services process customer data.
 
+#### M2.5 status (October 2026)
+
+**Drafts only:**
+
+- install/update procedure: [release/RELEASE_PROCESS.md](release/RELEASE_PROCESS.md), guides 1 and 7;
+- user guides 1–8: [solo/](solo/README.md);
+- support and severity policy, EULA, privacy notice and backup statement: [release/policies/](release/policies/COMMERCIAL_POLICY_CHECKLIST.md).
+
+None has been legally reviewed or approved. The legal entity (P-1) and the Apple export-compliance answer (P-7) are open product-owner decisions.
+
 ### M2.6 — Solo 1.0 release decision
 
 Do not call Solo commercially ready until the first representative customer has completed enough real operation to validate the relevant accounting cycle and recovery process.
@@ -708,6 +750,8 @@ Do not call Solo commercially ready until the first representative customer has 
 - [ ] No known `BLOCKER-SOLO-GA` issue.
 
 **Milestone output:** `Atlas Solo 1.0 — commercially ready`.
+
+Gate-by-gate evidence: [release/SOLO_RELEASE_READINESS.md](release/SOLO_RELEASE_READINESS.md) §3. The pilot procedure is [release/FIRST_CUSTOMER_PILOT.md](release/FIRST_CUSTOMER_PILOT.md). **No pilot has taken place.**
 
 Recommended initial positioning:
 
