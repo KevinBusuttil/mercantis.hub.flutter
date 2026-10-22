@@ -110,8 +110,8 @@ abstract final class SetupModule {
         ],
       );
 
-  /// Single-record app preferences (advanced mode, optional-module visibility,
-  /// operator identity). Managed by the Settings screen.
+  /// Single-record app preferences (Owner/Accountant view, business profile,
+  /// optional-feature visibility, operator identity). Managed by the Settings screen.
   static DocType _hubSettings() => const DocType(
         id: 'Hub Settings',
         name: 'Hub Settings',
@@ -121,6 +121,24 @@ abstract final class SetupModule {
           FieldDefinition(key: 'pos_enabled', label: 'POS Enabled', type: FieldType.check, defaultValue: '1'),
           FieldDefinition(key: 'manufacturing_enabled', label: 'Manufacturing Enabled', type: FieldType.check, defaultValue: '1'),
           FieldDefinition(key: 'deliveries_enabled', label: 'Deliveries Enabled', type: FieldType.check, defaultValue: '1'),
+          // Feature catalogue (settings_version 2): every optional feature is
+          // written explicitly, so a missing key on a v2 document means off.
+          FieldDefinition(key: 'settings_version', label: 'Settings Version', type: FieldType.integer),
+          FieldDefinition(key: 'stock_enabled', label: 'Stock Enabled', type: FieldType.check),
+          FieldDefinition(key: 'hospitality_enabled', label: 'Tables & Kitchen Enabled', type: FieldType.check),
+          FieldDefinition(key: 'sales_pipeline_enabled', label: 'Leads Enabled', type: FieldType.check),
+          FieldDefinition(key: 'projects_enabled', label: 'Projects Enabled', type: FieldType.check),
+          FieldDefinition(key: 'appointments_enabled', label: 'Appointments Enabled', type: FieldType.check),
+          FieldDefinition(key: 'field_service_enabled', label: 'Field Service Enabled', type: FieldType.check),
+          FieldDefinition(key: 'online_channels_enabled', label: 'Online Channels Enabled', type: FieldType.check),
+          FieldDefinition(key: 'memberships_enabled', label: 'Memberships Enabled', type: FieldType.check),
+          FieldDefinition(key: 'rentals_enabled', label: 'Rentals Enabled', type: FieldType.check),
+          FieldDefinition(key: 'property_enabled', label: 'Property Enabled', type: FieldType.check),
+          FieldDefinition(key: 'construction_enabled', label: 'Construction Enabled', type: FieldType.check),
+          FieldDefinition(key: 'fixed_assets_enabled', label: 'Fixed Assets Enabled', type: FieldType.check),
+          FieldDefinition(key: 'classic_navigation', label: 'Classic Navigation', type: FieldType.check),
+          FieldDefinition(key: 'system_tools', label: 'System Configuration', type: FieldType.check),
+          FieldDefinition(key: 'business_preset', label: 'Business Profile', type: FieldType.data),
           FieldDefinition(key: 'operator_name', label: 'Operator Name', type: FieldType.data),
           FieldDefinition(key: 'operator_email', label: 'Operator Email', type: FieldType.data),
         ],
