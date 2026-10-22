@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mercantis_hub_app/navigation/hub_surface.dart';
+import 'package:mercantis_hub_app/settings/hub_settings.dart';
 import 'package:mercantis_hub_app/workspaces/home_workspace.dart';
 
 /// The Notification inbox (ADR-048) and Recents views are surfaced from the Home
@@ -6,7 +8,7 @@ import 'package:mercantis_hub_app/workspaces/home_workspace.dart';
 void main() {
   test('home workspace surfaces Notifications and Recents quick actions', () {
     final byRoute = {
-      for (final qa in homeWorkspace.quickActions)
+      for (final qa in homeWorkspace(const HubSurface(HubSettings())).quickActions)
         if (qa.routeName != null) qa.routeName: qa,
     };
     expect(byRoute['/w/home/notifications']?.label, 'Notifications');

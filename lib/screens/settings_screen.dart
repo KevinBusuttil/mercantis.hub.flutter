@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
@@ -15,9 +16,9 @@ import 'numbering_series_screen.dart';
 import '../modules/stock/inventory_takeon.dart';
 
 /// App preferences: the signed-in operator (passcode lock managed by the auth
-/// gate), optional-module visibility, and the advanced toggle. Module/advanced
-/// settings persist to the `Hub Settings` singleton; visibility changes apply
-/// on next launch.
+/// gate), a link to the business type / features / view catalogue (changes
+/// there apply immediately), setup, and — in the Accountant view — the
+/// accounting tools.
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -26,25 +27,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  late HubSettings _draft;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _draft = ref.read(hubSettingsProvider);
-  }
-
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    final engine = await ref.read(documentEngineProvider.future);
-    await ref.read(hubSettingsProvider.notifier).save(engine, _draft);
-    if (!mounted) return;
-    setState(() => _saving = false);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Settings saved')));
-  }
-
   void _lock() => ref.read(authProvider.notifier).lock();
 
   Future<void> _signOut() async {
@@ -246,6 +228,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final theme = Theme.of(context);
     final auth = ref.watch(authProvider);
     final active = auth.active;
+    final settings = ref.watch(hubSettingsProvider);
 
     return ResponsiveScaffold(
       title: 'Settings',
@@ -303,6 +286,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           const SizedBox(height: MercantisSpacing.lg),
           AtlasSectionCard(
+            name: 'Business & view',
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.tune_outlined),
+                  title: const Text('Business type & features'),
+                  subtitle: Text(
+                      '${settings.userMode.title} view · '
+                      '${settings.features.isEmpty ? 'no optional features' : '${settings.features.length} optional feature${settings.features.length == 1 ? '' : 's'} on'}'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/w/setup/features'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: MercantisSpacing.lg),
+          AtlasSectionCard(
             name: 'Setup',
             child: Column(
               children: [
@@ -344,6 +344,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: MercantisSpacing.lg),
+          if (!settings.showsAccountantSurfaces)
+            AtlasSectionCard(
+              name: 'Accounting tools',
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.account_balance_outlined),
+                title: const Text('Year-end, period lock and repairs'),
+                subtitle: const Text('These live in the Accountant view. '
+                    'Switching view changes only what is shown.'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/w/setup/features'),
+              ),
+            )
+          else
           AtlasSectionCard(
             name: 'Tools',
             child: Column(
@@ -388,152 +402,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: MercantisSpacing.lg),
-          AtlasSectionCard(
-            name: 'Optional modules',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(bottom: MercantisSpacing.xs),
-                  child: Text('Hidden modules apply on next launch.',
-                      style: theme.textTheme.bodySmall),
-                ),
-                AtlasFieldRow(
-                  label: 'Field Service (jobs & dispatch)',
-                  onTap: _saving
-                      ? null
-                      : () => setState(() => _draft = _draft.copyWith(
-                          fieldServiceEnabled: !_draft.fieldServiceEnabled)),
-                  trailing: Switch(
-                    value: _draft.fieldServiceEnabled,
-                    onChanged: _saving
-                        ? null
-                        : (v) => setState(() => _draft =
-                            _draft.copyWith(fieldServiceEnabled: v)),
-                  ),
-                ),
-                AtlasFieldRow(
-                  label: 'Appointments (booking & commissions)',
-                  onTap: _saving
-                      ? null
-                      : () => setState(() => _draft = _draft.copyWith(
-                          appointmentsEnabled: !_draft.appointmentsEnabled)),
-                  trailing: Switch(
-                    value: _draft.appointmentsEnabled,
-                    onChanged: _saving
-                        ? null
-                        : (v) => setState(() => _draft =
-                            _draft.copyWith(appointmentsEnabled: v)),
-                  ),
-                ),
-                AtlasFieldRow(
-                  label: 'Projects & Time',
-                  onTap: _saving
-                      ? null
-                      : () => setState(() => _draft = _draft.copyWith(
-                          projectsEnabled: !_draft.projectsEnabled)),
-                  trailing: Switch(
-                    value: _draft.projectsEnabled,
-                    onChanged: _saving
-                        ? null
-                        : (v) => setState(() =>
-                            _draft = _draft.copyWith(projectsEnabled: v)),
-                  ),
-                ),
-                AtlasFieldRow(
-                  label: 'Stock & Warehousing',
-                  onTap: _saving
-                      ? null
-                      : () => setState(() => _draft =
-                          _draft.copyWith(stockEnabled: !_draft.stockEnabled)),
-                  trailing: Switch(
-                    value: _draft.stockEnabled,
-                    onChanged: _saving
-                        ? null
-                        : (v) => setState(
-                            () => _draft = _draft.copyWith(stockEnabled: v)),
-                  ),
-                ),
-                AtlasFieldRow(
-                  label: 'Point of Sale',
-                  onTap: _saving
-                      ? null
-                      : () => setState(() =>
-                          _draft = _draft.copyWith(posEnabled: !_draft.posEnabled)),
-                  trailing: Switch(
-                    value: _draft.posEnabled,
-                    onChanged: _saving
-                        ? null
-                        : (v) => setState(
-                            () => _draft = _draft.copyWith(posEnabled: v)),
-                  ),
-                ),
-                AtlasFieldRow(
-                  label: 'Manufacturing',
-                  onTap: _saving
-                      ? null
-                      : () => setState(() => _draft = _draft.copyWith(
-                          manufacturingEnabled: !_draft.manufacturingEnabled)),
-                  trailing: Switch(
-                    value: _draft.manufacturingEnabled,
-                    onChanged: _saving
-                        ? null
-                        : (v) => setState(() =>
-                            _draft = _draft.copyWith(manufacturingEnabled: v)),
-                  ),
-                ),
-                AtlasFieldRow(
-                  label: 'Deliveries (routes & fleet)',
-                  onTap: _saving
-                      ? null
-                      : () => setState(() => _draft = _draft.copyWith(
-                          deliveriesEnabled: !_draft.deliveriesEnabled)),
-                  trailing: Switch(
-                    value: _draft.deliveriesEnabled,
-                    onChanged: _saving
-                        ? null
-                        : (v) => setState(() =>
-                            _draft = _draft.copyWith(deliveriesEnabled: v)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: MercantisSpacing.lg),
-          AtlasSectionCard(
-            name: 'Mode',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SegmentedButton<HubUserMode>(
-                  segments: [
-                    for (final mode in HubUserMode.values)
-                      ButtonSegment<HubUserMode>(
-                          value: mode, label: Text(mode.title)),
-                  ],
-                  selected: {_draft.userMode},
-                  onSelectionChanged: _saving
-                      ? null
-                      : (selection) => setState(
-                          () => _draft = _draft.withUserMode(selection.first)),
-                ),
-                const SizedBox(height: MercantisSpacing.sm),
-                Text(_draft.userMode.blurb, style: theme.textTheme.bodySmall),
-              ],
-            ),
-          ),
-          const SizedBox(height: MercantisSpacing.lg),
-          FilledButton.icon(
-            onPressed: _saving ? null : _save,
-            icon: _saving
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.save_outlined),
-            label: const Text('Save settings'),
           ),
           const SizedBox(height: MercantisSpacing.lg),
           AtlasSectionCard(

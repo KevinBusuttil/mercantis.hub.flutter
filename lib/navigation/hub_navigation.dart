@@ -49,6 +49,7 @@ import '../screens/hospitality_audit_screen.dart';
 import '../screens/kitchen_screen.dart';
 import '../screens/stock_count_screen.dart';
 import '../screens/tables_screen.dart';
+import '../screens/features_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/setup_packs_screen.dart';
 import '../screens/conflicts_screen.dart';
@@ -60,8 +61,8 @@ import '../screens/tech_today_screen.dart';
 import '../screens/team_screen.dart';
 import '../screens/setup_checklist_screen.dart';
 import '../screens/work_order_complete_screen.dart';
-import '../settings/hub_settings.dart';
 import '../workspaces/hub_workspaces.dart';
+import 'hub_surface.dart';
 
 /// Serves the approval inbox by scanning every submittable DocType for
 /// documents in docStatus=0 (drafts awaiting submission/approval).
@@ -78,7 +79,7 @@ final metadataApprovalInboxSourceOverride =
 void wireHubNavigation(WidgetRef ref) {
   final registry = ref.read(workspaceRegistryProvider);
   if (registry.all.isEmpty) {
-    final settings = ref.read(hubSettingsProvider);
+    final surface = ref.read(hubSurfaceProvider);
 
     // One-click document conversion (H3): Quotation→Sales Order→Delivery/Invoice,
     // PO→Receipt/Invoice, Lead→Customer/Quotation, surfaced on the document's
@@ -107,9 +108,10 @@ void wireHubNavigation(WidgetRef ref) {
     registerHubChannelActions(ref);
     // Team: customer portal links minted from the Customer record.
     registerHubPortalActions(ref);
-    // Workspace visibility follows the business preset / Settings toggles
-    // (applies on next launch, mirroring the Swift visibility model).
-    registerHubWorkspaces(registry, settings);
+    // Workspace visibility follows the business profile, optional features,
+    // Owner/Accountant view and Team connection. This seeds the registry;
+    // `hubShellOverrides` keeps it live as settings change.
+    registerHubWorkspaces(registry, surface);
 
     // Workspace-level custom routes — addressed as /w/<workspaceId>/<name>.
     registry.registerRoute('inbox', (c, s) => const ApprovalsInboxScreen());
@@ -161,6 +163,7 @@ void wireHubNavigation(WidgetRef ref) {
     registry.registerRoute(
         'work-order-complete', (c, s) => const WorkOrderCompleteScreen());
     registry.registerRoute('settings', (c, s) => const SettingsScreen());
+    registry.registerRoute('features', (c, s) => const FeaturesScreen());
     registry.registerRoute('team', (c, s) => const TeamScreen());
     registry.registerRoute(
         'sync-conflicts', (c, s) => const ConflictsScreen());

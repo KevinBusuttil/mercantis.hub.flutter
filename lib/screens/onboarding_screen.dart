@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
+import '../features/hub_feature.dart';
+import '../navigation/hub_shell.dart';
+import '../navigation/hub_surface.dart';
 import '../onboarding/business_preset.dart';
 import '../onboarding/hub_seeder.dart';
 import '../onboarding/onboarding_providers.dart';
@@ -27,6 +30,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   String _currency = 'EUR';
   JurisdictionPreset _jurisdiction = JurisdictionPreset.malta;
   BusinessPreset _preset = BusinessPreset.services;
+
+  /// Optional features ticked on top of the profile's own.
+  final Set<HubFeature> _extras = {};
   bool _seeding = false;
   String? _error;
 
@@ -52,10 +58,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       );
       // Make the chosen preset functional: persist it and set the module
       // toggles it implies (workspace visibility follows on this launch).
-      final settings = ref.read(hubSettingsProvider);
-      await ref
-          .read(hubSettingsProvider.notifier)
-          .save(engine, settings.applyingPreset(_preset));
+      final settings = ref.read(hubSettingsProvider).applyingPreset(_preset);
+      await ref.read(hubSettingsProvider.notifier).save(engine,
+          settings.copyWith(features: {...settings.features, ..._extras}));
       ref.invalidate(companyExistsProvider);
       // The boot gate rebuilds on the invalidated provider and shows the shell.
     } catch (e) {
@@ -167,6 +172,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
+  /// The phone bar the chosen profile will give, so the choice is concrete.
+  String _phoneSummary() {
+    final settings = const HubSettings().applyingPreset(_preset);
+    final s = HubSurface(
+        settings.copyWith(features: {...settings.features, ..._extras}));
+    return hubPhoneDestinations(s).map((d) => d.label).join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -190,13 +203,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     child: const Icon(Icons.hub, color: Colors.white),
                   ),
                   const SizedBox(width: 12),
-                  Text('Set up Neuradix Atlas', style: theme.textTheme.titleLarge),
+                  // Expanded so the title wraps on a small phone or at large
+                  // text instead of overflowing.
+                  Expanded(
+                    child: Text('Set up Neuradix Atlas',
+                        style: theme.textTheme.titleLarge),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
                 'We’ll create your chart of accounts, this year’s fiscal year, '
-                'VAT codes, and a company profile so you can start invoicing.',
+                'VAT codes, and a company profile so you can start invoicing. '
+                'Everything is stored on this device; no account or internet '
+                'connection is needed.',
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 24),
@@ -246,19 +266,60 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               const SizedBox(height: 24),
               Text('Business type', style: theme.textTheme.titleSmall),
               const SizedBox(height: 8),
+              Text(
+                'This shapes your navigation. Everything else stays one '
+                'switch away in Settings › Business type & features.',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
               for (final p in BusinessPreset.all)
                 Card(
                   margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    selected: _preset.id == p.id,
-                    leading: Icon(_preset.id == p.id
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked),
-                    title: Text(p.label),
-                    subtitle: Text(p.description),
-                    onTap: _seeding ? null : () => setState(() => _preset = p),
+                  child: Semantics(
+                    inMutuallyExclusiveGroup: true,
+                    checked: _preset.id == p.id,
+                    child: ListTile(
+                      selected: _preset.id == p.id,
+                      leading: Icon(_preset.id == p.id
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked),
+                      title: Text(p.label),
+                      subtitle: Text(p.description),
+                      onTap: _seeding
+                          ? null
+                          : () => setState(() {
+                                _preset = p;
+                                _extras.clear();
+                              }),
+                    ),
                   ),
                 ),
+              const SizedBox(height: 8),
+              Text(
+                'On your phone: ${_phoneSummary()} · More',
+                style: theme.textTheme.bodySmall,
+              ),
+              if (_preset.suggested.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text('Also add (optional)', style: theme.textTheme.titleSmall),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final f in _preset.suggested)
+                      FilterChip(
+                        label: Text(f.label),
+                        tooltip: f.description,
+                        selected: _extras.contains(f),
+                        onSelected: _seeding
+                            ? null
+                            : (v) => setState(
+                                () => v ? _extras.add(f) : _extras.remove(f)),
+                      ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: _seeding ? null : _start,
