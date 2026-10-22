@@ -64,26 +64,43 @@ class LedgerDerivationService {
   Future<List<PostingBatch>> recoverPendingPostings() async {
     final db = database;
     if (db == null) return const [];
-    // Replay in posting order, as the vouchers were originally entered, so
-    // each stock movement is costed against the stock it actually met. A
-    // voucher's original always precedes its reversal: a cancel's reversal
-    // is costed from the original's stock rows.
-    final owed = <(PostingBatch, ({LifecycleAction action, String docType, String id}), Document?)>[];
+    // Replay in the order the submits and cancels committed, so each stock
+    // movement is costed against the stock it actually met, and an original
+    // always precedes its reversal. The lifecycle audit row commits in the
+    // same transaction as the outbox marker and is never rewritten, so its
+    // rowid is that order.
+    final owed = <(PostingBatch, ({LifecycleAction action, String docType, String id}), Document?, int?)>[];
     for (final batch in await outstandingPostings()) {
       final ref = parsePostingBatchId(batch.id);
       if (ref == null) continue;
-      owed.add((batch, ref, await engine.fetch(ref.docType, ref.id)));
+      final seq = await db.rawQuery(
+          'SELECT MAX(rowid) AS seq FROM audit_log '
+          'WHERE doctype = ? AND document_id = ? AND action = ?',
+          [
+            ref.docType,
+            ref.id,
+            ref.action == LifecycleAction.cancel ? 'cancelled' : 'submitted',
+          ]);
+      owed.add((
+        batch,
+        ref,
+        await engine.fetch(ref.docType, ref.id),
+        seq.first['seq'] as int?,
+      ));
     }
     owed.sort((a, b) {
-      final (_, ra, da) = a;
-      final (_, rb, db) = b;
-      if (da == null || db == null) return (da == null ? 0 : 1) - (db == null ? 0 : 1);
-      final byPosting = _byPostingThenCreation(da, db);
-      if (byPosting != 0) return byPosting;
+      final (_, ra, da, sa) = a;
+      final (_, rb, db, sb) = b;
+      if (sa != null && sb != null && sa != sb) return sa.compareTo(sb);
+      if ((sa == null) != (sb == null)) return sa == null ? 1 : -1;
+      if (da != null && db != null) {
+        final byPosting = _byPostingThenCreation(da, db);
+        if (byPosting != 0) return byPosting;
+      }
       final bySource = '${ra.docType}:${ra.id}'.compareTo('${rb.docType}:${rb.id}');
       return bySource != 0 ? bySource : ra.action.index - rb.action.index;
     });
-    for (final (batch, ref, source) in owed) {
+    for (final (batch, ref, source, _) in owed) {
       // Handling a cancel can complete its owed submit first (see _handle).
       if (!await _owes(ref.docType, ref.id, ref.action)) continue;
       // The marker commits with the status flip, so a missing or Draft source

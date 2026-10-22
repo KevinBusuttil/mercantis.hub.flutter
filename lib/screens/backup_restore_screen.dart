@@ -339,7 +339,19 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
     if (!mounted) return;
     await AtlasRestartScope.restart(context, whileStopped: () async {
       await db.close();
-      final syncBefore = await HubBackup.suspendFolderSync();
+      final Map<String, Object> syncBefore;
+      try {
+        syncBefore = await HubBackup.suspendFolderSync();
+      } catch (e) {
+        staged.discard();
+        return RestartNotice(
+          success: false,
+          title: 'Restore stopped, nothing changed',
+          body: 'Atlas could not turn folder sync off on this device, so it '
+              'did not restore: the restored books could otherwise be synced '
+              'into the shared folder. Details: $e',
+        );
+      }
       try {
         final outcome = await backup.commit(staged);
         await HubBackup.applyRestoredPreferences(staged);

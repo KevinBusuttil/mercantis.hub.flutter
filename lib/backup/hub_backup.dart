@@ -157,17 +157,19 @@ class HubBackup {
   /// dies after the restored books are installed, the next start cannot sync
   /// them into the previous shared folder. Returns the values to give back
   /// with [resumeFolderSync] if the restore does not go ahead.
+  ///
+  /// Throws when the preferences cannot be confirmed cleared: the restore
+  /// must then not go ahead.
   static Future<Map<String, Object>> suspendFolderSync() async {
     final saved = <String, Object>{};
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      for (final k in clearedOnRestorePreferenceKeys) {
-        final v = prefs.get(k);
-        if (v != null) saved[k] = v;
-        await prefs.remove(k);
+    final prefs = await SharedPreferences.getInstance();
+    for (final k in clearedOnRestorePreferenceKeys) {
+      final v = prefs.get(k);
+      if (v != null) saved[k] = v;
+      if (!await prefs.remove(k) || prefs.containsKey(k)) {
+        await resumeFolderSync(saved);
+        throw StateError('Folder sync could not be turned off');
       }
-    } catch (_) {
-      // No preferences platform (tests).
     }
     return saved;
   }
@@ -195,7 +197,12 @@ class HubBackup {
   static Future<void> applyRestoredPreferences(StagedRestore staged) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      for (final k in clearedOnRestorePreferenceKeys) {
+      // The device's settings become the backup's: one the backup did not
+      // have is removed, not left as it was.
+      for (final k in {
+        ...clearedOnRestorePreferenceKeys,
+        ...backedUpPreferenceKeys,
+      }) {
         await prefs.remove(k);
       }
       final raw = staged.configFiles['preferences.json'];

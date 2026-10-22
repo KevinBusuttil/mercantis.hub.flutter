@@ -247,13 +247,15 @@ void main() {
     await h.close();
 
     // Both owed: a sale of 3 (met stock at 5.00), then a purchase at 20.
+    // The purchase draft was created first; submission order is what counts.
     h = await BooksHarness.open(path, startLedger: false);
-    await h.saveAndSubmit(sale3At12());
     final dearer = purchase10At5();
     dearer.children['items'] = [
       itemLine('Purchase Invoice', {'item': 'ITEM-A', 'qty': 10, 'rate': 20}),
     ];
-    await h.saveAndSubmit(dearer);
+    final dearerDraft = await h.save(dearer);
+    await h.saveAndSubmit(sale3At12());
+    await h.submit(dearerDraft);
     expect(await h.ledger?.outstandingPostings() ?? const [], isEmpty,
         reason: 'no ledger in this run');
     await h.close();
