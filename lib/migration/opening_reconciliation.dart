@@ -139,7 +139,7 @@ class OpeningReconciliation {
       for (final r in tb.rows) {
         // A rejected row is an exception with its reason, even when its
         // account was found: its figure never reached the books.
-        if (r.targetId == null || r.status == TakeOnRowStatus.rejected) {
+        if (r.targetId == null || _notImported(r)) {
           lines.add(ReconciliationLine(
               area: ReconciliationArea.trialBalance,
               key: r.v('account'),
@@ -195,7 +195,7 @@ class OpeningReconciliation {
       final expected = <String, int>{};
       for (final r in sp.rows) {
         final party = r.v(partyKey);
-        if (r.status == TakeOnRowStatus.rejected) {
+        if (_notImported(r)) {
           // Never imported: its own exception with the reason, at the
           // amount the file states (zero when it is not a number).
           lines.add(ReconciliationLine(
@@ -251,7 +251,7 @@ class OpeningReconciliation {
       final expValue = <String, int>{};
       for (final r in stock.rows) {
         final k = '${r.v('item_code')}@${r.v('warehouse_code')}';
-        if (r.status == TakeOnRowStatus.rejected) {
+        if (_notImported(r)) {
           // Never imported: its own exception with the reason, at the
           // figures the file states (zero where they are not numbers).
           lines.add(ReconciliationLine(
@@ -315,7 +315,7 @@ class OpeningReconciliation {
         vouchers: id == null
             ? const []
             : ((glVouchers[id] ?? const <String>{}).toList()..sort()),
-        note: r.status == TakeOnRowStatus.rejected
+        note: _notImported(r)
             ? 'Line ${r.line}: ${r.problems.join(' ')}'
             : null,
       ));
@@ -324,6 +324,12 @@ class OpeningReconciliation {
     return OpeningReconciliation(date, lines);
   }
 }
+
+/// A row that did not go in as the file states it: refused, or in conflict
+/// with what Atlas already holds. Either way it is a noted exception.
+bool _notImported(TakeOnRow r) =>
+    r.status == TakeOnRowStatus.rejected ||
+    r.status == TakeOnRowStatus.conflict;
 
 /// Debit minus credit of a trial-balance row whose account could not be
 /// matched (0 where the amounts are unreadable too).

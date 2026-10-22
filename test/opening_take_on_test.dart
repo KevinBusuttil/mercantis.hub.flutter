@@ -359,6 +359,20 @@ void main() {
         TakeOnRowStatus.conflict);
   });
 
+  test('opening stock re-imported at a different opening date is a conflict, '
+      'and reconciliation says so', () async {
+    final takeOn = OpeningTakeOn(h.engine);
+    await takeOn.commit(openingDate: openingDate, inputs: templates());
+    final later = '$year-10-01';
+    final plan = await takeOn.plan(openingDate: later, inputs: templates());
+    final stock = plan[TakeOnSection.openingStock]!.rows;
+    expect(stock.map((r) => r.status), everyElement(TakeOnRowStatus.conflict));
+    final rec = await OpeningReconciliation.compute(h.engine, plan);
+    expect(rec.area(ReconciliationArea.stock).where((l) => l.note != null),
+        hasLength(stock.length));
+    expect(rec.reconciled, isFalse);
+  });
+
   test('a re-import with a different due date is a conflict', () async {
     final takeOn = OpeningTakeOn(h.engine);
     final inputs = templates();

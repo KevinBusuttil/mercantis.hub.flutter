@@ -229,7 +229,7 @@ class OpeningTakeOn {
     _planSuppliers(sections[TakeOnSection.suppliers]!, ctx);
     _planWarehouses(sections[TakeOnSection.warehouses]!, ctx);
     _planItems(sections[TakeOnSection.items]!, ctx);
-    await _planStock(sections[TakeOnSection.openingStock]!, ctx);
+    await _planStock(sections[TakeOnSection.openingStock]!, ctx, openingDate);
     await _planOpenInvoices(sections[TakeOnSection.receivables]!, ctx,
         openingDate, receivable: true);
     await _planOpenInvoices(sections[TakeOnSection.payables]!, ctx,
@@ -509,7 +509,8 @@ class OpeningTakeOn {
     }
   }
 
-  Future<void> _planStock(SectionPlan sp, _Context ctx) async {
+  Future<void> _planStock(
+      SectionPlan sp, _Context ctx, String openingDate) async {
     final itemsInFile = _accepted(ctx.plannedItems);
     final whInFile = _accepted(ctx.plannedWarehouses);
     for (final r in sp.rows) {
@@ -565,6 +566,7 @@ class OpeningTakeOn {
       if (existing != null) {
         final lines = existing.children['items'] ?? const [];
         final same = lines.length == 1 &&
+            '${existing.payload['posting_date']}' == openingDate &&
             asNum(lines.first.payload['qty']) == r.qty &&
             _cents(asNum(lines.first.payload['qty']) *
                     asNum(lines.first.payload['valuation_rate'])) ==
@@ -572,8 +574,8 @@ class OpeningTakeOn {
         if (!same) {
           r.status = TakeOnRowStatus.conflict;
           r.problems.add('Opening stock for $item in $wh was already imported '
-              'with a different quantity or value. Cancel $id in Atlas first '
-              'if the file is right.');
+              'with a different quantity, value or opening date. Cancel $id '
+              'in Atlas first if the file is right.');
         } else {
           r.status = existing.docStatus == 1
               ? TakeOnRowStatus.unchanged
