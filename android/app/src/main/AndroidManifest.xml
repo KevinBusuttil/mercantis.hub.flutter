@@ -1,8 +1,24 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Release builds need this for the optional online features: Atlas Team,
+         AI receipt capture and store connectors. Solo bookkeeping itself never
+         needs the network. (Debug and profile builds always had it.) -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Atlas declares no camera or storage permission of its own: photos
+         come through the system camera/photo picker and files through the
+         system file picker. CI prints the merged release permissions. -->
+
+    <!-- OS backup is off: Atlas's encrypted backup is the supported route.
+         Android Auto Backup would copy the unencrypted books to the user's
+         Google account and restore this install's device id onto a second
+         phone (duplicate document numbers). flutter_secure_storage keys also
+         do not survive an OS restore. -->
     <application
         android:label="Neuradix Atlas"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules">
         <activity
             android:name=".MainActivity"
             android:exported="true"

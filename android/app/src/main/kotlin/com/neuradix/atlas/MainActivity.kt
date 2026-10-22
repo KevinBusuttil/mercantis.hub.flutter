@@ -1,4 +1,4 @@
-package com.mercantis.mercantis_hub_app
+package com.neuradix.atlas
 
 import io.flutter.embedding.android.FlutterActivity
 

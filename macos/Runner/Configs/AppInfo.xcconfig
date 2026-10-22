@@ -1,0 +1,13 @@
+// Application-level settings for the Runner target.
+
+// The application's name. By default this is also the title of the Flutter window.
+PRODUCT_NAME = Neuradix Atlas
+
+// The permanent bundle identifier (product-owner decision, October 2026).
+// It must never change once a build is distributed.
+PRODUCT_BUNDLE_IDENTIFIER = com.neuradix.atlas
+
+// The copyright displayed in application information. The holder matches the
+// Windows resource file; confirm the legal entity before GA
+// (docs/release/policies/COMMERCIAL_POLICY_CHECKLIST.md).
+PRODUCT_COPYRIGHT = Copyright © 2026 Mercantis. All rights reserved.
