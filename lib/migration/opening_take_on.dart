@@ -538,6 +538,15 @@ class OpeningTakeOn {
         r.cents = cents;
       }
     }
+    for (final r in sp.rows) {
+      // '@' joins item and warehouse in the opening id; allowing it would let
+      // two different pairs share one id.
+      if (r.v('item_code').contains('@') ||
+          r.v('warehouse_code').contains('@')) {
+        r.reject('An item or warehouse code containing "@" cannot be given '
+            'opening stock here. Rename it in Atlas first.');
+      }
+    }
     _dedupe(sp, (r) => '${r.v('item_code')}@${r.v('warehouse_code')}',
         'item and warehouse');
     for (final r in sp.rows) {
@@ -628,6 +637,15 @@ class OpeningTakeOn {
             'as a credit note after opening, so it is not netted silently.');
       } else {
         r.cents = cents;
+      }
+    }
+    if (!receivable) {
+      for (final r in sp.rows) {
+        // ':' joins supplier and bill number in the opening id.
+        if (r.v(partyKey).contains(':')) {
+          r.reject('A supplier code containing ":" cannot carry an opening '
+              'bill here. Rename it in Atlas first.');
+        }
       }
     }
     _dedupe(

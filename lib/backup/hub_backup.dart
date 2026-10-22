@@ -153,6 +153,45 @@ class HubBackup {
 
   /// Apply restored preferences and clear the sync settings that must be
   /// chosen again after a restore.
+  /// Turns folder sync off before a restore commits, so that if the app
+  /// dies after the restored books are installed, the next start cannot sync
+  /// them into the previous shared folder. Returns the values to give back
+  /// with [resumeFolderSync] if the restore does not go ahead.
+  static Future<Map<String, Object>> suspendFolderSync() async {
+    final saved = <String, Object>{};
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      for (final k in clearedOnRestorePreferenceKeys) {
+        final v = prefs.get(k);
+        if (v != null) saved[k] = v;
+        await prefs.remove(k);
+      }
+    } catch (_) {
+      // No preferences platform (tests).
+    }
+    return saved;
+  }
+
+  /// Puts back what [suspendFolderSync] turned off (the previous books are
+  /// still installed).
+  static Future<void> resumeFolderSync(Map<String, Object> saved) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      for (final e in saved.entries) {
+        final v = e.value;
+        if (v is String) await prefs.setString(e.key, v);
+        if (v is bool) await prefs.setBool(e.key, v);
+        if (v is int) await prefs.setInt(e.key, v);
+        if (v is double) await prefs.setDouble(e.key, v);
+        if (v is List) {
+          await prefs.setStringList(e.key, [for (final s in v) '$s']);
+        }
+      }
+    } catch (_) {
+      // No preferences platform (tests).
+    }
+  }
+
   static Future<void> applyRestoredPreferences(StagedRestore staged) async {
     try {
       final prefs = await SharedPreferences.getInstance();

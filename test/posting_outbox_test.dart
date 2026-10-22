@@ -239,6 +239,35 @@ void main() {
     });
   });
 
+  test('recovery replays owed vouchers in the order they were entered',
+      () async {
+    var h = await BooksHarness.open(path);
+    await masters(h);
+    await h.saveAndSubmit(purchase10At5());
+    await h.close();
+
+    // Both owed: a sale of 3 (met stock at 5.00), then a purchase at 20.
+    h = await BooksHarness.open(path, startLedger: false);
+    await h.saveAndSubmit(sale3At12());
+    final dearer = purchase10At5();
+    dearer.children['items'] = [
+      itemLine('Purchase Invoice', {'item': 'ITEM-A', 'qty': 10, 'rate': 20}),
+    ];
+    await h.saveAndSubmit(dearer);
+    expect(await h.ledger?.outstandingPostings() ?? const [], isEmpty,
+        reason: 'no ledger in this run');
+    await h.close();
+
+    h = await BooksHarness.open(path);
+    expect(await h.ledger!.outstandingPostings(), isEmpty);
+    expect(await h.balance('COGS'), 15,
+        reason: 'the sale is costed at the stock it met, not after the '
+            'later purchase');
+    expect(await h.balance('Stock'), 235);
+    expect(await h.trialBalanceDifference(), 0);
+    await h.close();
+  });
+
   test('legacy vouchers without an outbox batch are never re-posted',
       () async {
     var h = await BooksHarness.open(path);

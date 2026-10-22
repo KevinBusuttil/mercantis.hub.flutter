@@ -64,22 +64,28 @@ class LedgerDerivationService {
   Future<List<PostingBatch>> recoverPendingPostings() async {
     final db = database;
     if (db == null) return const [];
-    // Originals before their reversals: a cancel's reversal is costed from
-    // the original's stock rows, so a submit still owed must post first.
-    final owed = await outstandingPostings()
-      ..sort((a, b) {
-        final ra = parsePostingBatchId(a.id), rb = parsePostingBatchId(b.id);
-        if (ra == null || rb == null) return a.id.compareTo(b.id);
-        final bySource =
-            '${ra.docType}:${ra.id}'.compareTo('${rb.docType}:${rb.id}');
-        return bySource != 0 ? bySource : ra.action.index - rb.action.index;
-      });
-    for (final batch in owed) {
+    // Replay in posting order, as the vouchers were originally entered, so
+    // each stock movement is costed against the stock it actually met. A
+    // voucher's original always precedes its reversal: a cancel's reversal
+    // is costed from the original's stock rows.
+    final owed = <(PostingBatch, ({LifecycleAction action, String docType, String id}), Document?)>[];
+    for (final batch in await outstandingPostings()) {
       final ref = parsePostingBatchId(batch.id);
       if (ref == null) continue;
+      owed.add((batch, ref, await engine.fetch(ref.docType, ref.id)));
+    }
+    owed.sort((a, b) {
+      final (_, ra, da) = a;
+      final (_, rb, db) = b;
+      if (da == null || db == null) return (da == null ? 0 : 1) - (db == null ? 0 : 1);
+      final byPosting = _byPostingThenCreation(da, db);
+      if (byPosting != 0) return byPosting;
+      final bySource = '${ra.docType}:${ra.id}'.compareTo('${rb.docType}:${rb.id}');
+      return bySource != 0 ? bySource : ra.action.index - rb.action.index;
+    });
+    for (final (batch, ref, source) in owed) {
       // Handling a cancel can complete its owed submit first (see _handle).
       if (!await _owes(ref.docType, ref.id, ref.action)) continue;
-      final source = await engine.fetch(ref.docType, ref.id);
       // The marker commits with the status flip, so a missing or Draft source
       // means the voucher was deleted afterwards: nothing is owed.
       if (source == null || source.docStatus == 0) {

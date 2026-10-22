@@ -206,6 +206,7 @@ void main() {
           'NOPE,Main Store,1,10.00',
           'A,Main Store,0,0',
           'A,Nowhere,1,1.00',
+          'A,Main@Store,1,1.00',
         ])),
         TakeOnSection.receivables: TakeOnInput(csv([
           'invoice_no,customer_code,invoice_date,outstanding',
@@ -243,6 +244,8 @@ void main() {
     expect(stock.rows[1].problems.single, contains('not in Atlas'));
     expect(stock.rows[2].problems.single, contains('above 0'));
     expect(stock.rows[3].problems.single, contains('Warehouse'));
+    expect(stock.rows[4].problems, contains(contains('"@"')),
+        reason: '"@" would let two item/warehouse pairs share one id');
     expect(stock.blocked, isTrue);
 
     final ar = plan[TakeOnSection.receivables]!;

@@ -339,6 +339,7 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
     if (!mounted) return;
     await AtlasRestartScope.restart(context, whileStopped: () async {
       await db.close();
+      final syncBefore = await HubBackup.suspendFolderSync();
       try {
         final outcome = await backup.commit(staged);
         await HubBackup.applyRestoredPreferences(staged);
@@ -354,6 +355,7 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
               ' Folder sync is off; turn it on again in Settings if you use it.',
         );
       } on RestoreVerificationException catch (e) {
+        await HubBackup.resumeFolderSync(syncBefore);
         return RestartNotice(
           success: false,
           title: 'Restore stopped, nothing changed',
@@ -362,11 +364,15 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
               '${e.problems.take(3).join('; ')}',
         );
       } catch (e) {
+        // Folder sync stays off: an error this late may come after the
+        // restored books were installed, and sync must never push them into
+        // the previous shared folder.
         return RestartNotice(
           success: false,
           title: 'Restore stopped, nothing changed',
           body: 'Atlas put your previous data back exactly as it was. '
-              'Details: $e',
+              'Folder sync is off; turn it on again in Settings if you use '
+              'it. Details: $e',
         );
       }
     });
