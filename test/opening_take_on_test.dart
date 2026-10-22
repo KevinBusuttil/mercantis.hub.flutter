@@ -472,6 +472,68 @@ void main() {
     expect(row.problems.single, contains('stock movements on or after'));
   });
 
+  test('an opening stock draft is not resumed under later movements',
+      () async {
+    final takeOn = OpeningTakeOn(h.engine);
+    final inputs = templates();
+    await takeOn.commit(openingDate: openingDate, inputs: {
+      for (final s in [
+        TakeOnSection.items,
+        TakeOnSection.warehouses,
+      ])
+        s: inputs[s]!,
+    });
+    // An interrupted import left the opening entry as a draft.
+    final id = OpeningTakeOn.stockEntryId('WIDGET-1', 'MAIN');
+    await h.save(Document(
+        id: id,
+        docType: 'Stock Entry',
+        payload: {
+          'stock_entry_type': 'Material Receipt',
+          'posting_date': openingDate,
+          'to_warehouse': 'MAIN',
+          'is_opening': 1,
+        })
+      ..children['items'] = [
+        itemLine('Stock Entry', {
+          'item': 'WIDGET-1',
+          'qty': 40,
+          'target_warehouse': 'MAIN',
+          'valuation_rate': 5,
+        }),
+      ]);
+    var plan = await takeOn.plan(openingDate: openingDate, inputs: inputs);
+    expect(plan[TakeOnSection.openingStock]!.rows.single.status,
+        TakeOnRowStatus.resume);
+    // Trading then moves that position before the import is rerun.
+    for (final receipt in [true, false]) {
+      await h.saveAndSubmit(Document(
+          id: '',
+          docType: 'Stock Entry',
+          payload: {
+            'stock_entry_type':
+                receipt ? 'Material Receipt' : 'Material Issue',
+            'posting_date': '$year-10-0${receipt ? 1 : 2}',
+            if (receipt) 'to_warehouse': 'MAIN' else 'from_warehouse': 'MAIN',
+          })
+        ..children['items'] = [
+          itemLine('Stock Entry', {
+            'item': 'WIDGET-1',
+            'qty': 1,
+            if (receipt)
+              'target_warehouse': 'MAIN'
+            else
+              'source_warehouse': 'MAIN',
+            'valuation_rate': 5,
+          }),
+        ]);
+    }
+    plan = await takeOn.plan(openingDate: openingDate, inputs: inputs);
+    final row = plan[TakeOnSection.openingStock]!.rows.single;
+    expect(row.status, TakeOnRowStatus.conflict);
+    expect(row.problems.single, contains('since $id was saved as a draft'));
+  });
+
   test('money parsing is exact and refuses anything ambiguous', () {
     expect(parseCents('12'), 1200);
     expect(parseCents('12.5'), 1250);

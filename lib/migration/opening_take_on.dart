@@ -603,6 +603,16 @@ class OpeningTakeOn {
             r.problems.add('$id was cancelled. Amend or delete it in Atlas '
                 'before importing it again.');
           }
+          // A draft left by an interrupted import has no ledger rows yet,
+          // so movements since then would sit after it uncosted.
+          final moved = movedSince['$item@$wh'];
+          if (r.status == TakeOnRowStatus.resume && moved != null) {
+            r.status = TakeOnRowStatus.conflict;
+            r.problems.add('$item in $wh has had stock movements on or after '
+                'the opening date since $id was saved as a draft (for example '
+                '$moved). Delete the draft $id in Atlas and record the '
+                'opening stock as a stock adjustment instead.');
+          }
         }
         continue;
       }
