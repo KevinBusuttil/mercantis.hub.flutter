@@ -661,12 +661,16 @@ class OpeningTakeOn {
       final existing = await engine.fetch(docType, id);
       if (existing == null) continue;
       final partyField = receivable ? 'customer' : 'supplier';
+      final due = r.v('due_date').isEmpty ? r.v(dateKey) : r.v('due_date');
       final same = '${existing.payload[partyField]}' == r.v(partyKey) &&
-          _cents(asNum(existing.payload['grand_total'])) == r.cents;
+          _cents(asNum(existing.payload['grand_total'])) == r.cents &&
+          '${existing.payload['posting_date']}' == openingDate &&
+          '${existing.payload['due_date']}' == due;
       if (!same) {
         r.status = TakeOnRowStatus.conflict;
-        r.problems.add('$id was already imported with a different party or '
-            'amount. Atlas will not post it twice.');
+        r.problems.add('$id was already imported with a different party, '
+            'amount, opening date or due date. Atlas will not post it twice; '
+            'correct it in Atlas instead.');
       } else if (existing.docStatus == 1) {
         r.status = TakeOnRowStatus.unchanged;
       } else if (existing.docStatus == 0) {

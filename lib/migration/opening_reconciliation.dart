@@ -137,7 +137,9 @@ class OpeningReconciliation {
     if (tb.rows.isNotEmpty) {
       final expected = <String, int>{};
       for (final r in tb.rows) {
-        if (r.targetId == null) {
+        // A rejected row is an exception with its reason, even when its
+        // account was found: its figure never reached the books.
+        if (r.targetId == null || r.status == TakeOnRowStatus.rejected) {
           lines.add(ReconciliationLine(
               area: ReconciliationArea.trialBalance,
               key: r.v('account'),

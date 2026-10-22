@@ -341,6 +341,27 @@ void main() {
     expect(await h.balance('Debtors'), 590);
   });
 
+  test('a re-import with a different due date is a conflict', () async {
+    final takeOn = OpeningTakeOn(h.engine);
+    final inputs = templates();
+    inputs[TakeOnSection.receivables] = TakeOnInput(csv([
+      'invoice_no,customer_code,invoice_date,due_date,outstanding',
+      'INV-1042,C001,$year-09-15,$year-10-15,590.00',
+    ]));
+    await takeOn.commit(openingDate: openingDate, inputs: inputs);
+    final again = await takeOn.plan(openingDate: openingDate, inputs: inputs);
+    expect(again[TakeOnSection.receivables]!.rows.single.status,
+        TakeOnRowStatus.unchanged);
+    inputs[TakeOnSection.receivables] = TakeOnInput(csv([
+      'invoice_no,customer_code,invoice_date,due_date,outstanding',
+      'INV-1042,C001,$year-09-15,$year-11-15,590.00',
+    ]));
+    final changed = await takeOn.plan(openingDate: openingDate, inputs: inputs);
+    final row = changed[TakeOnSection.receivables]!.rows.single;
+    expect(row.status, TakeOnRowStatus.conflict);
+    expect(row.problems.single, contains('due date'));
+  });
+
   test('opening stock into a position that already holds stock is refused',
       () async {
     final takeOn = OpeningTakeOn(h.engine);
@@ -468,6 +489,24 @@ void main() {
       expect(bank.area, ReconciliationArea.bankCash);
       expect(bank.differenceCents, 1234);
       expect(await h.balance('Bank'), 12500, reason: 'nothing adjusted');
+    });
+
+    test('a rejected trial-balance row is an exception with its reason',
+        () async {
+      final inputs = templates();
+      final tbLines = inputs[TakeOnSection.trialBalance]!.csv.trim().split('\n');
+      // The same account twice: the second row is rejected as a duplicate.
+      inputs[TakeOnSection.trialBalance] =
+          TakeOnInput([...tbLines, tbLines[1]].join('\n'));
+      final plan =
+          await OpeningTakeOn(h.engine).plan(openingDate: openingDate, inputs: inputs);
+      final dup = plan[TakeOnSection.trialBalance]!.rows.last;
+      expect(dup.status, TakeOnRowStatus.rejected);
+      final rec = await OpeningReconciliation.compute(h.engine, plan);
+      expect(
+          rec.area(ReconciliationArea.trialBalance)
+              .where((l) => l.note?.startsWith('Line ${dup.line}:') ?? false),
+          hasLength(1));
     });
 
     test('rows that did not import show as differences', () async {
