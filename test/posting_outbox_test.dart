@@ -179,6 +179,66 @@ void main() {
     await h.close();
   });
 
+  group('a voucher cancelled while its submit posting is still owed', () {
+    Future<(BooksHarness, Document)> failedSale() async {
+      final h = await BooksHarness.open(path);
+      await masters(h);
+      await h.saveAndSubmit(purchase10At5());
+      // The sale's derivation fails before its stock movement is written.
+      await h.db.db.execute(
+          'CREATE TEMP TRIGGER fail_sle BEFORE INSERT ON documents '
+          "WHEN NEW.doctype = 'Stock Ledger Entry' AND NEW.id NOT LIKE '%PINV%' "
+          "BEGIN SELECT RAISE(ABORT, 'injected write failure'); END");
+      final si = await h.saveAndSubmit(sale3At12());
+      expect(
+          await batchStatus(h,
+              postingBatchId('Sales Invoice', si.id, LifecycleAction.submit)),
+          'failed');
+      await h.db.db.execute('DROP TRIGGER fail_sle');
+      return (h, si);
+    }
+
+    Future<void> expectNetZero(BooksHarness h, Document si) async {
+      for (final action in LifecycleAction.values) {
+        expect(
+            await batchStatus(
+                h, postingBatchId('Sales Invoice', si.id, action)),
+            'posted',
+            reason: action.name);
+      }
+      expect(await h.trialBalanceDifference(), 0);
+      expect(await h.balance('COGS'), 0);
+      expect(await h.balance('Stock'), 50);
+      expect(await h.balance('Debtors'), 0);
+      expect(asNum((await h.bin('ITEM-A', 'WH'))!.payload['actual_qty']), 10);
+      expect(asNum((await h.bin('ITEM-A', 'WH'))!.payload['stock_value']), 50);
+    }
+
+    test('cancelled in the same session: the original posts first', () async {
+      final (h, si) = await failedSale();
+      await h.engine.cancel(
+          (await h.engine.fetch('Sales Invoice', si.id))!, systemRoles);
+      await expectNetZero(h, si);
+      await h.close();
+      // And a restart re-posts nothing.
+      final again = await BooksHarness.open(path);
+      await expectNetZero(again, si);
+      await again.close();
+    });
+
+    test('cancelled, then the app restarts: recovery posts original, then '
+        'reversal', () async {
+      final (h, si) = await failedSale();
+      h.ledger!.dispose(); // the process dies right after the cancel commits
+      await h.engine.cancel(
+          (await h.engine.fetch('Sales Invoice', si.id))!, systemRoles);
+      await h.close();
+      final again = await BooksHarness.open(path);
+      await expectNetZero(again, si);
+      await again.close();
+    });
+  });
+
   test('legacy vouchers without an outbox batch are never re-posted',
       () async {
     var h = await BooksHarness.open(path);

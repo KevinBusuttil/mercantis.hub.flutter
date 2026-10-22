@@ -298,6 +298,31 @@ void main() {
       });
     }
 
+    test('a sale made while the backup is written does not make it '
+        'unrestorable', () async {
+      final h = await BooksHarness.open(dbPath());
+      await masters(h);
+      await buy(h, 10, 5, isoToday());
+      final backup = HubBackup(dataDirectory: data, factory: databaseFactoryFfi);
+      backup.service.faultHook = (step) async {
+        if (step == 'snapshot') await sell(h, 3, 12, isoToday());
+      };
+      final file = p.join(root.path, 'b.atlasbackup');
+      await backup.createBackup(
+          database: h.db.db, passphrase: passphrase, outputPath: file);
+      backup.service.faultHook = null;
+      final staged = await backup.stage(file, passphrase);
+      await h.close();
+      await backup.commit(staged);
+      final after = await BooksHarness.open(dbPath());
+      expect(await BusinessSummary.compute(after.db.db),
+          staged.businessSummary);
+      expect(await after.balance('Stock'), 50,
+          reason: 'the sale came after the snapshot');
+      await expectConsistent(after);
+      await after.close();
+    });
+
     test('a backup whose books do not reproduce its recorded totals is not '
         'installed', () async {
       final (h, live, file) = await booksWithBackup();

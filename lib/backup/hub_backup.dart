@@ -79,8 +79,10 @@ class HubBackup {
     Map<String, Object?> preferences = const {},
     BackupKdfParams? kdf,
   }) async {
-    final summary = await BusinessSummary.compute(database);
-    final companies = (summary['companies'] as List?)?.cast<String>() ?? const [];
+    // Only names the file. The recorded summary is computed from the
+    // snapshot itself (summarizeSnapshot), so a write made while the backup
+    // runs cannot make it disagree with the books it describes.
+    final companies = await BusinessSummary.companies(database);
     final out = outputPath ??
         p.join(backupsDirectory,
             suggestedFileName(companies.isEmpty ? null : companies.first,
@@ -95,7 +97,7 @@ class HubBackup {
         configFiles: {
           'preferences.json': utf8.encode(jsonEncode(preferences)),
         },
-        businessSummary: summary,
+        summarizeSnapshot: BusinessSummary.compute,
       ),
       outputPath: out,
       passphrase: passphrase,

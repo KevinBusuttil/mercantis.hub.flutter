@@ -11,6 +11,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import '../migration/opening_reconciliation.dart';
 import '../migration/opening_take_on.dart';
 import '../migration/take_on_templates.dart';
+import '../team/team_session.dart';
 
 bool get _isDesktop =>
     !kIsWeb && (Platform.isLinux || Platform.isMacOS || Platform.isWindows);
@@ -98,6 +99,9 @@ class _OpeningDataScreenState extends ConsumerState<OpeningDataScreen> {
   Future<void> _import() async {
     final plan = _plan;
     if (plan == null) return;
+    // Opening data posts locally; on a Team device that would bypass the
+    // server's official posting. Team books take on through the server.
+    if (ref.read(teamSessionProvider) != null) return;
     final blocked = [
       for (final s in plan.sections.values)
         if (s.provided && s.blocked) s.template.title,
@@ -270,6 +274,7 @@ class _OpeningDataScreenState extends ConsumerState<OpeningDataScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final plan = _plan;
+    final teamConnected = ref.watch(teamSessionProvider) != null;
     return ResponsiveScaffold(
       title: 'Move from another system',
       leading: Navigator.of(context).canPop() ? const BackButton() : null,
@@ -296,6 +301,19 @@ class _OpeningDataScreenState extends ConsumerState<OpeningDataScreen> {
             onChanged: (_) => setState(_invalidate),
           ),
           const SizedBox(height: 16),
+          if (teamConnected)
+            Card(
+              color: theme.colorScheme.errorContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                    'This device is connected to Atlas Team. Opening data '
+                    'for Team books is posted on the Team server, so Import '
+                    'is off here. You can still Check and Reconcile files.',
+                    style: TextStyle(
+                        color: theme.colorScheme.onErrorContainer)),
+              ),
+            ),
           if (plan != null && plan.problems.isNotEmpty)
             Card(
               color: theme.colorScheme.errorContainer,
@@ -325,7 +343,9 @@ class _OpeningDataScreenState extends ConsumerState<OpeningDataScreen> {
                 label: const Text('Check'),
               ),
               FilledButton.icon(
-                onPressed: plan == null || plan.problems.isNotEmpty
+                onPressed: teamConnected ||
+                        plan == null ||
+                        plan.problems.isNotEmpty
                     ? null
                     : _import,
                 icon: const Icon(Icons.file_download_done_outlined),

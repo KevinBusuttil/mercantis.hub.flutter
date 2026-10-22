@@ -64,9 +64,21 @@ class LedgerDerivationService {
   Future<List<PostingBatch>> recoverPendingPostings() async {
     final db = database;
     if (db == null) return const [];
-    for (final batch in await outstandingPostings()) {
+    // Originals before their reversals: a cancel's reversal is costed from
+    // the original's stock rows, so a submit still owed must post first.
+    final owed = await outstandingPostings()
+      ..sort((a, b) {
+        final ra = parsePostingBatchId(a.id), rb = parsePostingBatchId(b.id);
+        if (ra == null || rb == null) return a.id.compareTo(b.id);
+        final bySource =
+            '${ra.docType}:${ra.id}'.compareTo('${rb.docType}:${rb.id}');
+        return bySource != 0 ? bySource : ra.action.index - rb.action.index;
+      });
+    for (final batch in owed) {
       final ref = parsePostingBatchId(batch.id);
       if (ref == null) continue;
+      // Handling a cancel can complete its owed submit first (see _handle).
+      if (!await _owes(ref.docType, ref.id, ref.action)) continue;
       final source = await engine.fetch(ref.docType, ref.id);
       // The marker commits with the status flip, so a missing or Draft source
       // means the voucher was deleted afterwards: nothing is owed.
@@ -119,7 +131,37 @@ class LedgerDerivationService {
     );
   }
 
+  /// Whether the voucher's outbox batch for [action] exists and is not yet
+  /// posted.
+  Future<bool> _owes(String docType, String id, LifecycleAction action) async {
+    final db = database;
+    if (db == null) return false;
+    final rows = await db.query('posting_batches',
+        columns: ['status'],
+        where: 'id = ?',
+        whereArgs: [postingBatchId(docType, id, action)]);
+    return rows.isNotEmpty && rows.single['status'] != PostingStatus.posted.name;
+  }
+
   Future<void> _handle(Document doc, {required bool reversal}) async {
+    // Never finalise a reversal before the posting it reverses exists: a
+    // voucher cancelled while its submit posting was still owed (failed
+    // derivation, app killed) would otherwise be reversed against nothing,
+    // and the late original would leave the cancelled voucher's balances
+    // non-zero.
+    if (reversal &&
+        await _owes(doc.docType, doc.id, LifecycleAction.submit)) {
+      await _handle(doc, reversal: false);
+      if (await _owes(doc.docType, doc.id, LifecycleAction.submit)) {
+        // The original still cannot post; the reversal waits with it and
+        // both are retried at the next start.
+        try {
+          await _markBatch(doc, true,
+              error: StateError('the original posting is still owed'));
+        } catch (_) {}
+        return;
+      }
+    }
     try {
       await _derive(doc, reversal: reversal);
       await _markBatch(doc, reversal);

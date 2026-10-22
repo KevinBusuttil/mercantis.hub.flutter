@@ -15,6 +15,23 @@ import 'package:sqflite_common/sqflite.dart';
 abstract final class BusinessSummary {
   static const _bankCashTypes = {'Bank', 'Cash'};
 
+  /// Company names, in the order [compute] lists them.
+  static Future<List<String>> companies(DatabaseExecutor db) async {
+    final rows = await db.rawQuery(
+        "SELECT id, payload FROM documents WHERE doctype = 'Company' ORDER BY id");
+    return [
+      for (final r in rows)
+        () {
+          try {
+            final p = jsonDecode(r['payload'] as String) as Map;
+            return '${p['company_name'] ?? r['id']}';
+          } catch (_) {
+            return '${r['id']}';
+          }
+        }(),
+    ];
+  }
+
   static Future<Map<String, Object?>> compute(DatabaseExecutor db) async {
     final rows = await db.rawQuery(
         'SELECT id, doctype, docstatus, payload FROM documents ORDER BY doctype, id');
