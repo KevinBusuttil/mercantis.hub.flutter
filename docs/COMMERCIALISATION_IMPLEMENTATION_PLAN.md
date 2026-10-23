@@ -938,26 +938,72 @@ Provide:
 
 ---
 
+### M3 status (October 2026)
+
+Evidence-backed progress. The audit and hardening ran on 23 October 2026,
+on branch `claude/project-thread-ff896d` of both the hub and the backend.
+
+- **M3.1 identity, membership, devices.** Done and tested. A change found
+  that device tokens were not bound to their company. They are now, and
+  revocation or a role change takes effect on the next request (backend
+  `tests/tenant_isolation.rs`).
+- **M3.2 transport.** Done. Two additions:
+  - the pull returns the log `head`, so a device ahead of a restored server
+    re-pulls from 0;
+  - an idempotency key is bound to its doctype and document.
+- **M3.3 conflict policy.** Masters and drafts raise manual conflicts, and
+  this is proven against the real backend. Ledger rows are server-only.
+  Draft ids are now device-scoped in Team: before this, two devices minted
+  the same ids and one device's draft silently replaced the other's.
+- **M3.4 backend-authoritative submission.** Done for Sales Invoice,
+  Purchase Invoice, Purchase Receipt, Delivery Note, Payment Entry and Stock
+  Entry, and for offline POS through server confirmation. The sync plane now
+  refuses client ledger rows and client lifecycle changes on these doctypes.
+  An engine-level guard stops every hub flow from posting locally in Team.
+  Journal Entry, Expense and Customer Deposit have no server path and are
+  blocked in Team. See `docs/team/TEAM_POSTING_AUTHORITY.md`.
+- **M3.5 shared fixtures.** Green on both engines. The 12 backend fixtures
+  run on the Solo engine (`test/accounting_contract_test.dart`). This
+  surfaced one Solo defect, now fixed: Solo let a paid invoice be cancelled
+  while its payment was still allocated.
+- **M3.6 roles.** Enforced server-side (fixture 0007, backend API tests).
+- **M3.7 audit.** Server audit rows carry company, user, device and action.
+  Offline POS confirmations add `offlineFiscal` and `stockShortfalls`.
+- **M3.8 backup and operations.** Done in the repository: encrypted off-site
+  backup, a restore drill into a clean isolated cluster with ledger
+  invariants and a resync check, CI on every change, `/ready`, structured
+  logs and a backup-age monitor (backend `docs/OPERATIONS.md`). Two things
+  remain: running the drill on a real production backup, and a decision on
+  the 24 h RPO.
+
+Real multi-device test: three hub devices against the real backend on
+PostgreSQL over HTTP, with no mocks (`tool/team_e2e.sh`, record in
+`docs/team/evidence/team-e2e-2026-10-23.md`). It ran in a development
+container. It is not the M3 gate's acceptance scenario with real users.
+
+---
+
 ## 12. M3 release gate — Atlas Team RC
 
 Run a two-user/two-device acceptance scenario with forced concurrency and intermittent connectivity.
 
 M3 is complete only when:
 
-- [ ] Owner can create a Team company.
-- [ ] Owner can invite, role and revoke users.
-- [ ] Devices can be registered and revoked.
-- [ ] Two devices sync masters and drafts through the backend.
-- [ ] Conflicts do not silently overwrite concurrent edits.
-- [ ] Official submission is backend-confirmed.
-- [ ] Official document numbers cannot duplicate under concurrency.
-- [ ] Submitted official documents are server-side immutable except through valid reversal/amendment flows.
-- [ ] Shared stock cannot be over-consumed due to concurrent stale clients.
-- [ ] Shared accounting fixture suite is green on both Solo and Team authority.
-- [ ] Roles are enforced server-side.
-- [ ] Audit attributes official changes to company/user/device.
-- [ ] Backup/restore drill succeeds.
-- [ ] Tenant-isolation/security tests have no unresolved critical finding.
+- [x] Owner can create a Team company. *(hub E2E)*
+- [x] Owner can invite, role and revoke users. *(backend `tests/api.rs`, `tests/tenant_isolation.rs`)*
+- [x] Devices can be registered and revoked. *(hub E2E: till revoked)*
+- [x] Two devices sync masters and drafts through the backend. *(hub E2E)*
+- [x] Conflicts do not silently overwrite concurrent edits. *(hub E2E step 3; the draft-id collision is fixed)*
+- [x] Official submission is backend-confirmed. *(sync-plane guard, engine guard, hub E2E)*
+- [x] Official document numbers cannot duplicate under concurrency. *(backend `tests/posting.rs`, hub E2E step 6, unique index 0011)*
+- [x] Submitted official documents are server-side immutable except through valid reversal/amendment flows. *(backend `tests/authority_guard.rs`)*
+- [x] Shared stock cannot be over-consumed due to concurrent stale clients. *(SLE expectations plus retry, fixture 0003. Offline POS is the documented exception: shortfalls are reported, not refused)*
+- [x] Shared accounting fixture suite is green on both Solo and Team authority. *(12 of 12 on both engines)*
+- [x] Roles are enforced server-side. *(fixture 0007)*
+- [x] Audit attributes official changes to company/user/device.
+- [x] Backup/restore drill succeeds. *(CI job plus a local report; the production-backup drill is still due)*
+- [x] Tenant-isolation/security tests have no unresolved critical finding. *(all 25 company routes attacked)*
+- [ ] Two-user/two-device acceptance with forced concurrency and intermittent connectivity, run by real users on real devices. *(automated equivalent passes; the human run is still to do)*
 
 **Milestone output:** `Atlas Team Release Candidate`.
 
@@ -1078,6 +1124,31 @@ Force rather than avoid:
 - device replacement;
 - backup/restore;
 - month-end/report comparison.
+
+---
+
+### M4 status (October 2026)
+
+- **M4.4 production operations.** In the repository: health and readiness,
+  correlated structured logs with token redaction, a backup-age monitor
+  with a webhook alert, an additive-only migration policy with safe binary
+  rollback, secret rotation and incident response (backend
+  `docs/OPERATIONS.md`). Still open: configuring the external uptime check
+  and alert channel, and proving that they fire.
+- **M4.5 security review.** Done with negative tests:
+  - cross-tenant access, company-id forgery and confused-deputy probes on
+    every route;
+  - device-token company binding;
+  - revoked user and device;
+  - replayed and duplicate submits (idempotency bound to the command);
+  - forged ledger rows, lifecycle and provenance on the sync plane.
+
+  Still open: malicious-attachment behaviour beyond the size limits, and
+  dependency scanning in CI.
+- **M4.1 email, M4.2 payments, M4.3 integrations.** Not verified end to
+  end, so not in Team 1.0 (`docs/team/TEAM_1_0_SCOPE_AND_PILOT.md`).
+- **M4.6 pilot.** Planned in `docs/team/TEAM_1_0_SCOPE_AND_PILOT.md` §4.
+  **Not started.** No pilot is complete until its external evidence exists.
 
 ---
 

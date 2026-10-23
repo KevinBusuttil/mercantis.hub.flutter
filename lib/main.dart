@@ -4,11 +4,12 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'auth/auth_store.dart';
 import 'backup/app_restart.dart';
 import 'hub_app.dart';
-import 'ledger/hub_interceptors.dart';
 import 'navigation/hub_navigation.dart';
 import 'navigation/hub_shell.dart';
 import 'printing/hub_print_formats.dart';
 import 'support/diagnostic_log.dart';
+import 'team/team_naming.dart';
+import 'team/team_posting_guard.dart';
 import 'team/team_posting_service.dart';
 
 void main() {
@@ -25,8 +26,12 @@ Widget buildAtlasApp() =>
     AtlasRestartScope(builder: (_) => ProviderScope(
       overrides: [
         hubCurrentUserOverride,
-        // Business-profile defaults + fiscal-year posting guard.
-        hubInterceptorsOverride,
+        // Business-profile defaults, fiscal-year posting guard, and — while
+        // connected to Atlas Team — the engine-level posting-authority guard.
+        teamAwareInterceptorsOverride,
+        // Team mode: series ids carry the device's tag, so two devices never
+        // mint the same draft id.
+        teamScopedNamingOverride,
         // Approval inbox scans every submittable DocType for drafts.
         metadataApprovalInboxSourceOverride,
         // Record-button PDFs use the company letterhead registered at boot.

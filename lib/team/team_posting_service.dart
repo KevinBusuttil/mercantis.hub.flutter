@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
+import 'package:sqflite_common/sqlite_api.dart';
 
 import 'team_account_client.dart';
 import 'team_session.dart';
@@ -31,20 +32,25 @@ const teamPostedDocTypes = {
 };
 
 /// The wire body for a submit-document command, built from a hydrated
-/// draft: header payload (children stripped), line items as plain maps, and
-/// Payment Entry references folded INTO the payload (that is where the
-/// backend's settlement derivation reads them). Pure — exposed for tests.
+/// draft: header payload, line items as plain maps, and every other child
+/// table folded INTO the payload under its table name — that is where the
+/// backend reads them: `taxes` (the VAT rows its totals and tax subledger
+/// are validated against), Payment Entry `references` (settlements), POS
+/// `tenders`. Pure — exposed for tests.
 Map<String, dynamic> buildSubmitCommand(Document doc) {
   final payload = Map<String, dynamic>.from(doc.payload);
   final items = [
     for (final row in doc.children['items'] ?? const <ChildRow>[])
       Map<String, dynamic>.from(row.payload),
   ];
-  if (doc.docType == 'Payment Entry') {
-    payload['references'] = [
-      for (final row in doc.children['references'] ?? const <ChildRow>[])
-        Map<String, dynamic>.from(row.payload),
+  for (final table in doc.children.entries) {
+    if (table.key == 'items') continue;
+    payload[table.key] = [
+      for (final row in table.value) Map<String, dynamic>.from(row.payload),
     ];
+  }
+  if (doc.docType == 'Payment Entry') {
+    payload.putIfAbsent('references', () => <Map<String, dynamic>>[]);
   }
   return {
     'doctype': doc.docType,
@@ -85,6 +91,23 @@ class TeamPostingClient {
         'document_id': documentId,
         'idempotency_key': 'cancel-$docType-$documentId',
       });
+
+  /// The newest sync version of the company log (`head` on a pull
+  /// response), or null when the server predates it.
+  Future<int?> logHead() async {
+    final response = await _client.get(
+      Uri.parse(
+          '$baseUrl/companies/$companyId/sync/pull?after=$_beyond&limit=1'),
+      headers: {'Authorization': 'Bearer $deviceToken'},
+    );
+    if (response.statusCode != 200) return null;
+    final decoded = jsonDecode(response.body);
+    final head = decoded is Map ? decoded['head'] : null;
+    return head is int ? head : null;
+  }
+
+  /// A cursor past any real log, so the head probe transfers no mutations.
+  static const _beyond = 9007199254740991;
 
   void close() => _client.close();
 
@@ -180,8 +203,7 @@ class TeamOfficialPosting implements OfficialPostingOverride {
       deviceToken: session.deviceToken,
     );
     try {
-      await client.cancelDocument(
-          docType: doc.docType, documentId: doc.id);
+      await client.cancelDocument(docType: doc.docType, documentId: doc.id);
       await _exchange(ref, session); // reversal rows + docstatus 2 come home
     } finally {
       client.close();
@@ -192,18 +214,49 @@ class TeamOfficialPosting implements OfficialPostingOverride {
     final db = (await ref.read(mercantisDatabaseProvider.future)).db;
     final registry = await ref.read(metadataRegistryProvider.future);
     final deviceId = await ref.read(deviceIdProvider.future);
-    final adapter = TeamAccountClient.adapterFor(session);
-    try {
-      await TeamSyncRunner(
-        database: db,
-        registry: registry,
-        adapter: adapter,
-        localDeviceId: deviceId,
-        companyId: session.companyId,
-      ).run();
-    } finally {
-      adapter.close();
-    }
+    await runTeamSync(
+      session: session,
+      database: db,
+      registry: registry,
+      localDeviceId: deviceId,
+    );
+  }
+}
+
+/// One complete Team sync exchange for [session]: the sync plane (pull,
+/// push) plus the posting-authority duties every exchange has — confirming
+/// this till's offline sales and detecting a server restored behind this
+/// device's cursor. Every caller (Sync now, background sync, the posting
+/// override, the joining device's first pull) goes through here.
+Future<TeamSyncResult> runTeamSync({
+  required TeamSession session,
+  required Database database,
+  required MetadataRegistry registry,
+  required String localDeviceId,
+  http.Client? client,
+  TeamSyncCursorStore? cursorStore,
+}) async {
+  final adapter = TeamAccountClient.adapterFor(session, client: client);
+  final posting = TeamPostingClient(
+    baseUrl: session.baseUrl,
+    companyId: session.companyId,
+    deviceToken: session.deviceToken,
+    client: client,
+  );
+  try {
+    return await TeamSyncRunner(
+      database: database,
+      registry: registry,
+      adapter: adapter,
+      localDeviceId: localDeviceId,
+      companyId: session.companyId,
+      cursorStore: cursorStore,
+      confirmTillSale: posting.submitDocument,
+      logHead: () => posting.logHead(),
+    ).run();
+  } finally {
+    adapter.close();
+    posting.close();
   }
 }
 
