@@ -1,0 +1,277 @@
+name: Release builds
+
+# Proves that Atlas compiles in RELEASE mode on every supported platform and
+# produces versioned, checksummed artifacts. Nothing here publishes to a
+# store or creates a public release: signed artifacts are produced only by a
+# manual run on the protected `release` environment and are uploaded as
+# workflow artifacts for the product owner to inspect.
+#
+# Setup and secrets: docs/release/RELEASE_SIGNING_AND_SECRETS.md
+# Procedure:         docs/release/RELEASE_PROCESS.md
+
+on:
+  workflow_dispatch:
+    inputs:
+      signed:
+        description: "Sign with the release environment's keys (needs approval)"
+        type: boolean
+        default: false
+  push:
+    branches: ["main"]
+    tags: ["atlas-v*"]
+  pull_request:
+    paths:
+      - "android/**"
+      - "ios/**"
+      - "macos/**"
+      - "windows/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - "lib/main.dart"
+      - "lib/build_info.dart"
+      - ".github/workflows/release-build.yml"
+
+concurrency:
+  group: release-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: "3.44.0"
+
+jobs:
+  version:
+    name: Version stamp
+    runs-on: ubuntu-latest
+    outputs:
+      build_name: ${{ steps.v.outputs.build_name }}
+      build_number: ${{ steps.v.outputs.build_number }}
+      defines: ${{ steps.v.outputs.defines }}
+      label: ${{ steps.v.outputs.label }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          set -euo pipefail
+          # Marketing version from pubspec.yaml (the part before '+').
+          build_name=$(sed -n 's/^version:[[:space:]]*\([0-9][0-9.]*\).*/\1/p' pubspec.yaml)
+          # Monotonic build number for Android versionCode / CFBundleVersion.
+          # Offset keeps it above any build made before this pipeline.
+          build_number=$((1000 + GITHUB_RUN_NUMBER))
+          sha=$(git rev-parse --short=10 HEAD)
+          built=$(date -u +%Y-%m-%dT%H:%MZ)
+          ref="${GITHUB_REF_NAME}"
+          defines="--dart-define=APP_VERSION=${build_name} --dart-define=BUILD_NUMBER=${build_number} --dart-define=GIT_COMMIT=${sha} --dart-define=GIT_REF=${ref} --dart-define=BUILD_TIME=${built}"
+          echo "build_name=${build_name}" >> "$GITHUB_OUTPUT"
+          echo "build_number=${build_number}" >> "$GITHUB_OUTPUT"
+          echo "defines=${defines}" >> "$GITHUB_OUTPUT"
+          echo "label=atlas-${build_name}+${build_number}-${sha}" >> "$GITHUB_OUTPUT"
+          echo "Atlas ${build_name} (${build_number}) from ${sha} on ${ref}" >> "$GITHUB_STEP_SUMMARY"
+
+  android:
+    name: Android (release, unsigned)
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Build app bundle (no signing key in this job)
+        run: >-
+          flutter build appbundle --release
+          --build-name=${{ needs.version.outputs.build_name }}
+          --build-number=${{ needs.version.outputs.build_number }}
+          ${{ needs.version.outputs.defines }}
+      - name: Release manifest permissions and flags
+        run: |
+          set -euo pipefail
+          manifest=$(find build/app/intermediates -path '*release*' -name AndroidManifest.xml | grep -i merged | head -1)
+          echo "Merged release manifest: $manifest"
+          {
+            echo "### Android release manifest"
+            echo '```'
+            grep -Eo 'uses-permission[^>]*android:name="[^"]+"' "$manifest" | sed 's/.*android:name=//' | sort -u
+            grep -Eo 'android:(allowBackup|package|versionCode|versionName|minSdkVersion|targetSdkVersion)="[^"]*"' "$manifest" | sort -u
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          grep -q 'android:allowBackup="false"' "$manifest"
+      - name: Checksums
+        run: |
+          cd build/app/outputs/bundle/release
+          mv app-release.aab ${{ needs.version.outputs.label }}-unsigned.aab
+          sha256sum *.aab > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-unsigned-${{ needs.version.outputs.label }}
+          path: build/app/outputs/bundle/release/
+          retention-days: 14
+
+  ios:
+    name: iOS (release, no codesign)
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Build iOS app (unsigned)
+        run: >-
+          flutter build ios --release --no-codesign
+          --build-name=${{ needs.version.outputs.build_name }}
+          --build-number=${{ needs.version.outputs.build_number }}
+          ${{ needs.version.outputs.defines }}
+      - name: Bundle facts
+        run: |
+          plist=build/ios/iphoneos/Runner.app/Info.plist
+          {
+            echo "### iOS bundle"
+            echo '```'
+            for k in CFBundleIdentifier CFBundleShortVersionString CFBundleVersion MinimumOSVersion NSCameraUsageDescription NSPhotoLibraryUsageDescription; do
+              echo "$k = $(/usr/libexec/PlistBuddy -c "Print :$k" "$plist")"
+            done
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+  macos:
+    name: macOS (release, ad-hoc signed)
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Build macOS app
+        run: >-
+          flutter build macos --release
+          --build-name=${{ needs.version.outputs.build_name }}
+          --build-number=${{ needs.version.outputs.build_number }}
+          ${{ needs.version.outputs.defines }}
+      - name: Package and checksum
+        run: |
+          set -euo pipefail
+          cd build/macos/Build/Products/Release
+          app=$(ls -d *.app | head -1)
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$app/Contents/Info.plist"
+          codesign -dv --entitlements - "$app" 2>&1 | tail -20 || true
+          ditto -c -k --keepParent "$app" ${{ needs.version.outputs.label }}-macos-unnotarized.zip
+          shasum -a 256 *.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-unnotarized-${{ needs.version.outputs.label }}
+          path: |
+            build/macos/Build/Products/Release/*.zip
+            build/macos/Build/Products/Release/SHA256SUMS.txt
+          retention-days: 14
+
+  windows:
+    name: Windows (release, unsigned)
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Build Windows app
+        run: >-
+          flutter build windows --release
+          --build-name=${{ needs.version.outputs.build_name }}
+          --build-number=${{ needs.version.outputs.build_number }}
+          ${{ needs.version.outputs.defines }}
+      - name: Package and checksum
+        shell: pwsh
+        run: |
+          $out = "build/windows/x64/runner/Release"
+          $zip = "${{ needs.version.outputs.label }}-windows-unsigned.zip"
+          Compress-Archive -Path "$out/*" -DestinationPath $zip
+          (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() + "  " + $zip | Out-File SHA256SUMS.txt -Encoding ascii
+          Get-Content SHA256SUMS.txt
+          (Get-Item "$out/mercantis_hub_app.exe").VersionInfo | Format-List ProductName, ProductVersion, FileVersion, CompanyName
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-unsigned-${{ needs.version.outputs.label }}
+          path: |
+            *-windows-unsigned.zip
+            SHA256SUMS.txt
+          retention-days: 14
+
+  # Signed Android build. Runs only when a maintainer starts the workflow
+  # with "signed" ticked; the `release` environment holds the upload key and
+  # should require the product owner's approval. Output stays a workflow
+  # artifact: uploading to Google Play is a separate, manual step.
+  android-signed:
+    name: Android (signed upload build)
+    needs: version
+    if: github.event_name == 'workflow_dispatch' && inputs.signed
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Restore upload keystore from the environment secret
+        env:
+          KEYSTORE_B64: ${{ secrets.ATLAS_ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64" || { echo "::error::ATLAS_ANDROID_KEYSTORE_BASE64 is not set"; exit 1; }
+          echo "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/atlas-upload.jks"
+      - name: Build signed bundle and APK
+        env:
+          ATLAS_REQUIRE_RELEASE_SIGNING: "true"
+          ATLAS_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/atlas-upload.jks
+          ATLAS_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ATLAS_ANDROID_KEYSTORE_PASSWORD }}
+          ATLAS_ANDROID_KEY_ALIAS: ${{ secrets.ATLAS_ANDROID_KEY_ALIAS }}
+          ATLAS_ANDROID_KEY_PASSWORD: ${{ secrets.ATLAS_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          args="--release --build-name=${{ needs.version.outputs.build_name }} --build-number=${{ needs.version.outputs.build_number }} ${{ needs.version.outputs.defines }}"
+          flutter build appbundle $args
+          flutter build apk $args
+      - name: Verify signature, checksum
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp build/app/outputs/bundle/release/app-release.aab dist/${{ needs.version.outputs.label }}.aab
+          cp build/app/outputs/flutter-apk/app-release.apk dist/${{ needs.version.outputs.label }}.apk
+          jarsigner -verify dist/*.aab | tail -1
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+          "$apksigner" verify --print-certs dist/*.apk | grep -E "Signer #1 certificate (DN|SHA-256)"
+          (cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          rm -f "$RUNNER_TEMP/atlas-upload.jks"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-signed-${{ needs.version.outputs.label }}
+          path: dist/
+          retention-days: 30

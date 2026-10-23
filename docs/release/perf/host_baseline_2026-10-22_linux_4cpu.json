@@ -1,0 +1,70 @@
+{
+  "kind": "host-data-layer-baseline",
+  "warning": "Host machine numbers. Not a device measurement.",
+  "generated_at": "2026-10-22T22:39:11.625444Z",
+  "host": {
+    "os": "linux",
+    "os_version": "Linux 6.18.44-fc-v140 #1 SMP PREEMPT_DYNAMIC @0",
+    "processors": 4,
+    "dart": "3.12.0",
+    "ci": "local"
+  },
+  "results": {
+    "db_init_fresh_install_ms": 1233.984,
+    "db_init_existing_ms": 332.827,
+    "create_1000_customers_ms": 5121.223,
+    "list_1000_customers_ms": 25.272,
+    "list_1000_customers_first_page_ms": 2.155,
+    "create_next_9000_customers_ms": 39050.219,
+    "list_10000_customers_ms": 99.624,
+    "list_10000_customers_first_page_ms": 6.326,
+    "search_10000_customers_by_name": {
+      "p50_ms": 4.358,
+      "p95_ms": 5.02,
+      "max_ms": 10.805
+    },
+    "create_5000_items_ms": 24701.713,
+    "search_5000_item_catalogue": {
+      "p50_ms": 4.141,
+      "p95_ms": 5.04,
+      "max_ms": 5.601
+    },
+    "post_100_stock_purchases_ms": 15494.26,
+    "create_and_post_invoice_5_lines": {
+      "p50_ms": 159.687,
+      "p95_ms": 189.893,
+      "max_ms": 199.236
+    },
+    "stock_availability_single_item": {
+      "p50_ms": 0.544,
+      "p95_ms": 0.607,
+      "max_ms": 0.761
+    },
+    "stock_availability_all_bins_ms": 3.516,
+    "report_trial_balance_ms": 19.751,
+    "report_profit_and_loss_ms": 15.716,
+    "report_balance_sheet_ms": 19.048,
+    "report_ar_ageing_ms": 5.139,
+    "report_stock_valuation_ms": 6.078,
+    "report_stock_gl_reconciliation_ms": 20.309,
+    "offline_changes_queued": 18529,
+    "offline_queue_count_ms": 0.86,
+    "attach_2mb_receipt": {
+      "p50_ms": 64.824,
+      "p95_ms": 102.195,
+      "max_ms": 102.195
+    },
+    "documents_total": 18028,
+    "db_file_mb": 18.39,
+    "integrity_quick_check_ms": 23.602,
+    "backup_large_book_ms": 15557.41,
+    "backup_file_mb": 38.16,
+    "restore_stage_and_verify_ms": 6669.523,
+    "restore_commit_ms": 583.563,
+    "reopen_restored_book_ms": 281.371,
+    "host_rss_growth_mb": 122.4
+  },
+  "notes": [
+    "RSS is the test process (Dart VM + flutter_test), not the app."
+  ]
+}

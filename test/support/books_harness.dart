@@ -29,9 +29,10 @@ class BooksHarness {
     bool seed = true,
     String deviceId = 'device-a',
     List<DocumentInterceptor> interceptors = hubInterceptors,
+    DatabaseFactory? factory,
   }) async {
     final db = await MercantisDatabase.open(
-        factory: databaseFactoryFfi, path: path);
+        factory: factory ?? databaseFactoryFfi, path: path);
     final registry = MetadataRegistry(db.db);
     final sync = SyncEngine(database: db.db, registry: registry);
     final installer =

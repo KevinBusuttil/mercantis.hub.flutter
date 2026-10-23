@@ -1,0 +1,10 @@
+# Copy to android/key.properties (git-ignored) on a maintainer machine that is
+# allowed to sign Atlas releases. Never commit the real file or the keystore.
+# CI does not use this file: it reads the ATLAS_ANDROID_* secrets of the
+# protected `release` environment. See docs/release/RELEASE_SIGNING_AND_SECRETS.md.
+#
+# storeFile is relative to android/app/, or absolute.
+storeFile=/secure/location/atlas-upload.jks
+storePassword=CHANGE_ME
+keyAlias=atlas-upload
+keyPassword=CHANGE_ME

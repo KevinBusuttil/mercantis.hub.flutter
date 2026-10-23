@@ -11,6 +11,7 @@ import 'package:path/path.dart' as p;
 import '../backup/app_restart.dart';
 import '../backup/hub_backup.dart';
 import '../ledger/ledger_derivation_service.dart';
+import '../support/diagnostic_log.dart';
 import '../team/team_session.dart';
 
 /// The Hub's backup helper for this device's data folder.
@@ -249,7 +250,8 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
         _lastReport = report;
       });
       ref.invalidate(_backupStatusProvider);
-    } catch (e) {
+    } catch (e, s) {
+      DiagnosticLog.instance.record('backup', e, s);
       if (!mounted) return;
       setState(() => _busy = null);
       messenger.showSnackBar(SnackBar(
@@ -312,7 +314,8 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
     StagedRestore staged;
     try {
       staged = await backup.stage(path, pass);
-    } catch (e) {
+    } catch (e, s) {
+      DiagnosticLog.instance.record('restore', e, s);
       if (!mounted) return;
       setState(() => _busy = null);
       messenger.showSnackBar(SnackBar(
@@ -367,6 +370,7 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
               ' Folder sync is off; turn it on again in Settings if you use it.',
         );
       } on RestoreVerificationException catch (e) {
+        DiagnosticLog.instance.record('restore', e);
         await HubBackup.resumeFolderSync(syncBefore);
         return RestartNotice(
           success: false,
@@ -375,7 +379,8 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
               'your previous data back exactly as it was. '
               '${e.problems.take(3).join('; ')}',
         );
-      } catch (e) {
+      } catch (e, s) {
+        DiagnosticLog.instance.record('restore', e, s);
         // Folder sync stays off: an error this late may come after the
         // restored books were installed, and sync must never push them into
         // the previous shared folder.

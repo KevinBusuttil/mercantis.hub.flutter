@@ -13,6 +13,7 @@ import '../modules/accounting/year_end_close_service.dart';
 import '../settings/hub_settings.dart';
 import 'company_sync_screen.dart';
 import 'numbering_series_screen.dart';
+import 'support_screen.dart';
 import '../modules/stock/inventory_takeon.dart';
 
 /// App preferences: the signed-in operator (passcode lock managed by the auth
@@ -410,6 +411,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onTap: _lockBooks,
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: MercantisSpacing.lg),
+          AtlasSectionCard(
+            name: 'Support',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.support_agent_outlined),
+              title: const Text('Help & diagnostics'),
+              subtitle: const Text('A privacy-safe report to send to Atlas '
+                  'support when something goes wrong'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const SupportScreen(),
+              )),
             ),
           ),
           const SizedBox(height: MercantisSpacing.lg),

@@ -3,6 +3,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../pricing/price_resolver.dart';
 import '../scheduling/scheduling_service.dart';
+import 'bin_identity.dart';
 import 'deposit_service.dart';
 import 'hub_tax_engine.dart';
 import 'ledger_derivation.dart';
@@ -36,6 +37,8 @@ const hubInterceptors = <DocumentInterceptor>[
   GroupAccountPostingGuardInterceptor(),
   JournalBalanceGuardInterceptor(),
   DuplicateSupplierBillGuardInterceptor(),
+  // New item/warehouse codes must not make two stock positions share a Bin.
+  BinIdentityGuardInterceptor(),
   ExpenseDefaultsInterceptor(),
   DepositApplicationInterceptor(),
   AppointmentConflictInterceptor(),
@@ -501,7 +504,7 @@ class NegativeStockGuardInterceptor extends DocumentInterceptor {
     }
 
     for (final req in requested.values) {
-      final bin = await engine.fetch('Bin', 'BIN-${req.item}-${req.warehouse}');
+      final bin = await engine.fetch('Bin', binId(req.item, req.warehouse));
       final onHand = bin == null ? 0 : asNum(bin.payload['actual_qty']);
       if (req.qty > onHand + 0.0000001) {
         throw DocumentEngineError.validationFailed([

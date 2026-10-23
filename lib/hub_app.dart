@@ -13,7 +13,9 @@ import 'ledger/ledger_derivation_service.dart';
 import 'manufacturing/manufacturing_service.dart';
 import 'onboarding/onboarding_providers.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/startup_error_screen.dart';
 import 'settings/hub_settings.dart';
+import 'support/diagnostic_log.dart';
 import 'sync/company_sync.dart';
 import 'team/team_session.dart';
 
@@ -31,10 +33,12 @@ class MercantisHubApp extends ConsumerWidget {
         debugShowCheckedModeBanner: false,
         home: const _HubSplashScreen(),
       ),
-      error: (e, _) => MaterialApp(
+      error: (e, s) => MaterialApp(
         theme: MercantisTheme.light(),
+        darkTheme: MercantisTheme.dark(),
+        themeMode: ref.watch(themeModeProvider),
         debugShowCheckedModeBanner: false,
-        home: Scaffold(body: Center(child: Text('Boot error: $e'))),
+        home: StartupErrorScreen(error: e, stack: s),
       ),
       data: (_) => const _OnboardingGate(),
     );
@@ -58,10 +62,12 @@ class _OnboardingGate extends ConsumerWidget {
         debugShowCheckedModeBanner: false,
         home: const _HubSplashScreen(),
       ),
-      error: (e, _) => MaterialApp(
+      error: (e, s) => MaterialApp(
         theme: MercantisTheme.light(),
+        darkTheme: MercantisTheme.dark(),
+        themeMode: ref.watch(themeModeProvider),
         debugShowCheckedModeBanner: false,
-        home: Scaffold(body: Center(child: Text('Setup check failed: $e'))),
+        home: StartupErrorScreen(error: e, stack: s),
       ),
       data: (exists) => exists
           ? const AuthGate(child: _HubRouterApp())
@@ -116,6 +122,10 @@ final _hubRouterProvider = Provider((ref) {
 /// reach an existing database). Then wire the ledger derivation service so
 /// submit/cancel posts GL, subledger, settlement, and stock-ledger rows.
 final _bootProvider = FutureProvider<void>((ref) async {
+  // Keep the error history across restarts. First, so a failure further
+  // down boot is recorded on disk too.
+  await DiagnosticLog.instance
+      .attach(await ref.watch(atlasDataDirectoryProvider.future));
   final installer = await ref.watch(appInstallerProvider.future);
   final manifest = HubManifest.build();
   final isInstalled = await installer.isInstalled(manifest.id);
