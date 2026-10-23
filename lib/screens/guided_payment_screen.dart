@@ -207,7 +207,17 @@ class _GuidedPaymentScreenState extends ConsumerState<GuidedPaymentScreen> {
         amount: amount,
       );
       final saved = await engine.save(draft, _systemRoles);
-      final submitted = await engine.submit(saved, _systemRoles);
+      // Atlas Team: the payment is posted by the Team server (settlement,
+      // outstanding and official number are server-authoritative), exactly
+      // like Submit on the Payment Entry form. Solo posts locally.
+      final official = ref.read(officialPostingOverrideProvider);
+      final Document submitted;
+      if (official != null && official.handles(saved.docType)) {
+        await official.submit(ref, saved);
+        submitted = await engine.fetch(saved.docType, saved.id) ?? saved;
+      } else {
+        submitted = await engine.submit(saved, _systemRoles);
+      }
       if (!mounted) return;
       setState(() {
         _saving = false;

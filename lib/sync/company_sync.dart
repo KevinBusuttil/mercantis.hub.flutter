@@ -10,8 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../ledger/ledger_derivation_service.dart';
 import '../numbering/numbering_series.dart';
 import '../screens/screen_providers.dart';
-import '../team/team_account_client.dart';
 import '../team/team_session.dart';
+import '../team/team_posting_service.dart';
 import '../team/team_sync_runner.dart';
 
 /// Device-local prefs keys (each device mounts the shared folder at its own
@@ -225,25 +225,21 @@ class CompanySyncNotifier extends AsyncNotifier<SyncStatus> {
       int pushed = 0;
       int pulled = 0;
       int applied = 0;
+      var tillAttention = const <TillSaleAttention>[];
       final team = _team;
       if (team != null) {
         // Team transport: the backend is the log; the runner filters our own
         // echoes and keeps the pull cursor.
-        final adapter = TeamAccountClient.adapterFor(team);
-        try {
-          final result = await TeamSyncRunner(
-            database: db,
-            registry: registry,
-            adapter: adapter,
-            localDeviceId: current.deviceId,
-            companyId: team.companyId,
-          ).run();
-          pushed = result.pushed;
-          pulled = result.pulled;
-          applied = result.applied;
-        } finally {
-          adapter.close();
-        }
+        final result = await runTeamSync(
+          session: team,
+          database: db,
+          registry: registry,
+          localDeviceId: current.deviceId,
+        );
+        pushed = result.pushed;
+        pulled = result.pulled;
+        applied = result.applied;
+        tillAttention = result.tillSalesNeedingAttention;
       } else {
         // Solo transport: the shared folder is the log; the adapter itself
         // skips our own subdirectory on pull.
@@ -286,6 +282,12 @@ class CompanySyncNotifier extends AsyncNotifier<SyncStatus> {
         lastSyncedAt: DateTime.now(),
         lastPushed: pushed,
         lastPulled: pulled,
+        // Till sales the Team server refused to confirm stay local fiscal
+        // sales until resolved; say so instead of reporting a clean sync.
+        message: tillAttention.isEmpty
+            ? null
+            : '${tillAttention.length} till sale(s) not confirmed by Atlas '
+                'Team: ${tillAttention.first}',
       ));
     } catch (e) {
       final base = state.valueOrNull ?? current;

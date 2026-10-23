@@ -12,7 +12,7 @@ import '../onboarding/onboarding_providers.dart';
 import '../settings/hub_settings.dart';
 import '../team/team_account_client.dart';
 import '../team/team_session.dart';
-import '../team/team_sync_runner.dart';
+import '../team/team_posting_service.dart';
 import 'backup_restore_screen.dart';
 
 /// First-run wizard: name the business, pick a currency + a business preset,
@@ -148,18 +148,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       final db = (await ref.read(mercantisDatabaseProvider.future)).db;
       final registry = await ref.read(metadataRegistryProvider.future);
       final deviceId = await ref.read(deviceIdProvider.future);
-      final adapter = TeamAccountClient.adapterFor(session);
-      try {
-        await TeamSyncRunner(
-          database: db,
-          registry: registry,
-          adapter: adapter,
-          localDeviceId: deviceId,
-          companyId: session.companyId,
-        ).run();
-      } finally {
-        adapter.close();
-      }
+      await runTeamSync(
+        session: session,
+        database: db,
+        registry: registry,
+        localDeviceId: deviceId,
+      );
       ref.invalidate(companyExistsProvider);
       // The boot gate rebuilds; the adopted Company is now local.
     } catch (e) {

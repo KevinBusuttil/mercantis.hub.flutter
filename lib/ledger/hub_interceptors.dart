@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
@@ -33,6 +35,7 @@ const hubInterceptors = <DocumentInterceptor>[
   BomRollupInterceptor(),
   FiscalYearGuardInterceptor(),
   BooksLockGuardInterceptor(),
+  SettledInvoiceCancelGuardInterceptor(),
   NegativeStockGuardInterceptor(),
   GroupAccountPostingGuardInterceptor(),
   JournalBalanceGuardInterceptor(),
@@ -453,6 +456,53 @@ class BooksLockGuardInterceptor extends DocumentInterceptor {
         ),
       ]);
     }
+  }
+}
+
+/// Refuses to cancel an invoice while a payment is still allocated to it:
+/// the payment's settlement would point at a cancelled invoice and the
+/// party's balance would no longer reconcile. Cancel the payment first, then
+/// the invoice. The Team server enforces the same rule (409), and the shared
+/// accounting contract (fixture 0012) holds both engines to it.
+class SettledInvoiceCancelGuardInterceptor extends DocumentInterceptor {
+  const SettledInvoiceCancelGuardInterceptor();
+
+  static const _invoiceDocTypes = {'Sales Invoice', 'Purchase Invoice'};
+
+  @override
+  Future<void> inLifecycleTransaction(DocumentEngine engine, Document doc,
+      DocType docType, UnitOfWork uow, LifecycleAction action) async {
+    if (action != LifecycleAction.cancel ||
+        !_invoiceDocTypes.contains(doc.docType)) {
+      return;
+    }
+    // Settlements net to zero once their payment is cancelled (the
+    // reversal row negates the allocation).
+    final rows = await uow.db.query('documents',
+        columns: ['payload'],
+        where: "doctype = 'Settlement' "
+            "AND json_extract(payload, '\$.invoice_voucher_no') = ? "
+            "AND json_extract(payload, '\$.invoice_voucher_type') = ?",
+        whereArgs: [doc.id, doc.docType]);
+    final payments = <String, num>{};
+    for (final row in rows) {
+      final raw = row['payload'];
+      final p = raw is String ? jsonDecode(raw) as Map : const {};
+      final payment = '${p['payment_voucher_no']}';
+      payments[payment] =
+          (payments[payment] ?? 0) + asNum(p['allocated_amount']);
+    }
+    payments.removeWhere((_, allocated) => allocated.abs() < 0.005);
+    if (payments.isEmpty) return;
+    throw DocumentEngineError.validationFailed([
+      ValidationError(
+        stage: 'settled_invoice',
+        fieldKey: 'docstatus',
+        message: 'Payments are allocated to ${doc.id} '
+            '(${payments.keys.join(', ')}). Cancel the payment first, then '
+            'the invoice.',
+      ),
+    ]);
   }
 }
 

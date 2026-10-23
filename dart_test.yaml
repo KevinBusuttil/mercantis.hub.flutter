@@ -1,0 +1,4 @@
+tags:
+  # Real multi-device Team test against a running backend
+  # (test/team_e2e, tool/team_e2e.sh). Skipped without ATLAS_TEAM_E2E_URL.
+  team-e2e:

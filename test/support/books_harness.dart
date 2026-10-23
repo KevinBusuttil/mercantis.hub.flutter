@@ -30,6 +30,7 @@ class BooksHarness {
     String deviceId = 'device-a',
     List<DocumentInterceptor> interceptors = hubInterceptors,
     DatabaseFactory? factory,
+    NamingService? namingService,
   }) async {
     final db = await MercantisDatabase.open(
         factory: factory ?? databaseFactoryFfi, path: path);
@@ -51,7 +52,7 @@ class BooksHarness {
       permissionEngine: const PermissionEngine(),
       workflowEngine: WorkflowEngine(db.db),
       expressionEvaluator: ExpressionEvaluator(),
-      namingService: NamingService(),
+      namingService: namingService ?? NamingService(),
       syncEngine: sync,
       emitter: emitter,
       deviceId: deviceId,
