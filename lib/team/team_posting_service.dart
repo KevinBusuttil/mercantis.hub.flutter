@@ -10,6 +10,7 @@ import '../support/diagnostic_log.dart';
 import 'team_account_client.dart';
 import 'team_books_lock.dart';
 import 'team_history.dart';
+import 'team_protocol.dart';
 import 'team_session.dart';
 import 'team_sync_runner.dart';
 
@@ -83,7 +84,7 @@ class TeamPostingClient {
     http.Client? client,
     TeamHistoryStore? history,
   })  : baseUrl = baseUrl.replaceAll(RegExp(r'/+$'), ''),
-        _client = client ?? http.Client(),
+        _client = teamHttpClient(client),
         history = history ?? PrefsTeamHistoryStore();
 
   final String baseUrl;
@@ -283,6 +284,9 @@ Future<TeamSyncResult> runTeamSync({
   TeamSyncCursorStore? cursorStore,
   TeamHistoryStore? historyStore,
 }) async {
+  // C6: never exchange anything with a server this app is not compatible
+  // with (it would lack commands this app relies on, or refuse this app).
+  await checkTeamServerProtocol(session.baseUrl, client: client);
   final adapter = TeamAccountClient.adapterFor(session, client: client);
   final history = historyStore ?? PrefsTeamHistoryStore();
   final posting = TeamPostingClient(

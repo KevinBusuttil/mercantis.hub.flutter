@@ -25,6 +25,8 @@ its own.
 | One-time move of a Solo book into a new Team company (server take-on, reconciliation, crash-safe switch). Device run PENDING | Backend `tests/solo_migration.rs`. Hub `test/solo_to_team_test.dart`, hub E2E `solo_to_team_e2e_test.dart`. See `SOLO_TO_TEAM_MIGRATION.md` |
 | Backup, encrypted off-site copy, restore drill into a clean isolated cluster, client resync after restore | Backend `scripts/restore_drill.sh`, CI `restore-drill` job, `docs/evidence/restore-drill-2026-10-23-local.md`. Hub E2E: cursor ahead of the server's head triggers a full re-pull. C4: a changed server history is detected by hash chain even after the log grows past the device; devices recover without a wipe. `docs/team/TEAM_RESTORE_RECOVERY.md`, 8 restore scenarios on PostgreSQL. Device run PENDING |
 | Health and readiness, structured logs with request ids, backup-age monitor | Backend `/ready`, `scripts/monitor.sh`, `docs/OPERATIONS.md` |
+| App and server compatibility: a versioned protocol contract; an app will not sync with a server that lacks what it needs, and a server can refuse outdated apps with an update message | Backend `contract/team_protocol.json`, `tests/protocol.rs`. Hub `test/team_protocol_test.dart`, hub E2E `team_protocol_e2e_test.dart`. See `TEAM_PROTOCOL_CONTRACT.md` |
+| Every hub change is tested end to end against one pinned backend commit, with drift checks on the shared fixtures and the protocol contract | Hub CI job `team-e2e` (`tool/team_backend.pin`) |
 
 ## 2. Not in Team 1.0 (not advertised until verified end to end)
 
@@ -55,6 +57,11 @@ its own.
    holds it, it moves only through `commands/set-books-lock`, and devices
    copy it. Open until the pilot month-end has closed a period with it
    (P7).*
+7. Release pairing. *Implemented in C6: the hub pins the backend commit it
+   is tested against, and CI runs the full Team E2E and the contract drift
+   check on it. Open until the backend PRs merge, the pin points at a
+   merged commit, the job has passed on `main`, and production runs that
+   backend release.*
 
 ## 4. Pilot plan (M4.6)
 

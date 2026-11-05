@@ -105,6 +105,8 @@ jobs:
           test/team_books_lock_test.dart
           test/team_posting_guard_test.dart
           test/team_posting_test.dart
+      - name: Team protocol contract (C6)
+        run: flutter test test/team_protocol_test.dart
       - name: Accounting fixtures (stock/COGS, reports)
         run: >-
           flutter test
@@ -127,6 +129,77 @@ jobs:
           name: host-perf-baseline
           path: build/perf/host_results.json
           if-no-files-found: ignore
+
+  # C6: the Team release gate. The backend this app is built against is
+  # pinned to one commit (tool/team_backend.pin). This job checks that exact
+  # commit out, fails when the shared accounting fixtures or the protocol
+  # contract have drifted from the hub's copies, then builds that backend,
+  # runs it on PostgreSQL 16 and runs the whole Team end-to-end suite
+  # (multi-device sync, server posting authority, Solo to Team, C5 authority,
+  # protocol handshake, then the server-restore scenarios on their own).
+  team-e2e:
+    name: Team E2E and contract drift (pinned backend)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas
+          POSTGRES_DB: atlas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the pinned backend
+        id: pin
+        run: |
+          set -euo pipefail
+          repository=$(sed -n 's/^repository=//p' tool/team_backend.pin)
+          commit=$(sed -n 's/^commit=//p' tool/team_backend.pin)
+          if [[ ! $commit =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::tool/team_backend.pin must name a full commit, not a branch or tag"; exit 1
+          fi
+          echo "repository=$repository" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.pin.outputs.repository }}
+          ref: ${{ steps.pin.outputs.commit }}
+          path: team-backend
+      - name: The checkout is the pinned commit
+        run: test "$(git -C team-backend rev-parse HEAD)" = "${{ steps.pin.outputs.commit }}"
+      - name: Contract drift (accounting fixtures and protocol)
+        run: ATLAS_BACKEND_DIR=team-backend bash tool/check_accounting_contract.sh
+      - name: Tools (SQLite for the devices, PostgreSQL 16 client for the restore scenarios)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libsqlite3-0 postgresql-client-16
+      - name: Install Rust (the backend's rust-toolchain.toml)
+        working-directory: team-backend
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: team-backend
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Team end-to-end suite against the pinned backend
+        env:
+          ATLAS_BACKEND_DIR: team-backend
+          ATLAS_E2E_ADMIN_URL: postgres://atlas:atlas@localhost:5432/postgres
+          PATH_TO_PG: /usr/lib/postgresql/16/bin
+        run: |
+          export PATH="$PATH_TO_PG:$PATH"
+          bash tool/team_e2e.sh
 
   security:
     name: Secret and dependency scan
