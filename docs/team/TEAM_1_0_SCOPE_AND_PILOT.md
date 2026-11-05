@@ -20,6 +20,7 @@ its own.
 | Server-side immutability; corrections by cancel/reversal only | Backend `tests/authority_guard.rs`, `tests/posting.rs` |
 | Offline POS under a per-till series, confirmed by the server, convergent stock | Backend `tests/authority_guard.rs`. Hub E2E: offline till |
 | Tenant isolation (Company A cannot read or change Company B) | Backend `tests/tenant_isolation.rs` (all 25 company routes). Hub E2E cross-company probes |
+| One-time move of a Solo book into a new Team company (server take-on, reconciliation, crash-safe switch). Device run PENDING | Backend `tests/solo_migration.rs`. Hub `test/solo_to_team_test.dart`, hub E2E `solo_to_team_e2e_test.dart`. See `SOLO_TO_TEAM_MIGRATION.md` |
 | Backup, encrypted off-site copy, restore drill into a clean isolated cluster, client resync after restore | Backend `scripts/restore_drill.sh`, CI `restore-drill` job, `docs/evidence/restore-drill-2026-10-23-local.md`. Hub E2E: cursor ahead of the server's head triggers a full re-pull |
 | Health and readiness, structured logs with request ids, backup-age monitor | Backend `/ready`, `scripts/monitor.sh`, `docs/OPERATIONS.md` |
 
@@ -29,7 +30,6 @@ its own.
 |---|---|---|
 | Journal Entry, Expense, Customer Deposit (and so depreciation, payout import, booking/rental/lease deposits) | No server posting path | Draft only. Submit is refused with an explanation |
 | Recurring invoices, channel (commerce) import, construction valuations, rental/booking invoicing, work-order completion | These flows submit on the device. They are not yet routed to the server | The generated documents are refused at submit. The user submits them from the form while connected |
-| Opening-data take-on into a Team company | Submits stock locally | Do the take-on in Solo before connecting |
 | POS session close and cash-up confirmed by the server | No backend endpoint | Cash-up stays local to the till |
 | Malta fiscal receipts | MTCA approval and EXO number pending | Must not be claimed |
 | Transactional email (invoices, statements, reminders) | No backend sending or delivery tracking | Not offered in Team |
@@ -59,8 +59,10 @@ devices are active at the same time, and stock is in scope.
 **Duration.** Four weeks of live use, including one month-end.
 
 **Setup (week 0).**
-- Migrate the customer's opening data in Solo, reconcile it, then connect
-  to Team. Record the reconciliation report.
+- Migrate the customer's opening data in Solo and reconcile it. Then use
+  Team › **Move these books to Atlas Team…** (`SOLO_TO_TEAM_MIGRATION.md`).
+  A Solo book with issued documents cannot connect directly. Record the
+  completion notice and keep the safety backup.
 - Create members with their real roles, register their devices, and set a
   till series for every register.
 - Configure the nightly encrypted backup, the monitor and the external

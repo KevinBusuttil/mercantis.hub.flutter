@@ -109,3 +109,12 @@ After import, and any time from **Reconcile**, Atlas compares the files with the
 Every line shows the previous figure, Atlas's figure and the difference, and drills down to the Atlas vouchers behind it. **Differences are reported, never absorbed.** Atlas adjusts nothing. Rows that were rejected still count as the previous system's figures, so anything that did not make it into Atlas appears as a difference.
 
 Exit criterion (M1.3): every area agrees. The automated proof is in `opening_take_on_test.dart › reconciliation` and in the acceptance fixture.
+
+## Moving to Atlas Team later
+
+Once a Solo book holds issued documents it cannot simply connect to a Team
+company: the server would refuse its local postings and the books would
+split. Use Team › **Move these books to Atlas Team…**. It takes a safety
+backup, moves the balances at today's date into a new Team company,
+checks every figure to the cent and keeps the Solo book in an archive. See
+`docs/team/SOLO_TO_TEAM_MIGRATION.md`.
