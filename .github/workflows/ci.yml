@@ -76,6 +76,11 @@ jobs:
           test/solo_fault_test.dart
           test/posting_outbox_test.dart
           test/bin_identity_test.dart
+      - name: Automatic backup and recovery-safe numbering (R2, R3)
+        run: >-
+          flutter test
+          test/backup_protection_test.dart
+          test/numbering_recovery_test.dart
       - name: Accounting fixtures (stock/COGS, reports)
         run: >-
           flutter test

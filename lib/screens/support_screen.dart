@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
+import '../backup/backup_protection.dart';
+import '../backup/backup_scheduler.dart';
 import '../backup/hub_backup.dart';
 import '../settings/hub_settings.dart';
 import '../support/diagnostic_log.dart';
@@ -25,6 +27,13 @@ final supportDiagnosticsProvider =
   try {
     deviceId = await ref.watch(deviceIdProvider.future);
   } catch (_) {}
+  BackupProtectionPolicy? autoPolicy;
+  BackupProtectionState? autoState;
+  try {
+    final protection = await ref.watch(backupProtectionProvider.future);
+    autoPolicy = await protection.policy();
+    autoState = await protection.state();
+  } catch (_) {}
   return SupportDiagnostics.collect(
     database: db.db,
     dataDirectory: dir,
@@ -33,6 +42,8 @@ final supportDiagnosticsProvider =
     deviceId: deviceId,
     lastBackupAt: await HubBackup.lastBackupAt(),
     localBackupCount: backup.localBackups().length,
+    autoBackupPolicy: autoPolicy,
+    autoBackupState: autoState,
     events: DiagnosticLog.instance.events,
   );
 });

@@ -3,6 +3,7 @@ import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../manifest/hub_manifest.dart';
+import 'numbering_recovery.dart';
 
 /// One configured naming series resolved to its current counter for this year.
 class NumberingSeriesRow {
@@ -12,7 +13,15 @@ class NumberingSeriesRow {
     required this.seriesKey,
     required this.width,
     required this.nextNumber,
+    this.onHold = false,
+    this.official = false,
   });
+
+  /// New numbers are refused until the recovery decision (after a restore).
+  final bool onHold;
+
+  /// A business-facing series ([officialNumberingDocTypes]).
+  final bool official;
 
   /// Human DocType name (e.g. 'Sales Invoice').
   final String docType;
@@ -48,6 +57,8 @@ final numberingSeriesProvider =
 
   final rows = <NumberingSeriesRow>[];
   final seen = <String>{};
+  // What each series has actually issued (not the reserved block end).
+  final issued = await _allocator.issuedThrough(db);
   for (final dt in manifest.docTypes) {
     final patterns = <String>[
       if (dt.namingRule != null) dt.namingRule!,
@@ -57,13 +68,17 @@ final numberingSeriesProvider =
       if (!seen.add('${dt.id}|$pattern')) continue;
       final s = NamingSeriesStrategy.expandSeries(pattern);
       if (s == null) continue;
-      final through = await _allocator.peek(db, s.prefix);
+      // A recovery series (after a restore) continues under its own key.
+      final policy = await NamingSeriesPolicyStore.read(db, dt.name);
+      final key = policy?.apply(s.prefix) ?? s.prefix;
       rows.add(NumberingSeriesRow(
         docType: dt.name,
         pattern: pattern,
-        seriesKey: s.prefix,
+        seriesKey: key,
         width: s.width,
-        nextNumber: through + 1,
+        nextNumber: (issued[key] ?? 0) + 1,
+        onHold: policy?.hold ?? false,
+        official: officialNumberingDocTypes.contains(dt.name),
       ));
     }
   }
@@ -80,9 +95,58 @@ class NumberingSeriesController {
   NumberingSeriesController(this.ref);
   final Ref ref;
 
+  /// Move a series forward. Lowering it below a number already issued is
+  /// refused: that is exactly how a number gets issued twice (R3).
   Future<void> setNextNumber(String seriesKey, int nextNumber) async {
     final mdb = await ref.read(mercantisDatabaseProvider.future);
+    final issued = (await _allocator.issuedThrough(mdb.db))[seriesKey] ?? 0;
+    if (nextNumber <= issued) {
+      throw ArgumentError('$seriesKey has already issued number $issued. The '
+          'next number must be ${issued + 1} or more, so no number is '
+          'issued twice.');
+    }
     await _allocator.setNextNumber(mdb.db, seriesKey, nextNumber);
+    await NumberingRecovery.recordManualChange(mdb.db, seriesKey, nextNumber,
+        userId: currentOperatorId(ref),
+        deviceId: await ref.read(deviceIdProvider.future));
     ref.invalidate(numberingSeriesProvider);
+    ref.invalidate(numberingPolicyProvider);
+  }
+
+  Future<void> confirmLastIssued(Map<String, int> lastIssued) async {
+    final mdb = await ref.read(mercantisDatabaseProvider.future);
+    await NumberingRecovery.confirmLastIssued(mdb.db, lastIssued,
+        userId: currentOperatorId(ref),
+        deviceId: await ref.read(deviceIdProvider.future));
+    ref.invalidate(numberingSeriesProvider);
+    ref.invalidate(numberingPolicyProvider);
+  }
+
+  Future<String> startRecoverySeries() async {
+    final mdb = await ref.read(mercantisDatabaseProvider.future);
+    final segment = await NumberingRecovery.startRecoverySeries(mdb.db,
+        userId: currentOperatorId(ref),
+        deviceId: await ref.read(deviceIdProvider.future));
+    ref.invalidate(numberingSeriesProvider);
+    ref.invalidate(numberingPolicyProvider);
+    return segment;
+  }
+}
+
+/// The numbering policy in force, for the screen's banner.
+final numberingPolicyProvider = FutureProvider<
+    ({List<NamingSeriesPolicy> holds, String? segment})>((ref) async {
+  final mdb = await ref.watch(mercantisDatabaseProvider.future);
+  return (
+    holds: await NumberingRecovery.holds(mdb.db),
+    segment: await NumberingRecovery.activeSegment(mdb.db),
+  );
+});
+
+String currentOperatorId(Ref ref) {
+  try {
+    return ref.read(currentUserProvider).id;
+  } catch (_) {
+    return 'operator';
   }
 }

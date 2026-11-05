@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common/sqflite.dart';
 
 import '../build_info.dart';
+import '../numbering/numbering_recovery.dart';
 import 'business_summary.dart';
 
 /// File extension of an Atlas Solo backup.
@@ -74,7 +75,8 @@ class HubBackup {
   /// folder). [preferences] are included as `config/preferences.json`.
   Future<BackupReport> createBackup({
     required Database database,
-    required String passphrase,
+    String? passphrase,
+    BackupKeyring? keyring,
     String? outputPath,
     Map<String, Object?> preferences = const {},
     BackupKdfParams? kdf,
@@ -101,16 +103,22 @@ class HubBackup {
       ),
       outputPath: out,
       passphrase: passphrase,
+      keyring: keyring,
       kdf: kdf,
     );
   }
 
   /// Decrypt and verify [backupPath] into the staging folder. Nothing live
   /// changes.
-  Future<StagedRestore> stage(String backupPath, String passphrase) =>
+  /// [deviceKey] opens an automatic backup made on this device without the
+  /// passphrase; [passphrase] opens any backup (an automatic one through its
+  /// recovery slot).
+  Future<StagedRestore> stage(String backupPath, String? passphrase,
+          {List<int>? deviceKey}) =>
       service.stageRestore(
         backupPath: backupPath,
         passphrase: passphrase,
+        deviceKey: deviceKey,
         stagingDirectory: stagingDirectory,
         factory: factory,
       );
@@ -118,14 +126,33 @@ class HubBackup {
   /// Swap the staged books in. The live database must already be closed.
   /// Verification re-computes the [BusinessSummary] from the installed file
   /// and requires it to equal the one recorded at backup time, to the cent.
-  Future<RestoreOutcome> commit(StagedRestore staged,
-          {Future<void> Function(RestoreStep step)? onStep}) =>
-      service.commitRestore(
+  ///
+  /// Inside the restore journal, before it commits, numbering is made
+  /// recovery-safe ([NumberingRecovery.prepareRestoredBooks]): the result is
+  /// returned with the outcome. If that step fails, the restore rolls back.
+  Future<(RestoreOutcome, NumberingRecoveryResult?)> commit(
+      StagedRestore staged,
+      {Future<void> Function(RestoreStep step)? onStep,
+      String deviceId = '',
+      String userId = 'restore'}) async {
+    NumberingRecoveryResult? numbering;
+    final outcome = await service.commitRestore(
         staged,
         target,
         factory: factory,
         safetyCopyDirectory: safetyCopyDirectory,
         onStep: onStep,
+        prepareInstalled: (installed, previous) async {
+          numbering = await NumberingRecovery.prepareRestoredBooks(
+            factory: factory,
+            installedPath: installed,
+            previousPath: previous,
+            deviceId: deviceId,
+            userId: userId,
+            backupCreatedAt:
+                DateTime.tryParse('${staged.manifest['created_at']}'),
+          );
+        },
         verifyInstalled: (dbPath) async {
           final db = await factory.openDatabase(dbPath,
               options: OpenDatabaseOptions(singleInstance: false));
@@ -135,8 +162,9 @@ class HubBackup {
           } finally {
             await db.close();
           }
-        },
-      );
+        });
+    return (outcome, numbering);
+  }
 
   /// Read the whitelisted preferences for a backup.
   static Future<Map<String, Object?>> readPreferences() async {

@@ -13,7 +13,9 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart'
 import 'package:path/path.dart' as p;
 import 'package:sqflite_common/sqflite.dart';
 
+import '../backup/backup_protection.dart';
 import '../build_info.dart';
+import '../numbering/numbering_recovery.dart';
 import '../ledger/bin_identity.dart';
 import '../settings/hub_settings.dart';
 import '../sync/company_sync.dart';
@@ -106,6 +108,8 @@ class SupportDiagnostics {
     String? deviceId,
     DateTime? lastBackupAt,
     int? localBackupCount,
+    BackupProtectionPolicy? autoBackupPolicy,
+    BackupProtectionState? autoBackupState,
     String? bootError,
     List<DiagnosticEvent> events = const [],
     DateTime? now,
@@ -175,6 +179,8 @@ class SupportDiagnostics {
                   '(${at.difference(lastBackupAt).inDays} days ago)',
           if (localBackupCount != null)
             'backups kept on this device': localBackupCount,
+          ...await _autoBackup(autoBackupPolicy, autoBackupState, at),
+          if (database != null) ...await _numbering(database),
           if (dataDirectory != null) ...{
             'interrupted restore pending': Directory(
                     p.join(dataDirectory, atlasRestoreJournalFolderName))
@@ -316,6 +322,55 @@ class SupportDiagnostics {
       // Codes are not shown: they can be customer-specific. Support asks
       // for them if this is not zero (R14).
       'stock positions sharing one balance record': collisions.length,
+    };
+  }
+
+  /// Automatic backup, evidence first: the freshness is computed from the
+  /// recorded result, and the recorded file is checked to still be there
+  /// and to read as an Atlas backup. No folder path (it can name a person).
+  static Future<Map<String, Object?>> _autoBackup(BackupProtectionPolicy? policy,
+      BackupProtectionState? state, DateTime at) async {
+    if (policy == null || state == null) return const {};
+    final last = state.lastSuccessAt;
+    var filePresent = 'no file recorded';
+    final f = state.lastFile;
+    if (f != null) {
+      try {
+        await AtlasBackupService.readHeader(f);
+        filePresent = 'yes, readable';
+      } catch (_) {
+        filePresent = 'NO (missing, unreachable or unreadable)';
+      }
+    }
+    return {
+      'automatic backup': policy.enabled
+          ? 'on, every ${policy.intervalHours} h, keep ${policy.keep}'
+          : 'off',
+      if (policy.enabled) ...{
+        'backup freshness':
+            BackupProtectionService.freshnessOf(policy, state, at).name,
+        'last automatic backup': last == null
+            ? 'never'
+            : '${last.toUtc().toIso8601String()} '
+                '(${at.difference(last).inHours} h ago)',
+        'last automatic backup file present': filePresent,
+        if (state.lastFailure != null) ...{
+          'last failure': state.lastFailure!.name,
+          'last failure at': state.lastAttemptAt?.toUtc().toIso8601String(),
+          'failures in a row': state.consecutiveFailures,
+        },
+      },
+    };
+  }
+
+  static Future<Map<String, Object?>> _numbering(Database db) async {
+    final holds = await NumberingRecovery.holds(db);
+    final segment = await NumberingRecovery.activeSegment(db);
+    return {
+      'numbering on hold after restore': holds.isEmpty
+          ? 'no'
+          : 'YES (${holds.length} document types)',
+      'numbering recovery series': segment ?? 'none',
     };
   }
 

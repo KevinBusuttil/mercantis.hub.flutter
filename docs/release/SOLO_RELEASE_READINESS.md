@@ -10,7 +10,7 @@ Status: 22 October 2026. Branch `claude/project-thread-xlz943` (hub PR #194). Ow
 |---|---|---|
 | **Release candidate (M1)** | **No** | 1. **R1:** the restore drill has not been run on a physical device. 2. **REL-1:** there is no production upload key, so no signed build exists. 3. Nothing has been installed or exercised on real hardware: no device performance run, no TalkBack pass. 4. Two M1 gates are only partly met: critical tasks on every form factor, and accessibility. |
 | **Pilot-ready (first customer)** | **No** | It needs an accepted RC first. The procedure is ready ([FIRST_CUSTOMER_PILOT.md](FIRST_CUSTOMER_PILOT.md)), and the product-owner prerequisites are listed in §5. |
-| **Commercially GA (M2)** | **No** | No customer has been migrated, nor has one operated an accounting period. No usability session has been run. Four BLOCKER-SOLO-GA defects are open (R2, R3, R4, G-ICON), and the legal items are drafts. |
+| **Commercially GA (M2)** | **No** | No customer has been migrated, nor has one operated an accounting period. No usability session has been run. BLOCKER-SOLO-GA defects still open: R2 (implemented, device check pending), R4, G-ICON; R3 resolved 5 Nov 2026. The legal items are drafts. |
 
 What **is** in place is the engineering for an RC:
 
@@ -109,8 +109,8 @@ Issues R1–R13 come from [SOLO_ACCEPTANCE_MATRIX.md](../SOLO_ACCEPTANCE_MATRIX.
 | **R1** | Physical-device clean-install restore drill not run | **BLOCKER-SOLO-RC** | Open. Drill in [SOLO_RC_PACKAGE.md](SOLO_RC_PACKAGE.md) §3. | Product owner + engineering |
 | **REL-1** | No production upload key or signed build. Release signing is configured but has never run with a real key. | **BLOCKER-SOLO-RC** | Open. §5 steps 1–3. | Product owner |
 | **A11Y-ANDROID** | No screen-reader (TalkBack) or large-text pass on the pilot platform | **BLOCKER-SOLO-RC** | Open. Matrix rows A1–A11, Android column. | Tester |
-| R2 | No scheduled or automatic backup | BLOCKER-SOLO-GA | Open | Engineering |
-| R3 | Restoring an older backup resets numbering, so numbers can be issued twice | BLOCKER-SOLO-GA | Open. Guide 6 tells the user to reset numbering. | Engineering |
+| R2 | No scheduled or automatic backup | BLOCKER-SOLO-GA | **Implemented 5 Nov 2026 (C1)**: Backup Protection ([§8](../SOLO_BACKUP_AND_RECOVERY.md)). Automated evidence: `backup_protection_test`. **Still open** until the Android destination and a restore from it are run on a phone (R1 drill, step added in [SOLO_RC_PACKAGE.md](SOLO_RC_PACKAGE.md)). Backups run only while Atlas is open. | Engineering → product owner (device) |
+| R3 | Restoring an older backup resets numbering, so numbers can be issued twice | ~~BLOCKER-SOLO-GA~~ **Resolved 5 Nov 2026 (C1)** | Same device: counters move past every issued number. New device: official numbering is held until an audited decision. `numbering_recovery_test`; guide 6 updated. The product owner must still decide whether a recovery series is acceptable in each market (LEGAL). | Engineering / product owner |
 | R4 | AI capture key stored in plaintext preferences | BLOCKER-SOLO-GA | Open | Engineering |
 | **G-ICON** | App ships the Flutter default icon. Branding is needed before any store listing. | BLOCKER-SOLO-GA | Open. Needs brand assets (policy P-11). | Product owner |
 | **UX-OBSERVED** | No observed usability sessions (plan M2.4) | BLOCKER-SOLO-GA | Protocol ready | Product owner |
@@ -118,7 +118,7 @@ Issues R1–R13 come from [SOLO_ACCEPTANCE_MATRIX.md](../SOLO_ACCEPTANCE_MATRIX.
 | R5 | No app-level encryption at rest. Relies on the device lock. | PILOT | Guide 1 requires a screen lock | — |
 | R6 | Retry of owed postings needs a restart | PILOT | Open | Engineering |
 | R7 | Low-storage errors show SQLite text | PILOT | Open | Engineering |
-| R8 | Mobile "Save a copy" reads the whole backup into memory | PILOT | Open | Engineering |
+| R8 | Mobile "Save a copy" reads the whole backup into memory | PILOT → **Resolved 5 Nov 2026** | Share sheet by path (streamed). Device check pending. | Engineering |
 | **R14** | Item or warehouse codes containing `-` could make two stock positions share one Bin (`BIN-<item>-<warehouse>`). The stock valuation then silently disagrees with the Stock GL. | PILOT → **guarded** | **Verified and guarded in this increment.** New colliding codes are refused (`BinIdentityGuardInterceptor`, `bin_identity_test`). Existing books are checked by the diagnostics report ("stock positions sharing one balance record"). An unambiguous id needs a Team-backend migration: POST-GA. | Engineering |
 | **P-PERF-1** | Backup about 2.5 MB/s on host, so possibly ≥ 1 min on a low-end phone | PILOT | Measure on device before the pilot. The fix is `cryptography_flutter` (R10). | Engineering |
 | **A11Y-FORMS** | Form and list screens are not covered by automated accessibility checks | PILOT | Manual pass, or device integration tests | Engineering |
@@ -141,6 +141,7 @@ Issues R1–R13 come from [SOLO_ACCEPTANCE_MATRIX.md](../SOLO_ACCEPTANCE_MATRIX.
 | 2026-10-22 | Full hub suite (local, Linux) | `flutter test` | See PR #194 description |
 | 2026-10-22 | CI on commit `1a3ab3c`: analyze, test, Solo acceptance gate (including accessibility, golden and host perf), secret and dependency scan | [run 39866746810](https://github.com/KevinBusuttil/mercantis.hub.flutter/actions/runs/39866746810) | All green |
 | 2026-10-22 | Release builds on commit `1a3ab3c`: Android unsigned AAB, iOS no-codesign, macOS ad-hoc, Windows unsigned | [run 39866746736](https://github.com/KevinBusuttil/mercantis.hub.flutter/actions/runs/39866746736) | All four green. Signed job skipped, as designed (REL-1). |
+| 2026-11-05 | C1: automatic backup and recovery-safe numbering (hub + core PRs) | `backup_protection_test`, `numbering_recovery_test`, core `backup_restore_test`, `naming_series_policy_test` | Pass on Linux (see PR descriptions). No device run. |
 | — | Device drills (R1, performance, TalkBack) | — | **PENDING** |
 | — | Signed Android build | — | **PENDING (REL-1)** |
 | — | Pilot | — | **Not started. No customer has used Atlas.** |
