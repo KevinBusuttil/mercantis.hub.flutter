@@ -2,3 +2,6 @@ tags:
   # Real multi-device Team test against a running backend
   # (test/team_e2e, tool/team_e2e.sh). Skipped without ATLAS_TEAM_E2E_URL.
   team-e2e:
+  # C4 restore scenarios: rewind the backend's whole database, so
+  # tool/team_e2e.sh runs them alone. Needs ATLAS_E2E_DB_URL too.
+  team-restore:

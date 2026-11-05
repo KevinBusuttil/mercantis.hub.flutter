@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common/sqlite_api.dart';
 
 import '../support/diagnostic_log.dart';
+import 'team_history.dart';
 import 'team_posting_service.dart' show buildSubmitCommand;
 
 /// Ledger rows only the Team server authors (the backend's
@@ -111,7 +112,10 @@ class TeamSyncRunner {
     this.attachmentStore,
     this.confirmTillSale,
     this.logHead,
-  }) : cursorStore = cursorStore ?? TeamSyncCursorStore();
+    this.historyProbe,
+    TeamHistoryStore? historyStore,
+  })  : cursorStore = cursorStore ?? TeamSyncCursorStore(),
+        historyStore = historyStore ?? PrefsTeamHistoryStore();
 
   final Database database;
   final MetadataRegistry registry;
@@ -131,7 +135,24 @@ class TeamSyncRunner {
   /// restored-server check.
   final Future<int?> Function()? logHead;
 
+  /// C4: the server's history identity. Null skips the check (tests of the
+  /// plain sync plane).
+  final TeamHistoryProbe? historyProbe;
+  final TeamHistoryStore historyStore;
+
   Future<TeamSyncResult> run() async {
+    // C4: before anything moves in either direction, the server must still
+    // have the history this device saw. If it was restored from a backup,
+    // this throws TeamHistoryDiverged and nothing is pushed or pulled: the
+    // device recovers instead (TeamHistoryRecovery).
+    final probe = historyProbe;
+    final historyChecked = probe != null &&
+        await verifyTeamHistory(
+          companyId: companyId,
+          store: historyStore,
+          probe: probe,
+          cursor: await cursorStore.load(companyId),
+        );
     final sync = SyncEngine(
       database: database,
       registry: registry,
@@ -152,10 +173,12 @@ class TeamSyncRunner {
       var cursorReset = false;
       var (pulled, applied) = await _pullAll(sync, cursor);
       if (pulled == 0 && cursor > 0 && logHead != null) {
-        // Nothing new — or the server was restored from a backup older
-        // than our last sync, so its log now ends before our cursor and
-        // every later mutation would be skipped. Re-pull from 0; applying
-        // is idempotent.
+        // Nothing new — or the log ends before our cursor. With the history
+        // check above passing, the server still has everything this device
+        // saw, so only the local cursor is wrong: re-pull from 0 (applying
+        // is idempotent). An older server without the history check lands
+        // here after a restore with no later activity, and gets the same
+        // re-pull it always did.
         final head = await logHead!();
         if (head != null && head < cursor) {
           DiagnosticLog.instance.record('sync',
@@ -181,6 +204,11 @@ class TeamSyncRunner {
             await _pullAll(sync, await cursorStore.load(companyId));
         pulled += morePulled;
         applied += moreApplied;
+      }
+
+      if (historyChecked) {
+        await advanceTeamHistory(
+            companyId: companyId, store: historyStore, probe: probe);
       }
 
       return TeamSyncResult(
@@ -251,7 +279,10 @@ class TeamSyncRunner {
     await database.transaction((txn) async {
       await txn.delete('sync_queue',
           where: 'status = ? AND $inDerived',
-          whereArgs: [MutationStatus.pending.name, ...teamServerDerivedDocTypes]);
+          whereArgs: [
+            MutationStatus.pending.name,
+            ...teamServerDerivedDocTypes
+          ]);
       await txn.update('documents', {'sync_state': SyncState.synced.name},
           where: 'sync_state != ? AND $inDerived',
           whereArgs: [SyncState.synced.name, ...teamServerDerivedDocTypes]);

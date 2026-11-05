@@ -92,6 +92,11 @@ jobs:
           flutter test
           test/solo_to_team_test.dart
           test/team_screen_solo_guard_test.dart
+      - name: Team server-restore detection and recovery (C4)
+        run: >-
+          flutter test
+          test/team_history_test.dart
+          test/team_recovery_screen_test.dart
       - name: Accounting fixtures (stock/COGS, reports)
         run: >-
           flutter test
