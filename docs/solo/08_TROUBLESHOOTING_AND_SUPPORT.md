@@ -43,8 +43,8 @@ To send it:
 |---|---|
 | Atlas shows **Atlas could not start** | Do not uninstall. **Save report** and contact support. |
 | **Update Atlas to open your books** | Update Atlas. See [guide 7](07_UPGRADE.md). |
-| "document(s) still…" on **Backup & restore**, or stock movements refused | Free some storage, then restart Atlas, which retries. If it stays, send the report. |
-| Device storage full, saving fails | Free space (old photos, other apps). Then restart Atlas. Nothing already saved is lost. |
+| "document(s) still…" on **Backup & restore**, or stock movements refused | Free some storage, then choose **Retry owed postings** on **Backup & restore** (restarting Atlas also retries). If it stays, send the report. |
+| "This device is out of storage space" when saving | Free space (old photos, other apps), then save again. Nothing already saved is lost. |
 | A wrong invoice was posted | Cancel or reverse it, or issue a credit note ([guide 4](04_DAILY_OPERATIONS.md)). Posted documents are never edited. |
 | Reports disagree with the bank | Reconcile the bank ([guide 5](05_REPORTS_AND_MONTH_END.md)). A missing or duplicated payment is the usual cause. |
 | Forgot the backup passphrase | It cannot be recovered. Make a new backup with a new passphrase now. Older backups stay unreadable. |

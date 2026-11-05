@@ -76,6 +76,18 @@ Follow [PERFORMANCE_BASELINES.md](PERFORMANCE_BASELINES.md) §4, and fill its §
 
 Rows A1–A11 of [ACCESSIBILITY_ACCEPTANCE.md](ACCESSIBILITY_ACCEPTANCE.md) §2, Android phone column.
 
+### 3.3a C2 phone checks
+
+1. **R4 AI key.** On a build that had a receipt-AI key saved before C2, open Atlas once, then restart it: receipt capture must still work. On Android, check (with `adb shell run-as`, debug build only) that `capture.ai.api_key` is no longer in the SharedPreferences XML.
+2. **UX-BANKREC.** Import a month's bank CSV and reconcile it fully on the phone at the default text size and at the largest system text size, with TalkBack on for at least three lines.
+3. **Statements.** Open a customer statement on the phone and choose **Share statement**; it must open the share sheet with the statement text.
+
+| Check | Device / OS | Build | Date | Result | By |
+|---|---|---|---|---|---|
+| R4 key moved to secure storage and survives restart | — | — | — | **PENDING** | — |
+| UX-BANKREC month reconciled on a phone, large text, TalkBack | — | — | — | **PENDING** | — |
+| Customer statement shared from a phone | — | — | — | **PENDING** | — |
+
 ### 3.4 Install, upgrade and uninstall facts
 
 | Check | Expected | Result |

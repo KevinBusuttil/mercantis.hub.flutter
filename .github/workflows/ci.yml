@@ -81,6 +81,12 @@ jobs:
           flutter test
           test/backup_protection_test.dart
           test/numbering_recovery_test.dart
+      - name: Secure AI key, owed-posting retry, phone layouts (R4, R6, UX-BANKREC)
+        run: >-
+          flutter test
+          test/capture_key_storage_test.dart
+          test/retry_owed_postings_test.dart
+          test/phone_layout_test.dart
       - name: Accounting fixtures (stock/COGS, reports)
         run: >-
           flutter test

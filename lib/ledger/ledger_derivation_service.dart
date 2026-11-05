@@ -121,6 +121,19 @@ class LedgerDerivationService {
     return outstandingPostings();
   }
 
+  Future<List<PostingBatch>>? _retrying;
+
+  /// **Retry owed postings** (R6): the same recovery boot runs, on demand,
+  /// so the operator never has to restart Atlas. Concurrent taps share one
+  /// run. Returns what is still owed afterwards.
+  Future<List<PostingBatch>> retryOwedPostings() {
+    final running = _retrying;
+    if (running != null) return running;
+    final run = recoverPendingPostings();
+    _retrying = run;
+    return run.whenComplete(() => _retrying = null);
+  }
+
   /// Vouchers that still owe ledger postings (pending or failed), for the
   /// books-health check.
   Future<List<PostingBatch>> outstandingPostings() async {
