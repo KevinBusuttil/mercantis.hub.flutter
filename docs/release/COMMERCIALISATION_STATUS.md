@@ -11,8 +11,8 @@ container-only.
 
 **Review follow-ups, 5 November 2026:** the automated reviewer posted 12
 findings on the merged PRs. They are fixed, with tests, in one follow-up PR
-per repository (backend #6, core #131, and the hub PR on the same branch),
-none merged yet. The hub PR pins core and the backend to those PRs' commits.
+per repository (backend #6, core #131 and hub #204), none merged yet.
+Hub #204 pins core and the backend to those PRs' commits.
 
 | Finding (PR) | Fix | Test |
 |---|---|---|
