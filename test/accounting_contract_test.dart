@@ -448,8 +448,9 @@ class _Runner {
   void _fields(Document r, Map want, Set<String> strings, Set<String> numbers,
       String label) {
     for (final k in strings) {
-      if (want[k] != null)
+      if (want[k] != null) {
         expect('${r.payload[k]}', '${want[k]}', reason: '$label: ${r.id} $k');
+      }
     }
     for (final k in numbers) {
       if (want[k] != null) _near(r.payload[k], want[k], '$label: ${r.id} $k');
