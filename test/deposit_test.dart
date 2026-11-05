@@ -338,4 +338,39 @@ void main() {
         await engine.fetch('Customer Deposit', dep.id) ?? dep, roles);
     await until(() async => (await glBalance('Customer Deposits')) == 0);
   });
+
+  test(
+      'a padded deposit reference is stored trimmed; a foreign rate is '
+      'refused', () async {
+    final dep = await submittedDeposit(100);
+    final pe = await engine.save(
+        Document(id: '', docType: 'Payment Entry', payload: {
+          'payment_type': 'Receive',
+          'posting_date': today,
+          'deposit': '  ${dep.id} ',
+          'paid_from': 'Debtors',
+          'paid_amount': 60,
+        }),
+        roles);
+    expect(pe.payload['deposit'], dep.id);
+    await engine.submit(pe, roles);
+    expect(await deposits.applied(dep.id), 60);
+
+    final foreign = await engine.save(
+        Document(id: '', docType: 'Payment Entry', payload: {
+          'payment_type': 'Receive',
+          'posting_date': today,
+          'deposit': dep.id,
+          'paid_from': 'Debtors',
+          'paid_amount': 10,
+          'conversion_rate': 1.1,
+        }),
+        roles);
+    await expectLater(
+      engine.submit(foreign, roles),
+      throwsA(isA<StateError>()
+          .having((e) => '$e', 'message', contains('company currency'))),
+    );
+    expect(await deposits.applied(dep.id), 60);
+  });
 }

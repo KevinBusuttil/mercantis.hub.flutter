@@ -140,6 +140,9 @@ class TeamSyncRunner {
   final TeamHistoryProbe? historyProbe;
   final TeamHistoryStore historyStore;
 
+  /// Whether this run's server answers the history protocol (set by [run]).
+  bool _historyChecked = false;
+
   Future<TeamSyncResult> run() async {
     // C4: before anything moves in either direction, the server must still
     // have the history this device saw. If it was restored from a backup,
@@ -153,6 +156,7 @@ class TeamSyncRunner {
           probe: probe,
           cursor: await cursorStore.load(companyId),
         );
+    _historyChecked = historyChecked;
     final sync = SyncEngine(
       database: database,
       registry: registry,
@@ -238,17 +242,25 @@ class TeamSyncRunner {
       final remote = page.mutations;
       pulled += remote.length;
 
+      var advanced = cursor;
+      for (final m in remote) {
+        final version = int.tryParse(m.syncVersion ?? '');
+        if (version != null) advanced = math.max(advanced, version);
+      }
+
+      // C4: anchor the history at this page BEFORE applying it. If a later
+      // page, the push or the acknowledgement fails, the next sync still
+      // checks the server against a version that covers every record this
+      // device now holds; a restore that lost them is detected and leads to
+      // recovery, not an additive re-pull.
+      if (advanced != cursor) await _anchorHistory(advanced);
+
       final foreign = remote.where((m) => m.deviceId != localDeviceId).toList();
       await sync.applyRemoteMutations(foreign);
       applied += foreign.length;
 
       // Commit the cursor BEFORE fetching the next page: if the loop dies
       // here, this page is already applied and never re-fetched.
-      var advanced = cursor;
-      for (final m in remote) {
-        final version = int.tryParse(m.syncVersion ?? '');
-        if (version != null) advanced = math.max(advanced, version);
-      }
       final progressed = advanced != cursor;
       if (progressed) {
         cursor = advanced;
@@ -264,6 +276,18 @@ class TeamSyncRunner {
       if (!progressed) break;
     }
     return (pulled, applied);
+  }
+
+  /// Records the server's chain value at [version] as a pending history
+  /// checkpoint. Skipped when this run's server has no history protocol.
+  Future<void> _anchorHistory(int version) async {
+    final probe = historyProbe;
+    if (!_historyChecked || probe == null) return;
+    final answer = await probe(version);
+    final hash = answer?.atHash;
+    if (hash == null || hash.isEmpty) return;
+    await historyStore.notePending(
+        companyId, TeamHistoryCheckpoint(version, hash));
   }
 
   /// Locally derived ledger rows never ship in Team (see

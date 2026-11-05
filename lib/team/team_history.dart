@@ -22,11 +22,23 @@ class TeamHistoryCheckpoint {
 
   Map<String, Object> toJson() => {'version': version, 'hash': hash};
 
-  static TeamHistoryCheckpoint? fromJson(Object? j) {
+  /// A divergence found from the sync cursor alone (an upgraded device
+  /// with no checkpoint yet, against a log shorter than its cursor): there
+  /// is no chain value to compare, only the version.
+  const TeamHistoryCheckpoint.cursorOnly(this.version) : hash = '';
+
+  bool get isCursorOnly => hash.isEmpty;
+
+  /// A checkpoint as stored. An empty hash is refused unless
+  /// [allowCursorOnly] (a divergence marker may be cursor-only; a checkpoint
+  /// to verify against never is).
+  static TeamHistoryCheckpoint? fromJson(Object? j,
+      {bool allowCursorOnly = false}) {
     if (j is! Map) return null;
     final v = j['version'];
     final h = j['hash'];
-    if (v is! int || h is! String || h.isEmpty) return null;
+    if (v is! int || h is! String) return null;
+    if (h.isEmpty && !allowCursorOnly) return null;
     return TeamHistoryCheckpoint(v, h);
   }
 
@@ -71,7 +83,8 @@ class TeamHistoryDiverged implements Exception {
 
   static TeamHistoryDiverged? fromJson(Object? j) {
     if (j is! Map) return null;
-    final c = TeamHistoryCheckpoint.fromJson(j['checkpoint']);
+    final c =
+        TeamHistoryCheckpoint.fromJson(j['checkpoint'], allowCursorOnly: true);
     if (c == null) return null;
     return TeamHistoryDiverged(
       checkpoint: c,
@@ -107,8 +120,18 @@ abstract class TeamHistoryStore {
   Future<void> notePosting(String companyId, Object? history) async {
     final c = TeamHistoryCheckpoint.fromJson(history);
     if (c == null) return;
-    final list = [...await pending(companyId), c]
-      ..sort((a, b) => a.version.compareTo(b.version));
+    await notePending(companyId, c);
+  }
+
+  /// Adds [c] to the pending checkpoints (checked by the next sync, dropped
+  /// once a sync's head covers it).
+  Future<void> notePending(String companyId, TeamHistoryCheckpoint c) async {
+    if (c.isCursorOnly) return;
+    final list = [
+      for (final p in await pending(companyId))
+        if (p != c) p,
+      c,
+    ]..sort((a, b) => a.version.compareTo(b.version));
     // The newest few are enough: each covers everything before it.
     await setPending(
         companyId, list.length > 20 ? list.sublist(list.length - 20) : list);
@@ -270,7 +293,7 @@ Future<bool> verifyTeamHistory({
     if (now == null) return false;
     if (cursor > now.head) {
       await _mark(
-          store, companyId, TeamHistoryCheckpoint(cursor, ''), now.head);
+          store, companyId, TeamHistoryCheckpoint.cursorOnly(cursor), now.head);
     }
     return true;
   }

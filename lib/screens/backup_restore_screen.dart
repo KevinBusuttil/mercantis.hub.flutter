@@ -14,6 +14,7 @@ import '../backup/backup_protection.dart';
 import '../backup/backup_scheduler.dart';
 import '../backup/hub_backup.dart';
 import '../ledger/ledger_derivation_service.dart';
+import '../reports/report_providers.dart';
 import '../support/diagnostic_log.dart';
 import '../support/storage_errors.dart';
 import '../team/team_session.dart';
@@ -227,6 +228,8 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
     try {
       final ledger = await ref.read(ledgerDerivationServiceProvider.future);
       final left = await ledger.retryOwedPostings();
+      // The retry wrote ledger rows: open reports and dashboards recompute.
+      invalidateLedgerReports(ref.invalidate);
       messenger.showSnackBar(SnackBar(
           content: Text(left.isEmpty
               ? 'All postings are complete.'
@@ -334,7 +337,8 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
         }
       }
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Could not save a copy: $e')));
+      messenger
+          .showSnackBar(SnackBar(content: Text('Could not save a copy: $e')));
     }
   }
 
@@ -347,7 +351,8 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
               'from a device backup.')));
       return;
     }
-    final picked = await FilePicker.platform.pickFiles(dialogTitle: 'Choose a backup');
+    final picked =
+        await FilePicker.platform.pickFiles(dialogTitle: 'Choose a backup');
     final path = picked?.files.single.path;
     if (path == null) return;
     try {
@@ -424,7 +429,8 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
         return RestartNotice(
           success: true,
           title: 'Restore complete',
-          body: 'Your books as of ${created == null ? 'the backup' : _date(created)} '
+          body:
+              'Your books as of ${created == null ? 'the backup' : _date(created)} '
               'are on this device. Atlas checked every file and confirmed '
               'the trial balance, receivables, payables, stock and bank '
               'totals match the backup to the cent.'
@@ -578,8 +584,8 @@ class _ConfirmRestoreDialogState extends State<_ConfirmRestoreDialog> {
     final m = widget.staged.manifest;
     final created = DateTime.tryParse('${m['created_at']}');
     final companies = (s['companies'] as List?)?.join(', ') ?? '';
-    final counts = Map<String, Object?>.from(
-        (s['submitted_counts'] as Map?) ?? const {});
+    final counts =
+        Map<String, Object?>.from((s['submitted_counts'] as Map?) ?? const {});
     int n(String t) => (counts[t] as int?) ?? 0;
     final missing = widget.staged.missingAttachments.length;
     final ok = _typed.text.trim().toUpperCase() == 'REPLACE';
@@ -594,8 +600,7 @@ class _ConfirmRestoreDialogState extends State<_ConfirmRestoreDialog> {
                 'readable by this version of Atlas.'),
             const SizedBox(height: 12),
             _row('Business', companies.isEmpty ? '—' : companies),
-            _row('Backup made',
-                created == null ? 'unknown' : _date(created)),
+            _row('Backup made', created == null ? 'unknown' : _date(created)),
             _row('Made by', '${m['app_version'] ?? 'unknown'}'),
             _row('Sales invoices', '${n('Sales Invoice')}'),
             _row('Purchase invoices', '${n('Purchase Invoice')}'),
@@ -614,8 +619,8 @@ class _ConfirmRestoreDialogState extends State<_ConfirmRestoreDialog> {
                     '$missing attachment${missing == 1 ? ' was' : 's were'} '
                     'already missing when this backup was made and will not '
                     'come back.',
-                    style: TextStyle(
-                        color: Theme.of(context).colorScheme.error)),
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.error)),
               ),
             const SizedBox(height: 12),
             const Text(
@@ -625,8 +630,7 @@ class _ConfirmRestoreDialogState extends State<_ConfirmRestoreDialog> {
                 'until the next restore, and puts it back automatically if '
                 'the restore is interrupted or does not verify.'),
             const SizedBox(height: 8),
-            const Text(
-                'Numbers already issued are never issued again. If this '
+            const Text('Numbers already issued are never issued again. If this '
                 'device holds books of the same business, Atlas continues '
                 'every series after the last number it issued and lists the '
                 'documents to re-enter. If not (a new or replacement '
@@ -733,7 +737,8 @@ class _AutomaticBackupCard extends ConsumerWidget {
                     label: const Text('Back up now'),
                   ),
                   OutlinedButton.icon(
-                    onPressed: busy ? null : () => _exportRecoveryCopy(context, ref),
+                    onPressed:
+                        busy ? null : () => _exportRecoveryCopy(context, ref),
                     icon: const Icon(Icons.ios_share),
                     label: const Text('Export recovery copy…'),
                   ),
@@ -778,10 +783,11 @@ class _AutomaticBackupCard extends ConsumerWidget {
       leading: Icon(icon, color: color),
       title: Text(title, style: TextStyle(color: color)),
       subtitle: Text([
-        last == null ? 'No automatic backup yet.' : 'Last good backup ${_date(last)}.',
+        last == null
+            ? 'No automatic backup yet.'
+            : 'Last good backup ${_date(last)}.',
         if (s.lastFailure != null &&
-            (last == null ||
-                (s.lastAttemptAt?.isAfter(last) ?? false)))
+            (last == null || (s.lastAttemptAt?.isAfter(last) ?? false)))
           s.lastFailure!.message,
       ].join(' ')),
     );
@@ -789,11 +795,12 @@ class _AutomaticBackupCard extends ConsumerWidget {
 
   Future<void> _turnOn(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
-    final dir = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: 'Choose where automatic backups go');
+    final dir = await FilePicker.platform
+        .getDirectoryPath(dialogTitle: 'Choose where automatic backups go');
     if (dir == null || !context.mounted) return;
     final pass = await showDialog<String>(
-        context: context, builder: (_) => const _PassphraseDialog(confirm: true));
+        context: context,
+        builder: (_) => const _PassphraseDialog(confirm: true));
     if (pass == null) return;
     setBusy('Setting up automatic backup…');
     try {
@@ -857,14 +864,15 @@ class _AutomaticBackupCard extends ConsumerWidget {
 
   Future<void> _changeFolder(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
-    final dir = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: 'Choose where automatic backups go');
+    final dir = await FilePicker.platform
+        .getDirectoryPath(dialogTitle: 'Choose where automatic backups go');
     if (dir == null) return;
     try {
       final service = await ref.read(backupProtectionProvider.future);
       await service.changeDestination(dir);
       ref.invalidate(backupFreshnessProvider);
-      messenger.showSnackBar(SnackBar(content: Text('Backups now go to $dir.')));
+      messenger
+          .showSnackBar(SnackBar(content: Text('Backups now go to $dir.')));
     } on BackupProtectionException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('$e')));
     }
@@ -873,7 +881,8 @@ class _AutomaticBackupCard extends ConsumerWidget {
   Future<void> _recoverKey(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
     final pass = await showDialog<String>(
-        context: context, builder: (_) => const _PassphraseDialog(confirm: false));
+        context: context,
+        builder: (_) => const _PassphraseDialog(confirm: false));
     if (pass == null) return;
     try {
       final service = await ref.read(backupProtectionProvider.future);

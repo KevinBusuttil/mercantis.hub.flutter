@@ -25,7 +25,8 @@ final reportResultProvider =
 /// App-side aggregating reports (Trial Balance, AR/AP aging), reading the real
 /// document store. Separate from [reportEngineProvider] because these group/sum
 /// rather than flat-project.
-final aggregatingReportsProvider = FutureProvider<HubAggregatingReports>((ref) async {
+final aggregatingReportsProvider =
+    FutureProvider<HubAggregatingReports>((ref) async {
   final engine = await ref.watch(documentEngineProvider.future);
   return HubAggregatingReports(engine.list, fetch: engine.fetch);
 });
@@ -116,3 +117,19 @@ final dashboardResultProvider =
   final roles = ref.watch(currentUserProvider).roles;
   return engine.resolve(dashboardId, userRoles: roles);
 });
+
+/// The providers every report and dashboard result is computed from.
+/// Invalidating them recomputes every open report: call it after anything
+/// writes ledger rows outside a normal save (a retry of owed postings, a
+/// repair), so the screens do not keep showing figures without them.
+final ledgerReportRoots = <ProviderOrFamily>[
+  reportEngineProvider,
+  aggregatingReportsProvider,
+  dashboardEngineProvider,
+];
+
+void invalidateLedgerReports(void Function(ProviderOrFamily) invalidate) {
+  for (final root in ledgerReportRoots) {
+    invalidate(root);
+  }
+}

@@ -77,6 +77,21 @@ Future<void> setCaptureAiApiKey(CaptureSecretStore store, String key) async {
   await CaptureKeyMigration.removeLegacy();
 }
 
+/// Saves the key from the settings screen only when the operator changed
+/// it from what the screen loaded ([loaded]). Returns whether it saved.
+///
+/// The screen shows an empty field both when no key is set and when the
+/// key cannot be read yet (secure storage unavailable, or an older
+/// plaintext key still waiting to move). Saving an unrelated setting must
+/// not treat that empty field as "remove the key": it would delete the
+/// waiting legacy key before it ever reached secure storage.
+Future<bool> saveCaptureAiApiKeyIfChanged(CaptureSecretStore store,
+    {required String? loaded, required String entered}) async {
+  if (entered == (loaded ?? '')) return false;
+  await setCaptureAiApiKey(store, entered);
+  return true;
+}
+
 /// One-time move of `capture.ai.api_key` out of SharedPreferences.
 ///
 /// Idempotent: write to secure storage, read it back, and only then delete
