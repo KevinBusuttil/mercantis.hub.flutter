@@ -29,6 +29,22 @@ String? normalizeBooksLock(Object? raw) {
   return asNonEmpty(raw)?.split('T').first;
 }
 
+/// The date picker's range for moving the books lock: from ten years back
+/// (or the current lock, if older) to today (or the current lock, if a
+/// server set it later), starting at the current lock or last month-end.
+/// A lock outside the default range would otherwise crash the picker.
+({DateTime first, DateTime last, DateTime initial}) booksLockPickerRange(
+    DateTime now, String? current) {
+  final today = DateTime(now.year, now.month, now.day);
+  final lock = DateTime.tryParse(current ?? '');
+  var first = DateTime(now.year - 10);
+  var last = today;
+  if (lock != null && lock.isBefore(first)) first = lock;
+  if (lock != null && lock.isAfter(last)) last = lock;
+  final initial = lock ?? DateTime(now.year, now.month, 0);
+  return (first: first, last: last, initial: initial);
+}
+
 /// Writes [lock] onto every Company row of this book, without queueing a
 /// sync mutation (it is the server's value). Returns whether a row changed.
 Future<bool> applyServerBooksLock(DatabaseExecutor db, String? lock) async {

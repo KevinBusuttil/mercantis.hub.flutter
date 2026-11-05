@@ -1,6 +1,7 @@
 @Tags(['team-e2e', 'team-restore'])
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -369,6 +370,44 @@ void main() {
     expect(back.confirmedTillSales, 1);
     await t.sync();
     expect(asNum((await t.bin('BOTTLE'))!.payload['actual_qty']), 20);
+    await sameAsServer(t, await witness(a));
+  }, skip: skip, timeout: const Timeout(Duration(minutes: 5)));
+
+  test(
+      '7b. a till receipt the restored server already confirmed keeps the '
+      'server version', () async {
+    final (a, _, t) = await company();
+    // The till sells offline; its confirmation reaches the server.
+    final sale = await t.h.saveAndSubmit(_till(2, 2.5));
+    await t.sync();
+    final confirmed = (await t.h.engine.fetch('POS Invoice', sale.id))!
+        .payload['official_number'];
+    expect(confirmed, isNotNull);
+    final file = await backup();
+    // A sale the till then sees, which the restore loses.
+    final lost = await a.serverSubmit(await a.h.save(_sale(1, 12)));
+    await t.sync();
+    // The till never pulled the confirmed header: the official number is
+    // missing locally, as after a confirmation whose pull was cut off.
+    final local = (await t.h.engine.fetch('POS Invoice', sale.id))!;
+    final payload = Map<String, Object?>.from(local.payload)
+      ..remove('official_number');
+    await t.h.db.db.update('documents', {'payload': jsonEncode(payload)},
+        where: 'id = ?', whereArgs: [sale.id]);
+    await restore(file);
+    await expectLater(t.sync(), throwsA(isA<TeamHistoryDiverged>()));
+
+    final prepared = await recover(t);
+    expect(prepared.report.pendingTillSales, isEmpty,
+        reason: 'the server already confirmed it');
+    expect(prepared.report.lost.single.number, lost['number']);
+    await switchOver(t, prepared);
+    expect(
+        (await t.h.engine.fetch('POS Invoice', sale.id))!
+            .payload['official_number'],
+        confirmed,
+        reason: 'the server version is kept, not the provisional copy');
+    await t.sync();
     await sameAsServer(t, await witness(a));
   }, skip: skip, timeout: const Timeout(Duration(minutes: 5)));
 

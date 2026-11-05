@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_hub_app/team/team_history.dart';
@@ -168,6 +170,32 @@ void main() {
     expect(await again.pending(company), isEmpty);
   });
 
+  test(
+      'a cursor-only divergence survives a restart, but is never a '
+      'checkpoint to verify against', () async {
+    SharedPreferences.setMockInitialValues({});
+    // An upgraded device: a cursor, no checkpoint yet, and a log shorter
+    // than the cursor.
+    await expectLater(
+      verifyTeamHistory(
+          companyId: company,
+          store: PrefsTeamHistoryStore(),
+          probe: server(5),
+          cursor: 9),
+      throwsA(isA<TeamHistoryDiverged>()),
+    );
+    final again = await PrefsTeamHistoryStore().diverged(company);
+    expect(again, isNotNull, reason: 'the Team screen must offer recovery');
+    expect(again!.checkpoint.isCursorOnly, isTrue);
+    expect(again.checkpoint.version, 9);
+    expect(again.serverHead, 5);
+    // Still refused as a verified or pending checkpoint.
+    expect(TeamHistoryCheckpoint.fromJson({'version': 9, 'hash': ''}), isNull);
+    final store = MemoryTeamHistoryStore();
+    await store.notePending(company, const TeamHistoryCheckpoint.cursorOnly(9));
+    expect(store.pendingValue, isEmpty);
+  });
+
   group('sync runner', () {
     setUpAll(sqfliteFfiInit);
     late Directory dir;
@@ -219,6 +247,51 @@ void main() {
       expect(ok.verifiedValue, const TeamHistoryCheckpoint(12, 'h12'));
       await h.close();
     });
+
+    test(
+        'each applied pull page is anchored, so a restore after an '
+        'interrupted sync is still caught', () async {
+      final h = await BooksHarness.open(p.join(dir.path, 'p.db'));
+      final store = MemoryTeamHistoryStore()
+        ..verifiedValue = const TeamHistoryCheckpoint(10, 'h10');
+      final cursor = _MemCursor(10);
+      // Page 1 (versions 11-12) applies; page 2 fails mid-exchange.
+      final adapter = _PagedAdapter([
+        [_foreignCustomer('C-11', 11), _foreignCustomer('C-12', 12)],
+      ], failAfter: 1);
+      final runner = TeamSyncRunner(
+        database: h.db.db,
+        registry: MetadataRegistry(h.db.db),
+        adapter: adapter,
+        localDeviceId: 'device-1',
+        companyId: company,
+        cursorStore: cursor,
+        historyProbe: server(14),
+        historyStore: store,
+      );
+      await expectLater(runner.run(), throwsA(isA<StateError>()));
+      expect(cursor.value, 12, reason: 'page 1 applied and committed');
+      expect(
+          await h.db.db
+              .query('documents', where: 'id = ?', whereArgs: ['C-12']),
+          isNotEmpty);
+      expect(store.verifiedValue, const TeamHistoryCheckpoint(10, 'h10'),
+          reason: 'the exchange did not finish');
+      expect(store.pendingValue, [const TeamHistoryCheckpoint(12, 'h12')]);
+
+      // The server is restored to 11 and moves on to 15. The old
+      // checkpoint (10) still matches; the page anchor (12) does not.
+      await expectLater(
+        verifyTeamHistory(
+            companyId: company,
+            store: store,
+            probe: server(15, rewrittenFrom: 12),
+            cursor: cursor.value),
+        throwsA(isA<TeamHistoryDiverged>()
+            .having((d) => d.checkpoint.version, 'version', 12)),
+      );
+      await h.close();
+    });
   });
 }
 
@@ -243,6 +316,60 @@ class _RecordingAdapter implements CloudAdapter {
 
   @override
   Future<void> acknowledge(List<String> mutationIds) async => calls.add('ack');
+  @override
+  Future<void> pushBlob(String sha256, List<int> bytes) async {}
+  @override
+  Future<List<int>?> pullBlob(String sha256) async => null;
+  @override
+  Future<bool> hasBlob(String sha256) async => false;
+}
+
+Map<String, dynamic> _row(String id) => {
+      'id': id,
+      'doctype': 'Customer',
+      'company': null,
+      'docstatus': 0,
+      'payload': jsonEncode({'customer_name': id, 'customer_type': 'Company'}),
+      'created_at': 1751800000000,
+      'modified_at': 1751800000000,
+      'sync_version': null,
+      'sync_state': 'local',
+      'amended_from': null,
+    };
+
+MutationRecord _foreignCustomer(String id, int version) => MutationRecord(
+      id: 'mut-$id',
+      type: MutationType.createDocument,
+      docType: 'Customer',
+      documentId: id,
+      payload: _row(id),
+      deviceId: 'device-2',
+      userId: 'other',
+      localTimestamp: DateTime.fromMillisecondsSinceEpoch(1751800000000),
+      syncVersion: '$version',
+    );
+
+/// Serves [pages] in turn; the pull after [failAfter] pages throws.
+class _PagedAdapter implements PagedCloudAdapter {
+  _PagedAdapter(this.pages, {required this.failAfter});
+  final List<List<MutationRecord>> pages;
+  final int failAfter;
+  var served = 0;
+
+  @override
+  Future<PullPage> pullPage(String? afterSyncVersion) async {
+    if (served >= failAfter) throw StateError('connection lost');
+    final page = pages[served++];
+    return PullPage(page, hasMore: true);
+  }
+
+  @override
+  Future<List<MutationRecord>> pull(String? afterSyncVersion) async =>
+      (await pullPage(afterSyncVersion)).mutations;
+  @override
+  Future<void> push(List<MutationRecord> mutations) async {}
+  @override
+  Future<void> acknowledge(List<String> mutationIds) async {}
   @override
   Future<void> pushBlob(String sha256, List<int> bytes) async {}
   @override

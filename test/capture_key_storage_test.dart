@@ -72,8 +72,44 @@ void main() {
         {CaptureKeyMigration.legacyKey: 'old-key'});
     store.value = secret;
     expect(await container().read(captureAiApiKeyProvider.future), secret);
-    expect((await SharedPreferences.getInstance())
-        .containsKey(CaptureKeyMigration.legacyKey), isFalse);
+    expect(
+        (await SharedPreferences.getInstance())
+            .containsKey(CaptureKeyMigration.legacyKey),
+        isFalse);
+  });
+
+  test(
+      'saving other settings after a failed migration keeps the waiting '
+      'legacy key', () async {
+    SharedPreferences.setMockInitialValues(
+        {CaptureKeyMigration.legacyKey: secret});
+    store.failWrites = true;
+    final loaded = await container().read(captureAiApiKeyProvider.future);
+    expect(loaded, isNull);
+    // The screen shows an empty key field; the operator saves another
+    // setting without touching it.
+    expect(
+        await saveCaptureAiApiKeyIfChanged(store, loaded: loaded, entered: ''),
+        isFalse);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString(CaptureKeyMigration.legacyKey), secret,
+        reason: 'the empty field is not an instruction to delete');
+    // Storage recovers: the waiting key still moves.
+    store.failWrites = false;
+    expect(await container().read(captureAiApiKeyProvider.future), secret);
+
+    // A key the operator does change is saved, and clearing one that was
+    // loaded removes it.
+    expect(
+        await saveCaptureAiApiKeyIfChanged(store,
+            loaded: secret, entered: 'new-key'),
+        isTrue);
+    expect(store.value, 'new-key');
+    expect(
+        await saveCaptureAiApiKeyIfChanged(store,
+            loaded: 'new-key', entered: ''),
+        isTrue);
+    expect(store.value, isNull);
   });
 
   test('saving writes secure storage only; removing the key removes it',
@@ -102,7 +138,8 @@ void main() {
   test('the key is never in backed-up preferences', () async {
     SharedPreferences.setMockInitialValues(
         {CaptureKeyMigration.legacyKey: secret, 'capture.ai.settings': '{}'});
-    expect(backedUpPreferenceKeys, isNot(contains(CaptureKeyMigration.legacyKey)));
+    expect(
+        backedUpPreferenceKeys, isNot(contains(CaptureKeyMigration.legacyKey)));
     final backed = await HubBackup.readPreferences();
     expect(backed.values.join(), isNot(contains(secret)));
   });

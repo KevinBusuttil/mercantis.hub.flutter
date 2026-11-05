@@ -20,5 +20,20 @@ if [[ ${1:-} == --sync ]]; then
   echo "synced from $backend_dir"
   exit 0
 fi
-diff -r "$src" "$dst" && echo "accounting contract in sync with $src"
-diff "$protocol_src" "$protocol_dst" && echo "protocol contract in sync with $protocol_src"
+# Each comparison is checked on its own and the failures add up: a
+# `diff && echo` list is exempt from `set -e`, so an earlier drift would
+# otherwise be masked by a later comparison that passes.
+status=0
+if diff -r "$src" "$dst"; then
+  echo "accounting contract in sync with $src"
+else
+  echo "accounting contract DRIFTED from $src" >&2
+  status=1
+fi
+if diff "$protocol_src" "$protocol_dst"; then
+  echo "protocol contract in sync with $protocol_src"
+else
+  echo "protocol contract DRIFTED from $protocol_src" >&2
+  status=1
+fi
+exit "$status"

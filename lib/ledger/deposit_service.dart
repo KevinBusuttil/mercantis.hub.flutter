@@ -116,6 +116,9 @@ class DepositApplicationInterceptor extends DocumentInterceptor {
     if (docType.id != 'Payment Entry') return;
     final depositId = asNonEmpty(doc.payload['deposit']);
     if (depositId == null) return;
+    // Stored trimmed, as the Team server stores it, so every lookup of the
+    // deposit's applications matches it.
+    doc.payload['deposit'] = depositId;
     // Only a Receive payment can consume a customer deposit; autofilling a
     // Pay/Internal Transfer here would aim its GL at the deposit liability.
     if ('${doc.payload['payment_type']}' != 'Receive') return;
@@ -141,6 +144,19 @@ class DepositApplicationInterceptor extends DocumentInterceptor {
       throw StateError(
           'A Customer Deposit applies through a Receive payment — this '
           'entry is ${doc.payload['payment_type']}.');
+    }
+
+    // Deposits are held in the company currency; a rate would mis-state
+    // the liability the application releases. The Team server refuses it
+    // too.
+    final rate = doc.payload['conversion_rate'];
+    if (rate != null &&
+        '$rate'.trim().isNotEmpty &&
+        (asNum(rate) - 1).abs() > 1e-9) {
+      throw StateError(
+          'A payment applying deposit $depositId must be in the company '
+          'currency (conversion_rate $rate); deposits are held in the '
+          'company currency.');
     }
 
     final deposit = await engine.fetch('Customer Deposit', depositId);

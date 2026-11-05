@@ -31,6 +31,10 @@ class _CaptureAiSettingsScreenState
   bool _loading = true;
   bool _obscureKey = true;
 
+  /// The key as loaded: saving leaves the stored key alone unless the
+  /// operator changed the field.
+  String? _loadedKey;
+
   @override
   void initState() {
     super.initState();
@@ -57,6 +61,7 @@ class _CaptureAiSettingsScreenState
       _threshold = settings.threshold;
       _monthlyLimit.text = settings.monthlyLimit.toString();
       _apiKey.text = key ?? '';
+      _loadedKey = key;
       _loading = false;
     });
   }
@@ -95,8 +100,13 @@ class _CaptureAiSettingsScreenState
     );
     await ref.read(captureAiSettingsProvider.notifier).save(settings);
     try {
-      await setCaptureAiApiKey(
-          ref.read(captureSecretStoreProvider), _apiKey.text.trim());
+      final entered = _apiKey.text.trim();
+      if (await saveCaptureAiApiKeyIfChanged(
+          ref.read(captureSecretStoreProvider),
+          loaded: _loadedKey,
+          entered: entered)) {
+        _loadedKey = entered.isEmpty ? null : entered;
+      }
     } catch (_) {
       ref.invalidate(captureAiApiKeyProvider);
       if (!mounted) return;

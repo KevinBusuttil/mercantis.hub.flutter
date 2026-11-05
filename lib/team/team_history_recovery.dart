@@ -202,7 +202,7 @@ class TeamHistoryRecovery {
       )..snapshotPath = snapshotPath;
 
       onStep?.call('Comparing this device with the server…');
-      final tillSales = await _pendingTillSales();
+      final tillSales = await _pendingTillSales(staging);
       await _findLost(staging, report, tillSales);
 
       onStep?.call('Keeping work the server never received…');
@@ -298,7 +298,15 @@ class TeamHistoryRecovery {
 
   /// Till sales this device completed offline that the server has not
   /// confirmed: they are this device's to send, not lost.
-  Future<Set<String>> _pendingTillSales() async {
+  ///
+  /// A receipt can lack its official number here although the server
+  /// confirmed it (the confirmation succeeded, then the till lost the
+  /// connection before pulling the official rows). The server's book in
+  /// [staging] then holds the confirmed receipt, and that version is kept:
+  /// carrying the provisional local copy over it would leave the receipt
+  /// looking unconfirmed for good, because the recovered cursor is already
+  /// past the confirmation.
+  Future<Set<String>> _pendingTillSales(Database staging) async {
     final rows = await live.rawQuery(
       'SELECT d.id, d.payload FROM documents d WHERE d.doctype = ? '
       'AND d.docstatus = 1 AND EXISTS (SELECT 1 FROM sync_queue q '
@@ -311,10 +319,18 @@ class TeamHistoryRecovery {
         localDeviceId,
       ],
     );
-    return {
-      for (final r in rows)
-        if ('${_payload(r)['official_number'] ?? ''}'.isEmpty) '${r['id']}',
-    };
+    final pending = <String>{};
+    for (final r in rows) {
+      if ('${_payload(r)['official_number'] ?? ''}'.isNotEmpty) continue;
+      final id = '${r['id']}';
+      final theirs = await staging.query('documents',
+          columns: ['docstatus', 'payload'], where: 'id = ?', whereArgs: [id]);
+      final confirmed = theirs.isNotEmpty &&
+          (theirs.first['docstatus'] as int? ?? 0) >= 1 &&
+          '${_payload(theirs.first)['official_number'] ?? ''}'.isNotEmpty;
+      if (!confirmed) pending.add(id);
+    }
+    return pending;
   }
 
   Future<void> _findLost(Database staging, TeamRecoveryReport report,

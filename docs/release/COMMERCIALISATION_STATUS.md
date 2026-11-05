@@ -9,6 +9,26 @@ backend #2–#5). The hub now pins core `3cb2683` and backend `e950747`, the
 merged commits. Merging changes no release gate: the evidence is still
 container-only.
 
+**Review follow-ups, 5 November 2026:** the automated reviewer posted 12
+findings on the merged PRs. They are fixed, with tests, in one follow-up PR
+per repository (backend #6, core #131, and the hub PR on the same branch),
+none merged yet. The hub PR pins core and the backend to those PRs' commits.
+
+| Finding (PR) | Fix | Test |
+|---|---|---|
+| Padded deposit reference not counted (backend #4) | stored and matched trimmed, server and Solo | backend `a_padded_deposit_reference_…`; hub `deposit_test` |
+| Foreign-rate deposit application (backend #4) | refused on the server and in Solo | same two tests |
+| Stale cached chain tip after a binary rollback (backend #3) | cached tip trusted only when the head row carries it; unlinked rows linked from the last linked row | backend `rows_appended_by_an_older_binary_…` (PostgreSQL) |
+| Lost-history lookup outside the posting lock; audit row in a separate step (backend #3) | lookup, floors, record and audit row in one transaction under the company lock | backend `tests/history.rs` |
+| Cursor-only divergence lost on restart (hub #199) | divergence marker may be cursor-only; still never a checkpoint | `team_history_test` |
+| History anchored only after a full exchange (hub #199) | each pull page is anchored as a pending checkpoint before it is applied | `team_history_test` (interrupted paged sync) |
+| Confirmed till receipt overwritten by its provisional copy (hub #199) | the server's confirmed receipt is kept | E2E `team_restore_e2e_test` 7b (fails without the fix) |
+| No way to clear the books lock; picker crash on old locks (hub #200) | "Clear the lock" action (Team: server command with no date); picker range covers the lock | `team_books_lock_test` |
+| Drift script masked an accounting diff (hub #201) | each comparison fails on its own | run by hand with each drift |
+| Legacy AI key deleted after a failed migration (hub #197) | the key is saved only when the operator changed it | `capture_key_storage_test` |
+| Reports stale after Retry owed postings (hub #197) | report providers invalidated after the retry | `report_refresh_test` |
+| Storage messages promised nothing was saved (core #130) | each message asks the operator to check the record | core `storage_error_text_test` |
+
 This page lists what the seven correction increments changed, how they must
 be merged, what still has to be done on real devices and with a real
 customer, and what only the product owner can do. Nothing here is accepted

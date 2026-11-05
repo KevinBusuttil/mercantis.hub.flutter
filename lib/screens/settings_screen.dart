@@ -190,13 +190,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (!mounted) return;
     }
 
-    final now = DateTime.now();
+    // With a lock in place, clearing it (reopening every period) is a
+    // choice of its own: the date picker can only move it.
+    if (current != null) {
+      final action = await showDialog<String>(
+        context: context,
+        builder: (c) => SimpleDialog(
+          title: Text('The books are locked through $current'),
+          children: [
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(c, 'move'),
+              child: const Text('Move the lock date'),
+            ),
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(c, 'clear'),
+              child: const Text('Clear the lock (reopen every period)'),
+            ),
+          ],
+        ),
+      );
+      if (action == null || !mounted) return;
+      if (action == 'clear') {
+        await _clearBooksLock(engine, company, team, current);
+        return;
+      }
+    }
+
+    final range = booksLockPickerRange(DateTime.now(), current);
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.tryParse(current ?? '') ??
-          DateTime(now.year, now.month, 0), // last month-end
-      firstDate: DateTime(now.year - 10),
-      lastDate: now,
+      initialDate: range.initial,
+      firstDate: range.first,
+      lastDate: range.last,
       helpText: 'Lock books through',
     );
     if (picked == null || !mounted) return;
@@ -263,6 +288,62 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text('Books locked through $iso')));
+  }
+
+  /// Removes the books lock entirely. In Team this is the server's
+  /// `set-books-lock` command with no date (Owner or Admin), audited there.
+  Future<void> _clearBooksLock(DocumentEngine engine, Document company,
+      TeamSession? team, String current) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Reopen every period?'),
+        content: Text([
+          'The books are locked through $current. Clearing the lock lets '
+              'documents dated on any day be posted again.',
+          if (team != null)
+            'In Atlas Team this changes the lock on the Team server for '
+                'every device, and needs the Owner or Admin role.',
+        ].join('\n\n')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Clear the lock')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    if (team != null) {
+      try {
+        final db = (await ref.read(mercantisDatabaseProvider.future)).db;
+        await setTeamBooksLock(
+          session: team,
+          database: db,
+          lockDate: null,
+          expectedCurrent: current,
+        );
+      } on CloudHttpException catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.statusCode == 403
+                ? 'Your role cannot reopen the books in Atlas Team. Ask the '
+                    'owner or an admin.'
+                : e.statusCode == 409
+                    ? '${e.message} Open this again to start from the '
+                        'current lock.'
+                    : 'The Team server did not change the lock: ${e.message}')));
+        return;
+      }
+    } else {
+      company.payload['books_lock_date'] = null;
+      await engine.save(company, const {'System Manager'});
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Books lock cleared: every period is open')));
   }
 
   Future<void> _changePasscode() async {
