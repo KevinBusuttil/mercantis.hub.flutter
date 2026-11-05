@@ -211,7 +211,7 @@ void main() {
   });
 
   group('customer statement', () {
-    final statement = CustomerStatement(
+    const statement = CustomerStatement(
       customer: 'CUST-0001',
       from: '2026-01-01',
       to: '2026-10-31',
