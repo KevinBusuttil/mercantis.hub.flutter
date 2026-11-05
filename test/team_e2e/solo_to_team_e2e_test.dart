@@ -16,6 +16,7 @@ import 'package:mercantis_hub_app/team/team_posting_service.dart';
 import 'package:mercantis_hub_app/team/team_session.dart';
 import 'package:mercantis_hub_app/team/team_sync_runner.dart';
 import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../support/books_harness.dart';
@@ -26,6 +27,8 @@ import '../support/books_harness.dart';
 /// the Solo numbers, stock costs from the Solo valuation, and a second
 /// device joins the same books. Run with tool/team_e2e.sh.
 void main() {
+  // The production stores (cursor, history checkpoints) live in preferences.
+  SharedPreferences.setMockInitialValues({});
   sqfliteFfiInit();
   final baseUrl = Platform.environment['ATLAS_TEAM_E2E_URL'];
   final skip = baseUrl == null ? 'set ATLAS_TEAM_E2E_URL' : null;

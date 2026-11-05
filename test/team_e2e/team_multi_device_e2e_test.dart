@@ -11,6 +11,7 @@ import 'package:mercantis_hub_app/ledger/hub_interceptors.dart';
 import 'package:mercantis_hub_app/ledger/ledger_values.dart' show asNum, round2;
 import 'package:mercantis_hub_app/payments/pos_checkout.dart';
 import 'package:mercantis_hub_app/team/team_account_client.dart';
+import 'package:mercantis_hub_app/team/team_history.dart';
 import 'package:mercantis_hub_app/team/team_naming.dart';
 import 'package:mercantis_hub_app/team/team_posting_guard.dart';
 import 'package:mercantis_hub_app/team/team_posting_service.dart';
@@ -138,14 +139,18 @@ void main() {
     await rename(b, 'Harbour Bar (B)');
     await a.sync();
     await b.sync();
-    final conflicts = await b.h.db.db.query('sync_conflicts',
-        where: 'document_id = ?', whereArgs: ['C-1']);
+    final conflicts = await b.h.db.db
+        .query('sync_conflicts', where: 'document_id = ?', whereArgs: ['C-1']);
     expect(conflicts, hasLength(1), reason: 'B must see the conflict');
-    expect((await b.h.engine.fetch('Customer', 'C-1'))!.payload['customer_name'],
-        'Harbour Bar (B)', reason: "B's edit is kept until resolved");
+    expect(
+        (await b.h.engine.fetch('Customer', 'C-1'))!.payload['customer_name'],
+        'Harbour Bar (B)',
+        reason: "B's edit is kept until resolved");
     await t.sync();
-    expect((await t.h.engine.fetch('Customer', 'C-1'))!.payload['customer_name'],
-        'Harbour Bar (A)', reason: 'the first writer stands everywhere else');
+    expect(
+        (await t.h.engine.fetch('Customer', 'C-1'))!.payload['customer_name'],
+        'Harbour Bar (A)',
+        reason: 'the first writer stands everywhere else');
     // B resolves by taking A's version.
     await ConflictService(
       database: b.h.db.db,
@@ -154,18 +159,21 @@ void main() {
       userId: 'owner',
     ).takeTheirs('Customer', 'C-1');
     await b.sync();
-    expect((await b.h.engine.fetch('Customer', 'C-1'))!.payload['customer_name'],
+    expect(
+        (await b.h.engine.fetch('Customer', 'C-1'))!.payload['customer_name'],
         'Harbour Bar (A)');
 
     // ---- The guard: no device can make official accounting on its own.
     final localTry = await a.h.save(_purchase('BOTTLE', 1, 'Box', 60));
-    await expectLater(a.h.submit(localTry), throwsA(isA<DocumentEngineError>()));
+    await expectLater(
+        a.h.submit(localTry), throwsA(isA<DocumentEngineError>()));
     expect(await a.h.rowCount('GL Entry'), 0);
 
     // ---- Server posting: A buys 2 boxes (24 bottles) plus a delivery
     // charge. The server posts it, every device receives the same rows.
-    final bill = await a.serverSubmit(await a.h.save(
-        _purchase('BOTTLE', 2, 'Box', 60, service: 'DELIVERY', serviceRate: 15)));
+    final bill = await a.serverSubmit(await a.h.save(_purchase(
+        'BOTTLE', 2, 'Box', 60,
+        service: 'DELIVERY', serviceRate: 15)));
     expect(bill['number'], isNotNull);
     for (final d in [a, b, t]) {
       await d.sync();
@@ -206,20 +214,25 @@ void main() {
     // draft takes the company's own default (Bank in the seeded chart) on
     // save, so the server books it exactly where Solo would, not to its
     // built-in `Cash`. Every device sees the invoice settled.
-    final pay = await b.h.save(Document(id: '', docType: 'Payment Entry', payload: {
+    final pay =
+        await b.h.save(Document(id: '', docType: 'Payment Entry', payload: {
       'payment_type': 'Receive',
       'party_type': 'Customer',
       'party': 'C-1',
       'posting_date': isoToday(),
       'paid_amount': 15,
     })
-      ..children['references'] = [
-        itemLine('Payment Entry', {
-          'reference_doctype': 'Sales Invoice',
-          'reference_name': saleA.id,
-          'allocated_amount': 15,
-        }, 0, 'references'),
-      ]);
+          ..children['references'] = [
+            itemLine(
+                'Payment Entry',
+                {
+                  'reference_doctype': 'Sales Invoice',
+                  'reference_name': saleA.id,
+                  'allocated_amount': 15,
+                },
+                0,
+                'references'),
+          ]);
     await b.serverSubmit(pay);
     for (final d in [a, b, t]) {
       await d.sync();
@@ -229,9 +242,11 @@ void main() {
           filters: {'voucher_no': pay.id}, userRoles: systemRoles);
       expect(legs.map((g) => g.payload['account']).toSet(), {'Bank', 'Debtors'},
           reason: d.id);
-      expect(asNum((await d.h.engine.fetch('Sales Invoice', saleA.id))!
+      expect(
+          asNum((await d.h.engine.fetch('Sales Invoice', saleA.id))!
               .payload['outstanding_amount']),
-          0, reason: '${d.id}: the sale is settled');
+          0,
+          reason: '${d.id}: the sale is settled');
     }
     await _sameBooks([a, b, t]);
 
@@ -286,7 +301,8 @@ void main() {
     await b.sync();
     await a.sync();
     expect(await a.h.engine.fetch('GL Entry', 'FORGED-GL'), isNull);
-    await b.h.db.db.delete('documents', where: 'id = ?', whereArgs: ['FORGED-GL']);
+    await b.h.db.db
+        .delete('documents', where: 'id = ?', whereArgs: ['FORGED-GL']);
 
     // ---- Another company's data is out of reach of these credentials.
     final other = await account.createAndConnect(
@@ -301,7 +317,8 @@ void main() {
     );
     expect(crossPull.statusCode, 403, reason: 'B cannot read company 2');
     final crossPost = await http.post(
-      Uri.parse('$baseUrl/companies/${other.companyId}/commands/submit-document'),
+      Uri.parse(
+          '$baseUrl/companies/${other.companyId}/commands/submit-document'),
       headers: {
         'Authorization': 'Bearer ${a.session.userToken}',
         'Content-Type': 'application/json',
@@ -347,7 +364,8 @@ Document _purchase(String item, num qty, String uom, num rate,
           'warehouse': 'Main Store',
         }),
         if (service != null)
-          itemLine('Purchase Invoice', {'item': service, 'qty': 1, 'rate': serviceRate}, 1),
+          itemLine('Purchase Invoice',
+              {'item': service, 'qty': 1, 'rate': serviceRate}, 1),
       ];
 
 Document _sale(String item, num qty, num rate) =>
@@ -359,15 +377,21 @@ Document _sale(String item, num qty, num rate) =>
       'set_warehouse': 'Main Store',
     })
       ..children['items'] = [
-        itemLine('Sales Invoice',
-            {'item': item, 'qty': qty, 'rate': rate, 'warehouse': 'Main Store'}),
+        itemLine('Sales Invoice', {
+          'item': item,
+          'qty': qty,
+          'rate': rate,
+          'warehouse': 'Main Store'
+        }),
       ];
 
 Document _till(String item, num qty, num rate) => PosCheckout.buildPosInvoice(
       postingDate: isoToday(),
       tillSeries: 'TILL1',
       warehouse: 'Main Store',
-      lines: [PosCartLine(item: item, qty: qty, rate: rate, warehouse: 'Main Store')],
+      lines: [
+        PosCartLine(item: item, qty: qty, rate: rate, warehouse: 'Main Store')
+      ],
       tenders: [PosTender(type: 'Cash', amount: round2(qty * rate * 1.18))],
     );
 
@@ -394,6 +418,7 @@ class _Device {
   final String id;
   final BooksHarness h;
   final cursor = _MemCursor();
+  final history = MemoryTeamHistoryStore();
   TeamSession? _session;
   TeamSession get session => _session!;
   set session(TeamSession s) => _session = s;
@@ -402,6 +427,7 @@ class _Device {
     baseUrl: session.baseUrl,
     companyId: session.companyId,
     deviceToken: session.deviceToken,
+    history: history,
   );
 
   static Future<_Device> open(Directory root, String id,
@@ -430,6 +456,7 @@ class _Device {
         registry: registry,
         localDeviceId: id,
         cursorStore: cursor,
+        historyStore: history,
       );
 
   /// The form's Submit in Team: drafts up, server posts, results home.
@@ -448,8 +475,8 @@ class _Device {
       posting.submitDocument(await command(draft));
 
   Future<Document?> bin(String item) async {
-    final bins = await h.engine.list('Bin',
-        filters: {'item': item}, userRoles: systemRoles);
+    final bins = await h.engine
+        .list('Bin', filters: {'item': item}, userRoles: systemRoles);
     return bins.isEmpty ? null : bins.single;
   }
 

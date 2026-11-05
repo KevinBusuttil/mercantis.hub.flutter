@@ -7,6 +7,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'package:sqflite_common/sqlite_api.dart';
 
 import 'team_account_client.dart';
+import 'team_history.dart';
 import 'team_session.dart';
 import 'team_sync_runner.dart';
 
@@ -71,13 +72,19 @@ class TeamPostingClient {
     required this.companyId,
     required this.deviceToken,
     http.Client? client,
+    TeamHistoryStore? history,
   })  : baseUrl = baseUrl.replaceAll(RegExp(r'/+$'), ''),
-        _client = client ?? http.Client();
+        _client = client ?? http.Client(),
+        history = history ?? PrefsTeamHistoryStore();
 
   final String baseUrl;
   final String companyId;
   final String deviceToken;
   final http.Client _client;
+
+  /// Where a posting response's `history` is noted (C4): it proves, at the
+  /// next sync, that the server still has what this device just posted.
+  final TeamHistoryStore history;
 
   Future<Map<String, dynamic>> submitDocument(Map<String, dynamic> command) =>
       _post('submit-document', command);
@@ -112,6 +119,26 @@ class TeamPostingClient {
     return head is int ? head : null;
   }
 
+  /// C4: the server's history identity at [at] (see `team_history.dart`).
+  /// Null when the server predates it (no such route).
+  Future<TeamHistoryAnswer?> historyAt(int at) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/companies/$companyId/sync/history?at=$at'),
+      headers: {'Authorization': 'Bearer $deviceToken'},
+    );
+    if (response.statusCode == 404 || response.statusCode == 405) return null;
+    if (response.statusCode != 200) {
+      throw CloudHttpException(response.statusCode,
+          'Could not check the Team server history (HTTP ${response.statusCode})');
+    }
+    return TeamHistoryAnswer.fromJson(jsonDecode(response.body));
+  }
+
+  /// C4: tells the server which official records this device had that the
+  /// restored server no longer has. Idempotent on `recovery_id`.
+  Future<Map<String, dynamic>> reportLostHistory(Map<String, dynamic> report) =>
+      _post('report-lost-history', report);
+
   /// A cursor past any real log, so the head probe transfers no mutations.
   static const _beyond = 9007199254740991;
 
@@ -138,7 +165,11 @@ class TeamPostingClient {
       throw CloudHttpException(response.statusCode, message);
     }
     final decoded = jsonDecode(response.body);
-    return decoded is Map<String, dynamic> ? decoded : const {};
+    if (decoded is! Map<String, dynamic>) return const {};
+    if (decoded['history'] != null) {
+      await history.notePosting(companyId, decoded['history']);
+    }
+    return decoded;
   }
 }
 
@@ -241,13 +272,16 @@ Future<TeamSyncResult> runTeamSync({
   required String localDeviceId,
   http.Client? client,
   TeamSyncCursorStore? cursorStore,
+  TeamHistoryStore? historyStore,
 }) async {
   final adapter = TeamAccountClient.adapterFor(session, client: client);
+  final history = historyStore ?? PrefsTeamHistoryStore();
   final posting = TeamPostingClient(
     baseUrl: session.baseUrl,
     companyId: session.companyId,
     deviceToken: session.deviceToken,
     client: client,
+    history: history,
   );
   try {
     return await TeamSyncRunner(
@@ -259,6 +293,8 @@ Future<TeamSyncResult> runTeamSync({
       cursorStore: cursorStore,
       confirmTillSale: posting.submitDocument,
       logHead: () => posting.logHead(),
+      historyProbe: posting.historyAt,
+      historyStore: history,
     ).run();
   } finally {
     adapter.close();

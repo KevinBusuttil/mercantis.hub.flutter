@@ -32,7 +32,10 @@ cleanup() {
 trap cleanup EXIT
 
 # Started WITHOUT ATLAS_BOOTSTRAP_TOKEN: the test creates its companies.
-env -u ATLAS_BOOTSTRAP_TOKEN DATABASE_URL="$db_url" PORT="$port" \
+# The auth rate limit is per client address, and every device here is
+# 127.0.0.1: the full suite creates more companies and invitations a minute
+# than one real client would, so it is off for this throwaway backend.
+env -u ATLAS_BOOTSTRAP_TOKEN DATABASE_URL="$db_url" PORT="$port" ATLAS_RL_AUTH_PER_MIN=0 \
   "$backend_dir/target/release/atlas-team-backend" >"$log" 2>&1 &
 backend_pid=$!
 for _ in $(seq 1 50); do
@@ -41,5 +44,14 @@ for _ in $(seq 1 50); do
 done
 curl -fsS "http://127.0.0.1:$port/ready" >/dev/null || { cat "$log"; exit 1; }
 
-ATLAS_TEAM_E2E_URL="http://127.0.0.1:$port" flutter test test/team_e2e/ "$@"
+export ATLAS_TEAM_E2E_URL="http://127.0.0.1:$port"
+# The restore scenarios rewind the whole database with pg_restore, so they
+# run on their own, after every other file.
+export ATLAS_E2E_DB_URL="$db_url"
+if [[ $# -gt 0 ]]; then
+  flutter test "$@"
+else
+  flutter test test/team_e2e/ --exclude-tags team-restore
+  flutter test test/team_e2e/team_restore_e2e_test.dart
+fi
 echo "backend log: $log"

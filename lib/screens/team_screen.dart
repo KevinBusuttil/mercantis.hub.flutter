@@ -11,6 +11,7 @@ import '../sync/conflict_providers.dart';
 import '../team/team_account_client.dart';
 import '../team/team_session.dart';
 import 'solo_to_team_screen.dart';
+import 'team_recovery_screen.dart';
 
 /// How many official documents (invoices, bills, payments, journals…) this
 /// device's books hold. A book with any cannot connect to Team directly: it
@@ -205,7 +206,34 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
 
   List<Widget> _connected(TeamSession session) {
     final theme = Theme.of(context);
+    final diverged = ref.watch(teamHistoryDivergedProvider).valueOrNull;
     return [
+      if (diverged != null)
+        AtlasSectionCard(
+          name: 'The Team server was restored from a backup',
+          child: Padding(
+            padding: const EdgeInsets.all(MercantisSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'This device has records the server no longer has, so '
+                  'sync and Team posting are paused here. Recovering keeps '
+                  'an encrypted copy of this device, lists anything the '
+                  'server lost and keeps your unsent work.',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+                const SizedBox(height: MercantisSpacing.sm),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const TeamRecoveryScreen())),
+                  icon: const Icon(Icons.restore),
+                  label: const Text('Recover this device…'),
+                ),
+              ],
+            ),
+          ),
+        ),
       AtlasSectionCard(
         name: 'Connected',
         child: Padding(
