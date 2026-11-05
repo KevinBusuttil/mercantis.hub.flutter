@@ -515,8 +515,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/mercantis_core"
-      ref: "6b42de1efcf92d49afbf2394b34f9cf9bd23ff2c"
-      resolved-ref: "6b42de1efcf92d49afbf2394b34f9cf9bd23ff2c"
+      ref: "3cb26833d8dcbf15168f1b678c6d3a92b10de545"
+      resolved-ref: "3cb26833d8dcbf15168f1b678c6d3a92b10de545"
       url: "https://github.com/kevinbusuttil/mercantis.core.flutter.git"
     source: git
     version: "0.1.0"
@@ -524,8 +524,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/mercantis_core_ui"
-      ref: "6b42de1efcf92d49afbf2394b34f9cf9bd23ff2c"
-      resolved-ref: "6b42de1efcf92d49afbf2394b34f9cf9bd23ff2c"
+      ref: "3cb26833d8dcbf15168f1b678c6d3a92b10de545"
+      resolved-ref: "3cb26833d8dcbf15168f1b678c6d3a92b10de545"
       url: "https://github.com/kevinbusuttil/mercantis.core.flutter.git"
     source: git
     version: "0.1.0"

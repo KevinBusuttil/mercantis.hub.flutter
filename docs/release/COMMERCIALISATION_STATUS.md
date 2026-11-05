@@ -3,6 +3,12 @@
 Status: 5 November 2026. Owner of acceptance: **product owner (Kevin
 Busuttil)**.
 
+**Update, 5 November 2026:** at the product owner's request, every PR below
+was merged into `main` in the order in §1 (core #129–#130, hub #196–#202,
+backend #2–#5). The hub now pins core `3cb2683` and backend `e950747`, the
+merged commits. Merging changes no release gate: the evidence is still
+container-only.
+
 This page lists what the seven correction increments changed, how they must
 be merged, what still has to be done on real devices and with a real
 customer, and what only the product owner can do. Nothing here is accepted
@@ -13,7 +19,7 @@ because of this work.
 
 ## 1. What C1–C7 changed
 
-| Inc. | What | PRs (all drafts, unmerged) | Automated evidence |
+| Inc. | What | PRs (all merged 5 Nov 2026) | Automated evidence |
 |---|---|---|---|
 | C1 | Solo automatic Backup Protection (R2), recovery-safe numbering after a restore (R3), streamed "Save a copy" (R8) | core #129, hub #196 | `backup_protection_test`, `numbering_recovery_test`, core `backup_restore_test`, `naming_series_policy_test` |
 | C2 | AI key in the platform secure store (R4), Retry owed postings (R6), plain-language storage errors (R7), phone bank reconciliation and statements (UX-BANKREC), accessibility tests | core #130, hub #197 | `capture_key_storage_test`, `retry_owed_postings_test`, `phone_layout_test`, core `storage_error_text_test` |
@@ -129,9 +135,9 @@ Every change maps to an item in the brief. Findings:
 
 | Level | Ready? | What is missing |
 |---|---|---|
-| Solo RC (M1) | **No** | The PRs are unmerged. REL-1. D1, D5, D6 and D7 |
+| Solo RC (M1) | **No** | REL-1. D1, D5, D6 and D7 |
 | Solo 1.0 (M2) | **No** | The RC, D2–D4, D8, D14, G-ICON, P-12, LEGAL |
-| Team RC (M3) | **No** | The PRs are unmerged. D13 |
+| Team RC (M3) | **No** | D13 |
 | Team 1.0 (M4) | **No** | The Team RC, D9–D12, D15, D16, the RPO decision, release pairing (Team blocker 7) |
 
 The trackers are updated: `SOLO_RELEASE_READINESS.md`,

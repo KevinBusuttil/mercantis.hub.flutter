@@ -5,4 +5,4 @@
 # Re-pin (a full 40-character commit) whenever the app needs a newer server,
 # and after the backend PR it points at merges.
 repository=KevinBusuttil/neuradix-atlas-team-backend
-commit=a1cc4c0ae5efa682770c5bb474ac1cd177f0b673
+commit=e950747031d517efb032ddc52629427b56a4218e
