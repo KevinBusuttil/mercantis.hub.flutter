@@ -94,7 +94,18 @@ class _CaptureAiSettingsScreenState
       monthlyLimit: int.tryParse(_monthlyLimit.text.trim()) ?? 100,
     );
     await ref.read(captureAiSettingsProvider.notifier).save(settings);
-    await setCaptureAiApiKey(_apiKey.text.trim());
+    try {
+      await setCaptureAiApiKey(
+          ref.read(captureSecretStoreProvider), _apiKey.text.trim());
+    } catch (_) {
+      ref.invalidate(captureAiApiKeyProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Settings saved, but this device\'s secure storage '
+              'could not keep the API key, so AI capture stays off. Atlas '
+              'never stores the key unprotected.')));
+      return;
+    }
     ref.invalidate(captureAiApiKeyProvider);
     ref.invalidate(captureServiceProvider);
     if (!mounted) return;

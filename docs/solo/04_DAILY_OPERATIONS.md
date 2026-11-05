@@ -15,7 +15,7 @@ Every sales or purchase document starts as a **draft**, which you can change fre
 | Invoice | **Invoices** › **New invoice**, or turn a finalised quote into an invoice. Check the totals, then **Post invoice**. |
 | Send or print | Open the posted invoice and choose **Print preview**, then print or share from there. |
 | Credit or return | **New invoice**, tick **Is Return (Credit Note)**, choose the original in **Return Against**, enter the returned lines, then post. Returned stock goes back at its cost. |
-| Customer statement | **Customers** › the customer › statement |
+| Customer statement | **Customers** › the customer › statement. **Share statement** sends it by email or message from a phone; **Copy as text** pastes it anywhere. |
 
 ## Getting paid
 
@@ -39,7 +39,7 @@ Every sales or purchase document starts as a **draft**, which you can change fre
 
 ## Bank
 
-**Money › Reconcile bank** matches statement lines with payments in Atlas. Do it at least monthly. On a phone this screen is cramped. A tablet or computer is easier for now.
+**Money › Reconcile bank** matches statement lines with payments in Atlas. Do it at least monthly. On a phone the actions sit under each line; a tablet or computer shows more lines at once.
 
 ## If Atlas says a posting is still being completed
 

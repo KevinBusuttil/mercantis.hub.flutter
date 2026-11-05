@@ -39,7 +39,8 @@ class PostingOutboxInterceptor extends DocumentInterceptor {
             message: 'The ledger postings of ${blocker.docType} ${blocker.id} '
                 'did not complete and are still owed. Stock documents are paused until '
                 'they post, so every movement is costed against the stock it '
-                'really met. Close and reopen Atlas to retry them.',
+                'really met. Open Backup & restore and choose Retry owed postings '
+                'to complete them now.',
           ),
         ]);
       }

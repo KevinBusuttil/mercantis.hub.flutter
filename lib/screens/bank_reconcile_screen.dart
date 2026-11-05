@@ -23,8 +23,8 @@ typedef _Workbench = ({
   int reconciledCount,
 });
 
-final _workbenchProvider =
-    FutureProvider.autoDispose.family<_Workbench, String?>((ref, accountId) async {
+final _workbenchProvider = FutureProvider.autoDispose
+    .family<_Workbench, String?>((ref, accountId) async {
   final engine = await ref.watch(documentEngineProvider.future);
   final accounts = await engine.list('Bank Account', userRoles: _systemRoles);
   if (accountId == null) {
@@ -78,10 +78,12 @@ class _BankReconcileScreenState extends ConsumerState<BankReconcileScreen> {
         final ctrl = TextEditingController();
         return AlertDialog(
           title: const Text('Import bank statement (CSV)'),
-          content: SizedBox(
-            width: 520,
+          scrollable: true,
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
             child: TextField(
               controller: ctrl,
+              minLines: 4,
               maxLines: 12,
               decoration: const InputDecoration(
                 hintText: 'Paste the CSV exported from your bank — the '
@@ -94,8 +96,7 @@ class _BankReconcileScreenState extends ConsumerState<BankReconcileScreen> {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(c),
-                child: const Text('Cancel')),
+                onPressed: () => Navigator.pop(c), child: const Text('Cancel')),
             FilledButton(
                 onPressed: () => Navigator.pop(c, ctrl.text),
                 child: const Text('Import')),
@@ -140,10 +141,12 @@ class _BankReconcileScreenState extends ConsumerState<BankReconcileScreen> {
         final ctrl = TextEditingController();
         return AlertDialog(
           title: const Text('Import payout report (Stripe CSV)'),
-          content: SizedBox(
-            width: 520,
+          scrollable: true,
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
             child: TextField(
               controller: ctrl,
+              minLines: 4,
               maxLines: 12,
               decoration: const InputDecoration(
                 hintText: 'Paste the provider\'s balance/payout CSV (one row '
@@ -156,8 +159,7 @@ class _BankReconcileScreenState extends ConsumerState<BankReconcileScreen> {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(c),
-                child: const Text('Cancel')),
+                onPressed: () => Navigator.pop(c), child: const Text('Cancel')),
             FilledButton(
                 onPressed: () => Navigator.pop(c, ctrl.text),
                 child: const Text('Create journal')),
@@ -239,8 +241,8 @@ class _BankReconcileScreenState extends ConsumerState<BankReconcileScreen> {
         rules: rules,
         description: asNonEmpty(line.payload['description']),
         reference: asNonEmpty(line.payload['reference_number']),
-        amount: asNum(line.payload['deposit']) -
-            asNum(line.payload['withdrawal']),
+        amount:
+            asNum(line.payload['deposit']) - asNum(line.payload['withdrawal']),
       );
 
       final draft = Document(id: '', docType: 'Expense', payload: {
@@ -256,15 +258,14 @@ class _BankReconcileScreenState extends ConsumerState<BankReconcileScreen> {
       final saved = await engine.save(draft, _systemRoles);
       if (!mounted) return;
       if (match != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(match.explanation)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(match.explanation)));
       }
       context.go('/form/Expense/${saved.id}');
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('$e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     }
   }
 
@@ -304,6 +305,7 @@ class _BankReconcileScreenState extends ConsumerState<BankReconcileScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 initialValue: _account,
                 decoration: const InputDecoration(
                     labelText: 'Bank account', border: OutlineInputBorder()),
@@ -311,11 +313,10 @@ class _BankReconcileScreenState extends ConsumerState<BankReconcileScreen> {
                   for (final a in w.accounts)
                     DropdownMenuItem(
                         value: a.id,
-                        child: Text(
-                            '${a.payload['account_name'] ?? a.id}')),
+                        child: Text('${a.payload['account_name'] ?? a.id}',
+                            overflow: TextOverflow.ellipsis)),
                 ],
-                onChanged:
-                    _busy ? null : (v) => setState(() => _account = v),
+                onChanged: _busy ? null : (v) => setState(() => _account = v),
               ),
               if (_account == null) ...[
                 const SizedBox(height: 12),
@@ -331,10 +332,16 @@ class _BankReconcileScreenState extends ConsumerState<BankReconcileScreen> {
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    // Wrap, not Row: four figures do not fit side by side
+                    // on a phone or at large text sizes.
+                    child: Wrap(
+                      alignment: WrapAlignment.spaceAround,
+                      spacing: 16,
+                      runSpacing: 12,
                       children: [
-                        _Stat(label: 'Book balance', value: _money(w.bookBalance)),
+                        _Stat(
+                            label: 'Book balance',
+                            value: _money(w.bookBalance)),
                         _Stat(
                             label: 'Unreconciled',
                             value: '${w.unreconciled.length} lines'),
@@ -351,60 +358,60 @@ class _BankReconcileScreenState extends ConsumerState<BankReconcileScreen> {
                 if (w.suggestions.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text('No suggestions — import a statement or post '
+                    child: Text(
+                        'No suggestions — import a statement or post '
                         'the payments/expenses that explain these lines.',
                         style: theme.textTheme.bodySmall),
                   ),
                 for (final m in w.suggestions)
-                  Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.link_outlined),
-                      title: Text(
-                          '${byLine[m.lineId]?.payload['description'] ?? m.lineId}'),
-                      subtitle: Text(
-                          '${byLine[m.lineId]?.payload['posting_date'] ?? ''} → '
-                          '${m.voucherType} ${m.voucherId} · '
-                          'confidence ${(m.score * 100).round()}%'),
-                      trailing: FilledButton(
+                  _ActionCard(
+                    key: ValueKey('suggestion-${m.lineId}'),
+                    leading: const Icon(Icons.link_outlined),
+                    title:
+                        '${byLine[m.lineId]?.payload['description'] ?? m.lineId}',
+                    subtitle:
+                        '${byLine[m.lineId]?.payload['posting_date'] ?? ''} → '
+                        '${m.voucherType} ${m.voucherId} · '
+                        'confidence ${(m.score * 100).round()}%',
+                    actions: [
+                      FilledButton(
                         onPressed: _busy ? null : () => _accept(m),
                         child: const Text('Accept'),
                       ),
-                    ),
+                    ],
                   ),
                 const SizedBox(height: 16),
                 Text('Unreconciled lines', style: theme.textTheme.titleSmall),
                 if (w.unreconciled.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text('Nothing unexplained — the account is fully '
-                        'reconciled.', style: theme.textTheme.bodySmall),
+                    child: Text(
+                        'Nothing unexplained — the account is fully '
+                        'reconciled.',
+                        style: theme.textTheme.bodySmall),
                   ),
                 for (final l in w.unreconciled)
-                  Card(
-                    child: ListTile(
-                      leading: Icon(asNum(l.payload['withdrawal']) > 0
-                          ? Icons.north_east
-                          : Icons.south_west),
-                      title: Text('${l.payload['description'] ?? l.id}'),
-                      subtitle: Text('${l.payload['posting_date']} · '
-                          '${asNum(l.payload['withdrawal']) > 0 ? '−${_money(asNum(l.payload['withdrawal']))}' : '+${_money(asNum(l.payload['deposit']))}'}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (asNum(l.payload['withdrawal']) > 0)
-                            TextButton(
-                              onPressed:
-                                  _busy ? null : () => _createExpense(l),
-                              child: const Text('Create expense'),
-                            ),
-                          TextButton(
-                            onPressed:
-                                _busy ? null : () => _markReconciled(l),
-                            child: const Text('Reconcile'),
-                          ),
-                        ],
+                  _ActionCard(
+                    key: ValueKey('line-${l.id}'),
+                    leading: asNum(l.payload['withdrawal']) > 0
+                        ? const Icon(Icons.north_east,
+                            semanticLabel: 'Money out')
+                        : const Icon(Icons.south_west,
+                            semanticLabel: 'Money in'),
+                    title: '${l.payload['description'] ?? l.id}',
+                    subtitle: '${l.payload['posting_date']} · '
+                        '${asNum(l.payload['withdrawal']) > 0 ? '−${_money(asNum(l.payload['withdrawal']))}' : '+${_money(asNum(l.payload['deposit']))}'}',
+                    actions: [
+                      if (asNum(l.payload['withdrawal']) > 0)
+                        TextButton(
+                          onPressed: _busy ? null : () => _createExpense(l),
+                          child: const Text('Create expense'),
+                        ),
+                      TextButton(
+                        onPressed: _busy ? null : () => _markReconciled(l),
+                        child: const Text('Reconcile'),
                       ),
-                    ),
+                    ],
                   ),
               ],
             ],
@@ -423,11 +430,80 @@ class _Stat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      children: [
-        Text(value, style: theme.textTheme.titleMedium),
-        Text(label, style: theme.textTheme.bodySmall),
-      ],
+    // One announcement per figure ("Book balance, €12.00"), not two
+    // unrelated fragments.
+    return MergeSemantics(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 120),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(value,
+                style: theme.textTheme.titleMedium,
+                textAlign: TextAlign.center),
+            Text(label,
+                style: theme.textTheme.bodySmall, textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A card for one statement line or suggestion. On a wide screen the actions
+/// sit at the end of the row as before; on a phone (or at large text sizes)
+/// they move below the text so the description is never squeezed to a few
+/// characters and every button keeps a full-size tap target.
+class _ActionCard extends StatelessWidget {
+  const _ActionCard({
+    super.key,
+    required this.leading,
+    required this.title,
+    required this.subtitle,
+    required this.actions,
+  });
+
+  final Widget leading;
+  final String title;
+  final String subtitle;
+  final List<Widget> actions;
+
+  static const wideBreakpoint = 600.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: LayoutBuilder(builder: (context, constraints) {
+        final scale = MediaQuery.textScalerOf(context).scale(1);
+        final wide = constraints.maxWidth >= wideBreakpoint && scale <= 1.3;
+        if (wide) {
+          return ListTile(
+            leading: leading,
+            title: Text(title),
+            subtitle: Text(subtitle),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: actions),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ListTile(
+              leading: leading,
+              title: Text(title),
+              subtitle: Text(subtitle),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: OverflowBar(
+                alignment: MainAxisAlignment.end,
+                overflowAlignment: OverflowBarAlignment.end,
+                spacing: 8,
+                children: actions,
+              ),
+            ),
+          ],
+        );
+      }),
     );
   }
 }

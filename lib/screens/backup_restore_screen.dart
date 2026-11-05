@@ -15,6 +15,7 @@ import '../backup/backup_scheduler.dart';
 import '../backup/hub_backup.dart';
 import '../ledger/ledger_derivation_service.dart';
 import '../support/diagnostic_log.dart';
+import '../support/storage_errors.dart';
 import '../team/team_session.dart';
 
 /// The Hub's backup helper for this device's data folder.
@@ -194,16 +195,52 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
                   'Back up at least weekly and keep a copy off this device.'
               : 'Keep a copy somewhere other than this device.'),
         ),
-        if (owed > 0)
+        if (owed > 0) ...[
           ListTile(
             leading: const Icon(Icons.sync_problem),
             title: Text('$owed document${owed == 1 ? '' : 's'} still '
                 'owe${owed == 1 ? 's' : ''} ledger postings'),
             subtitle: const Text('Atlas retries these every time it starts. '
-                'If this stays, contact support before relying on reports.'),
+                'Back up after they clear. If they stay owed after a retry, '
+                'contact support before relying on reports.'),
           ),
+          // Below the text, not in `trailing`: the label must fit a phone.
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8, bottom: 8),
+              child: TextButton.icon(
+                onPressed: _busy == null ? _retryOwed : null,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry owed postings'),
+              ),
+            ),
+          ),
+        ],
       ]),
     );
+  }
+
+  Future<void> _retryOwed() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = 'Completing owed postings…');
+    try {
+      final ledger = await ref.read(ledgerDerivationServiceProvider.future);
+      final left = await ledger.retryOwedPostings();
+      messenger.showSnackBar(SnackBar(
+          content: Text(left.isEmpty
+              ? 'All postings are complete.'
+              : '${left.length} still owed. Details are in Help & '
+                  'diagnostics; contact support if this stays.')));
+    } catch (e, s) {
+      DiagnosticLog.instance.record('retry-postings', e, s);
+      messenger.showSnackBar(SnackBar(
+          content: Text(friendlyStorageError(e) ??
+              'The retry did not complete. Nothing was lost; try again.')));
+    } finally {
+      if (mounted) setState(() => _busy = null);
+      ref.invalidate(_backupStatusProvider);
+    }
   }
 
   Widget _reportTile(ThemeData theme, BackupReport r) {
@@ -266,7 +303,8 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
       messenger.showSnackBar(SnackBar(
           content: Text(e is BackupException
               ? e.message
-              : 'The backup did not complete and nothing was saved: $e')));
+              : friendlyStorageError(e) ??
+                  'The backup did not complete and nothing was saved: $e')));
     }
   }
 

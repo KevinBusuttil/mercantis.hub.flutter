@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'capture_secret_store.dart';
 import 'capture_settings.dart';
 
 const _kSettings = 'capture.ai.settings';
@@ -42,23 +43,80 @@ class CaptureAiSettingsController extends AsyncNotifier<CaptureAiSettings> {
   }
 }
 
-/// The stored API key (null/empty when unset). Stored in app-private prefs —
-/// it's the user's own key; recommend a scoped/limited key.
+/// The secure store the key lives in. Overridden in tests.
+final captureSecretStoreProvider =
+    Provider<CaptureSecretStore>((ref) => SecureCaptureSecretStore());
+
+/// The API key, from secure storage (null when unset, or when it cannot be
+/// read safely: AI capture then stays off). Moves a key left in plaintext
+/// preferences by older versions on first read (R4).
 final captureAiApiKeyProvider = FutureProvider<String?>((ref) async {
+  final store = ref.watch(captureSecretStoreProvider);
+  await CaptureKeyMigration.run(store);
   try {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_kApiKey);
+    final v = await store.read();
+    return (v == null || v.isEmpty) ? null : v;
   } catch (_) {
     return null;
   }
 });
 
-/// Persist the API key. Caller invalidates [captureAiApiKeyProvider] after.
-Future<void> setCaptureAiApiKey(String key) async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kApiKey, key);
-  } catch (_) {}
+/// Persist the API key in secure storage, verified, and remove any legacy
+/// plaintext copy. An empty [key] removes it. Throws when secure storage
+/// cannot hold it: nothing falls back to plaintext. Caller invalidates
+/// [captureAiApiKeyProvider] after.
+Future<void> setCaptureAiApiKey(CaptureSecretStore store, String key) async {
+  if (key.isEmpty) {
+    await store.delete();
+  } else {
+    await store.write(key);
+    if (await store.read() != key) {
+      throw StateError('secure storage did not keep the key');
+    }
+  }
+  await CaptureKeyMigration.removeLegacy();
+}
+
+/// One-time move of `capture.ai.api_key` out of SharedPreferences.
+///
+/// Idempotent: write to secure storage, read it back, and only then delete
+/// the plaintext copy. A failure leaves the legacy value where it was (so no
+/// key is lost) and the key unused (so nothing runs on a plaintext secret);
+/// the next start tries again. If secure storage already holds a key, the
+/// legacy copy is stale and is simply removed.
+abstract final class CaptureKeyMigration {
+  static const legacyKey = _kApiKey;
+
+  static Future<bool> run(CaptureSecretStore store) async {
+    SharedPreferences prefs;
+    try {
+      prefs = await SharedPreferences.getInstance();
+    } catch (_) {
+      return false;
+    }
+    final legacy = prefs.getString(_kApiKey);
+    if (legacy == null) return true;
+    try {
+      final current = await store.read();
+      if (current == null || current.isEmpty) {
+        if (legacy.isNotEmpty) {
+          await store.write(legacy);
+          if (await store.read() != legacy) return false;
+        }
+      }
+      await prefs.remove(_kApiKey);
+      return !prefs.containsKey(_kApiKey);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> removeLegacy() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kApiKey);
+    } catch (_) {}
+  }
 }
 
 /// AI calls already made this calendar month (for the settings display).

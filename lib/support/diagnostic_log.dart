@@ -214,7 +214,9 @@ class DiagnosticLog {
       final file = _file;
       if (file == null) return;
       if (trimmed) {
-        unawaited(_rewrite());
+        // Synchronous, like the append below: overlapping async rewrites
+        // could finish out of order and leave older events on disk.
+        _rewriteSync(file);
       } else {
         file.writeAsStringSync('${jsonEncode(event.toJson())}\n',
             mode: FileMode.append, flush: true);
@@ -234,6 +236,14 @@ class DiagnosticLog {
     if (_events.length <= capacity) return false;
     _events.removeRange(0, _events.length - capacity);
     return true;
+  }
+
+  void _rewriteSync(File file) {
+    final tmp = File('${file.path}.tmp');
+    tmp.writeAsStringSync(
+        _events.map((e) => '${jsonEncode(e.toJson())}\n').join(),
+        flush: true);
+    tmp.renameSync(file.path);
   }
 
   Future<void> _rewrite() async {
