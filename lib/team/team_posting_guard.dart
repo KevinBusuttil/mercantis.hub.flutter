@@ -4,6 +4,7 @@ import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import '../ledger/hub_interceptors.dart';
 import '../ledger/ledger_derivation.dart';
 import '../ledger/ledger_values.dart';
+import 'team_books_lock.dart';
 import 'team_posting_service.dart';
 import 'team_session.dart';
 
@@ -37,6 +38,15 @@ class TeamPostingAuthorityGuard extends DocumentInterceptor {
   /// Whether this install is connected to Atlas Team right now.
   final bool Function() isTeam;
 
+  /// C5.2: the Team books lock is the server's (see `team_books_lock.dart`).
+  @override
+  Future<void> beforeSave(DocumentEngine engine, Document doc, DocType docType,
+      {required bool isNew}) async {
+    if (!isTeam() || isNew) return;
+    final refusal = await teamCompanyLockEditRefusal(engine, doc);
+    if (refusal != null) throw _refuse(refusal, field: 'books_lock_date');
+  }
+
   @override
   Future<void> beforeSubmit(
       DocumentEngine engine, Document doc, DocType docType) async {
@@ -59,10 +69,11 @@ class TeamPostingAuthorityGuard extends DocumentInterceptor {
             : _unsupported(doc.docType));
   }
 
-  static DocumentEngineError _refuse(String message) =>
+  static DocumentEngineError _refuse(String message,
+          {String field = 'docstatus'}) =>
       DocumentEngineError.validationFailed([
         ValidationError(
-            stage: 'team_authority', fieldKey: 'docstatus', message: message),
+            stage: 'team_authority', fieldKey: field, message: message),
       ]);
 }
 

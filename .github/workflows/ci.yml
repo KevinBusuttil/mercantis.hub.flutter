@@ -97,6 +97,14 @@ jobs:
           flutter test
           test/team_history_test.dart
           test/team_recovery_screen_test.dart
+      - name: Team authority for journals, expenses, deposits and the books lock (C5)
+        run: >-
+          flutter test
+          test/accounting_contract_test.dart
+          test/deposit_test.dart
+          test/team_books_lock_test.dart
+          test/team_posting_guard_test.dart
+          test/team_posting_test.dart
       - name: Accounting fixtures (stock/COGS, reports)
         run: >-
           flutter test

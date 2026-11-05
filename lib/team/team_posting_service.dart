@@ -6,7 +6,9 @@ import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'package:sqflite_common/sqlite_api.dart';
 
+import '../support/diagnostic_log.dart';
 import 'team_account_client.dart';
+import 'team_books_lock.dart';
 import 'team_history.dart';
 import 'team_session.dart';
 import 'team_sync_runner.dart';
@@ -23,6 +25,10 @@ import 'team_sync_runner.dart';
 /// control point, matching retail practice. If a jurisdiction ever mandates
 /// centrally issued receipt numbers, the upgrade path is a durable offline
 /// submit queue — nothing here precludes it.
+///
+/// Journal Entry, Expense and Customer Deposit joined in C5: the server
+/// posts them with the same ledger rows as Solo (shared accounting contract
+/// fixtures 0013–0016) and enforces deposit application atomically.
 const teamPostedDocTypes = {
   'Sales Invoice',
   'Purchase Invoice',
@@ -30,6 +36,9 @@ const teamPostedDocTypes = {
   'Payment Entry',
   'Stock Entry',
   'Delivery Note',
+  'Journal Entry',
+  'Expense',
+  'Customer Deposit',
 };
 
 /// The wire body for a submit-document command, built from a hydrated
@@ -284,7 +293,7 @@ Future<TeamSyncResult> runTeamSync({
     history: history,
   );
   try {
-    return await TeamSyncRunner(
+    final result = await TeamSyncRunner(
       database: database,
       registry: registry,
       adapter: adapter,
@@ -296,6 +305,16 @@ Future<TeamSyncResult> runTeamSync({
       historyProbe: posting.historyAt,
       historyStore: history,
     ).run();
+    // C5.2: the server's books lock comes home with every exchange. A
+    // failure here leaves the old local copy; the server still enforces
+    // its own lock on every submit.
+    try {
+      await refreshTeamBooksLock(
+          session: session, database: database, client: client);
+    } catch (e, s) {
+      DiagnosticLog.instance.record('team-books-lock', e, s);
+    }
+    return result;
   } finally {
     adapter.close();
     posting.close();

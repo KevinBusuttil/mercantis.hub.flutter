@@ -311,6 +311,46 @@ class TeamAccountClient {
     return _decodeResponse(response);
   }
 
+  /// The company's posting settings, including the authoritative books
+  /// lock (`books_lock_date`). Any member may read them.
+  Future<Map<String, dynamic>> settings({
+    required String companyId,
+    required String authToken,
+  }) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/companies/$companyId/settings'),
+      headers: {'Authorization': 'Bearer $authToken'},
+    );
+    return _decodeResponse(response);
+  }
+
+  /// C5: moves the Team books lock (`null` clears it). [expectedCurrent] is
+  /// the lock this device saw; the server refuses (409) when it has moved
+  /// since, so a stale device never silently undoes another's change.
+  /// Owner, Admin or Accountant; reopening (an earlier date, or clearing)
+  /// needs Owner or Admin (403 otherwise).
+  Future<Map<String, dynamic>> setBooksLock({
+    required String companyId,
+    required String authToken,
+    required String? lockDate,
+    required String? expectedCurrent,
+    String? reason,
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/companies/$companyId/commands/set-books-lock'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $authToken',
+      },
+      body: jsonEncode({
+        'lock_date': lockDate,
+        'expected_current': expectedCurrent,
+        if (reason != null) 'reason': reason,
+      }),
+    );
+    return _decodeResponse(response);
+  }
+
   // Composed flows — each ends with a device registration so the result is
   // a complete, sync-ready TeamSession.
 

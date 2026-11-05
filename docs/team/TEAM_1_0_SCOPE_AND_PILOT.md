@@ -16,6 +16,8 @@ its own.
 | Device bootstrap: a new device pulls the whole company | Hub E2E: two devices join and match the owner's chart |
 | Masters and drafts sync with conflict detection (never silent last-write-wins) | `test/team_two_device_conflict_test.dart`, hub E2E master data |
 | Server-posted Sales Invoice, Purchase Invoice, Purchase Receipt, Delivery Note, Payment Entry, Stock Entry, including returns, VAT rows, UOM conversion, service items, FIFO and Moving Average, multi-currency base stamping | Backend posting suites, 12 shared fixtures on both engines, hub E2E |
+| Server-posted Journal Entry (party lines, cost centre, multi-currency), Expense (paid or owed, input VAT) and Customer Deposit (receipt, partial application through a Receive payment, refund by cancelling, no double application, no cancel while applied), from their forms | Backend `tests/c5_authority.rs`, fixtures 0013–0016 on both engines, hub E2E `team_authority_c5_e2e_test.dart`. See `TEAM_POSTING_AUTHORITY.md` |
+| One authoritative period lock: set on the server by an authorised command, refused from a stale view, re-checked inside every posting commit, copied to every device on sync, not editable on a device | Backend `tests/c5_authority.rs`, fixtures 0006 and 0016, hub E2E `team_authority_c5_e2e_test.dart` |
 | Gap-free official numbering under concurrency, idempotent retry | Backend `tests/posting.rs`. Hub E2E: two devices post at once, lost-response retry |
 | Server-side immutability; corrections by cancel/reversal only | Backend `tests/authority_guard.rs`, `tests/posting.rs` |
 | Offline POS under a per-till series, confirmed by the server, convergent stock | Backend `tests/authority_guard.rs`. Hub E2E: offline till |
@@ -28,7 +30,9 @@ its own.
 
 | Capability | Why not | What the product does now |
 |---|---|---|
-| Journal Entry, Expense, Customer Deposit (and so depreciation, payout import, booking/rental/lease deposits) | No server posting path | Draft only. Submit is refused with an explanation |
+| Flows that create and submit Journal Entries, Expenses or Customer Deposits automatically: depreciation runs, payout import, year-end close, booking/rental/lease deposits | They submit on the device. They are not yet routed to the server | The generated document is refused at submit with an explanation. The user submits it from its form while connected |
+| Partial refund of a Customer Deposit | Neither engine models it (a refund is a cancellation of the whole unapplied deposit) | Cancel the applications, cancel the deposit, take a new deposit for the part kept |
+| Expense or Customer Deposit in a foreign currency | Solo posts them unconverted, so Team refuses a rate other than 1 rather than post a different figure | Record it as a Purchase Invoice or a Journal Entry, which are base-stamped |
 | Recurring invoices, channel (commerce) import, construction valuations, rental/booking invoicing, work-order completion | These flows submit on the device. They are not yet routed to the server | The generated documents are refused at submit. The user submits them from the form while connected |
 | POS session close and cash-up confirmed by the server | No backend endpoint | Cash-up stays local to the till |
 | Malta fiscal receipts | MTCA approval and EXO number pending | Must not be claimed |
@@ -44,11 +48,13 @@ its own.
 2. Monthly restore drill on the production backup, filed (`docs/OPERATIONS.md`).
 3. External uptime and alerting actually configured and shown to fire once.
 4. A decision on the 24 h RPO: accept it in the terms, or add WAL archiving.
-5. Server posting for Journal Entry, Expense and Customer Deposit, or a
-   documented decision that pilot customers do not need them.
-6. The period lock has one source of truth. Today the server reads its own
-   `company_settings.books_lock_date`, and the hub's Business Profile lock
-   is not sent to it.
+5. Server posting for Journal Entry, Expense and Customer Deposit.
+   *Implemented in C5 (backend and hub, tested on PostgreSQL and end to
+   end). Open until the pilot has posted each of them (P9).*
+6. The period lock has one source of truth. *Implemented in C5: the server
+   holds it, it moves only through `commands/set-books-lock`, and devices
+   copy it. Open until the pilot month-end has closed a period with it
+   (P7).*
 
 ## 4. Pilot plan (M4.6)
 
@@ -82,9 +88,11 @@ with date, users, devices and outcome.
 | P6 | A server restore to a clean host | Restore from the off-site backup. Devices detect it and recover (Team › Recover this device). File the lost-records report with the incident log |
 | P7 | Month-end | Trial balance, VAT and stock valuation on two devices equal the server's, and match the accountant's own check |
 | P8 | Monitoring | A forced backend stop and a stale backup each raise an alert |
+| P9 | Journals, expenses and deposits | An accountant posts a journal, a purchasing user an expense, a sales user takes a deposit that is later applied to an invoice. Every device shows the same ledger, and a second application beyond the deposit is refused |
+| P10 | Period close | The accountant locks the month on one device. A device that was offline then tries to post into it and is refused. Reopening needs the owner or an admin, and the audit log shows who did what |
 
 **Evidence.** A dated pilot log, kept by the pilot owner, with:
-- screenshots or exports for P1 to P8;
+- screenshots or exports for P1 to P10;
 - the restore-drill reports;
 - the alert notifications;
 - the month-end comparison;
