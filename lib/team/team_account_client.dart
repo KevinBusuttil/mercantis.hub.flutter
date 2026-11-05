@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:mercantis_core/mercantis_core.dart';
 
+import 'team_protocol.dart';
 import 'team_session.dart';
 
 /// A device registered to the Team company, as listed by the backend
@@ -72,7 +73,7 @@ class TeamAccountClient {
     required String baseUrl,
     http.Client? client,
   })  : baseUrl = baseUrl.replaceAll(RegExp(r'/+$'), ''),
-        _client = client ?? http.Client();
+        _client = teamHttpClient(client);
 
   final String baseUrl;
   final http.Client _client;
@@ -413,7 +414,7 @@ class TeamAccountClient {
         baseUrl: session.baseUrl,
         companyId: session.companyId,
         deviceToken: session.deviceToken,
-        client: client,
+        client: teamHttpClient(client),
       );
 
   Future<Map<String, dynamic>> _post(

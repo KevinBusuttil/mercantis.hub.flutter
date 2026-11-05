@@ -143,3 +143,8 @@ command.
   `test/team_e2e/team_authority_c5_e2e_test.dart` does the same for the
   C5 doctypes and the books lock (three devices: owner, accountant, sales). See
   [evidence/team-e2e-2026-10-23.md](evidence/team-e2e-2026-10-23.md).
+- CI (C6): the hub job `team-e2e` checks out the backend commit named in
+  `tool/team_backend.pin`, fails on any drift between the fixtures or the
+  protocol contract and the hub's copies, and runs the whole Team E2E suite
+  (including the restore scenarios) against that backend on PostgreSQL 16.
+  See [TEAM_PROTOCOL_CONTRACT.md](TEAM_PROTOCOL_CONTRACT.md).

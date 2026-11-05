@@ -1,0 +1,8 @@
+# C6: the Atlas Team backend this app is built and tested against.
+# CI checks this exact commit out, compares the shared contract
+# (tests/fixtures and contract/team_protocol.json) with this repository's
+# copies, and runs the Team end-to-end suite against it.
+# Re-pin (a full 40-character commit) whenever the app needs a newer server,
+# and after the backend PR it points at merges.
+repository=KevinBusuttil/neuradix-atlas-team-backend
+commit=a1cc4c0ae5efa682770c5bb474ac1cd177f0b673
