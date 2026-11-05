@@ -53,14 +53,20 @@ Run these on the signed APK or AAB from step 3, on a **physical** low/mid Androi
 4. **Uninstall Atlas.** Confirm the app data is gone. Reinstall the same signed build.
 5. First screen: **Restore from a backup instead**. Fetch the file from the cloud drive and enter the passphrase. Check the summary, then type `REPLACE`.
 6. Compare every figure from step 2. Open the 3 receipt photos. Check that **Help & diagnostics** shows integrity `ok` and postings owed `0`.
-7. Post a new invoice. Check that its number follows the last one, and back up again.
+7. Try to post a new invoice. Atlas must refuse it: on a reinstalled phone numbering is **on hold** (R3). Open **Settings › Numbering series**, choose **Confirm the last numbers issued…**, check the invoice box shows the number from step 2, confirm, then post the invoice. Its number must be the next one. Back up again.
 8. Repeat steps 3–6, but **switch the phone off during the restore** (after typing REPLACE). On the next start Atlas must either finish or undo the restore, with the books intact.
+9. **Automatic backup (R2).** Before step 4: turn on **Automatic backup** with `Documents/Atlas Backups` as the folder. Check the first file appears there in the Files app. Leave Atlas closed for 25 hours, open it, wait one minute: a second file must appear and the card must say **Protected**. Unplug nothing on a phone; instead rename the folder in Files and choose **Back up now**: the card must say the folder cannot be reached. Rename it back. After step 4 (uninstall and reinstall), restore from the newest file in `Documents/Atlas Backups` with the recovery passphrase only.
+10. Same device, older backup (R3): with Atlas installed, make invoices, restore an **older** backup, then post an invoice. Its number must follow the newest invoice issued before the restore, not the backup's; the restore notice must list the invoices to re-enter.
+
+Development or test builds are acceptable for steps 9 and 10 while REL-1 (production signing) is open; record the build type.
 
 | Drill | Device / OS | Build | Date | Result | By |
 |---|---|---|---|---|---|
 | R1 clean reinstall | — | — | — | **PENDING** | — |
 | R1 interrupted restore | — | — | — | **PENDING** | — |
 | Restore of a backup made on another device | — | — | — | **PENDING** | — |
+| R2 automatic backup to `Documents`, restore after reinstall with the passphrase (step 9) | — | — | — | **PENDING** | — |
+| R3 numbering after older-backup restore, same device and reinstall (steps 7, 10) | — | — | — | **PENDING** | — |
 
 ### 3.2 Device performance
 

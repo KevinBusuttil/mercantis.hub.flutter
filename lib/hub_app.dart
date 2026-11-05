@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'auth/auth_gate.dart';
 import 'auth/auth_store.dart';
+import 'backup/backup_scheduler.dart';
 import 'manifest/hub_manifest.dart';
 import 'field_service/maintenance_contract_service.dart';
 import 'modules/selling/recurring_invoice_service.dart';
@@ -93,6 +94,8 @@ class _HubRouterApp extends ConsumerWidget {
     // signed in. Reading the notifier (not its state) keeps it alive without
     // rebuilding the app on every sync tick.
     ref.read(companySyncProvider.notifier);
+    // Automatic backups (Backup Protection) while the app is open.
+    ref.read(backupSchedulerProvider);
     final router = ref.watch(_hubRouterProvider);
     return MaterialApp.router(
       title: 'Neuradix Atlas',

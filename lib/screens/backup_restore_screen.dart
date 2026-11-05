@@ -7,8 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 import 'package:path/path.dart' as p;
+import 'package:share_plus/share_plus.dart';
 
 import '../backup/app_restart.dart';
+import '../backup/backup_protection.dart';
+import '../backup/backup_scheduler.dart';
 import '../backup/hub_backup.dart';
 import '../ledger/ledger_derivation_service.dart';
 import '../support/diagnostic_log.dart';
@@ -87,6 +90,12 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
             loading: () => const LinearProgressIndicator(),
             error: (e, _) => Text('Could not read backup status: $e'),
             data: (s) => _statusCard(theme, s.lastBackup, s.owedPostings),
+          ),
+          const SizedBox(height: 12),
+          _AutomaticBackupCard(
+            busy: _busy != null,
+            onSaveCopy: _saveCopy,
+            setBusy: (b) => setState(() => _busy = b),
           ),
           const SizedBox(height: 12),
           Card(
@@ -274,14 +283,17 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
         await File(path).copy(dest);
         messenger.showSnackBar(SnackBar(content: Text('Copy saved to $dest')));
       } else {
-        // Mobile: the system save sheet (Files, Drive, iCloud, USB…).
-        final dest = await FilePicker.platform.saveFile(
-          dialogTitle: 'Save a copy of the backup',
-          fileName: name,
-          bytes: await File(path).readAsBytes(),
-        );
-        if (dest == null) return;
-        messenger.showSnackBar(const SnackBar(content: Text('Copy saved')));
+        // Mobile: the system share sheet (Files, Drive, iCloud, USB…). The
+        // file is handed over by path and streamed by the receiving app, so
+        // a large backup is never read into memory (R8).
+        final result = await SharePlus.instance.share(ShareParams(
+          files: [XFile(path, mimeType: 'application/octet-stream')],
+          fileNameOverrides: [name],
+          subject: name,
+        ));
+        if (result.status == ShareResultStatus.success) {
+          messenger.showSnackBar(const SnackBar(content: Text('Copy saved')));
+        }
       }
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Could not save a copy: $e')));
@@ -306,14 +318,25 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
       return;
     }
-    final pass = await _askPassphrase(confirm: false);
-    if (pass == null) return;
+    // An automatic backup made on this device opens with the device key.
+    // Any other backup (or this one on a new device) needs the passphrase.
+    final header = await AtlasBackupService.readHeader(path);
+    final protection = await ref.read(backupProtectionProvider.future);
+    final ring = await protection.keyring();
+    final ownKey = header.keyId != null && ring?.keyId == header.keyId;
+    String? pass;
+    if (!ownKey) {
+      pass = await _askPassphrase(confirm: false);
+      if (pass == null) return;
+    }
 
     setState(() => _busy = 'Checking the backup…');
     final backup = await ref.read(hubBackupProvider.future);
+    final deviceId = await ref.read(deviceIdProvider.future);
     StagedRestore staged;
     try {
-      staged = await backup.stage(path, pass);
+      staged = await backup.stage(path, pass,
+          deviceKey: ownKey ? ring!.deviceKey : null);
     } catch (e, s) {
       DiagnosticLog.instance.record('restore', e, s);
       if (!mounted) return;
@@ -356,7 +379,8 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
         );
       }
       try {
-        final outcome = await backup.commit(staged);
+        final (outcome, numbering) =
+            await backup.commit(staged, deviceId: deviceId);
         await HubBackup.applyRestoredPreferences(staged);
         final created = DateTime.tryParse('${staged.manifest['created_at']}');
         return RestartNotice(
@@ -367,7 +391,8 @@ class _BackupRestoreScreenState extends ConsumerState<BackupRestoreScreen> {
               'the trial balance, receivables, payables, stock and bank '
               'totals match the backup to the cent.'
               '${outcome.safetyCopyDirectory == null ? '' : ' The data that was replaced is kept as a safety copy until the next restore.'}'
-              ' Folder sync is off; turn it on again in Settings if you use it.',
+              ' Folder sync is off; turn it on again in Settings if you use it.'
+              '${numbering == null ? '' : '\n\n${numbering.describe()}'}',
         );
       } on RestoreVerificationException catch (e) {
         DiagnosticLog.instance.record('restore', e);
@@ -563,9 +588,13 @@ class _ConfirmRestoreDialogState extends State<_ConfirmRestoreDialog> {
                 'the restore is interrupted or does not verify.'),
             const SizedBox(height: 8),
             const Text(
-                'Document numbers continue from the backup. If you issued '
-                'invoices after it was made, note their numbers and re-enter '
-                'them.'),
+                'Numbers already issued are never issued again. If this '
+                'device holds books of the same business, Atlas continues '
+                'every series after the last number it issued and lists the '
+                'documents to re-enter. If not (a new or replacement '
+                'device), new invoices, receipts and payments wait until you '
+                'confirm the last numbers you issued or start a recovery '
+                'series.'),
             const SizedBox(height: 12),
             TextField(
               controller: _typed,
@@ -598,4 +627,249 @@ class _ConfirmRestoreDialogState extends State<_ConfirmRestoreDialog> {
           ],
         ),
       );
+}
+
+/// Backup Protection (R2): automatic encrypted backups to a folder the
+/// operator chose, with freshness, failures and the recovery copy.
+class _AutomaticBackupCard extends ConsumerWidget {
+  const _AutomaticBackupCard({
+    required this.busy,
+    required this.onSaveCopy,
+    required this.setBusy,
+  });
+
+  final bool busy;
+  final Future<void> Function(String path) onSaveCopy;
+  final void Function(String? label) setBusy;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final status = ref.watch(backupFreshnessProvider);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: status.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (e, _) => Text('Could not read automatic backup: $e'),
+          data: (s) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Automatic backup', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              if (s.freshness == BackupFreshness.off) ...[
+                const Text(
+                    'Atlas backs up the whole business every day to a folder '
+                    'you choose outside the app: a USB drive, a cloud-synced '
+                    'folder, or Documents on this phone. Backups are '
+                    'encrypted. You choose a recovery passphrase once; with '
+                    'it, any device can restore them.'),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: busy ? null : () => _turnOn(context, ref),
+                  icon: const Icon(Icons.schedule),
+                  label: const Text('Turn on automatic backup…'),
+                ),
+              ] else ...[
+                _freshnessTile(theme, s.freshness, s.policy, s.state),
+                if (s.policy.destination != null)
+                  Text('Folder: ${s.policy.destination}',
+                      style: theme.textTheme.bodySmall),
+                Text(
+                    'Every ${s.policy.intervalHours} h, keeping the newest '
+                    '${s.policy.keep}. Runs when Atlas opens, when you return '
+                    'to it, and hourly while it is open. It does not run '
+                    'while Atlas is closed.',
+                    style: theme.textTheme.bodySmall),
+                const SizedBox(height: 12),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  if (s.state.lastFailure == BackupFailure.keyMissing)
+                    FilledButton.icon(
+                      onPressed: busy ? null : () => _recoverKey(context, ref),
+                      icon: const Icon(Icons.key),
+                      label: const Text('Enter recovery passphrase…'),
+                    ),
+                  FilledButton.tonalIcon(
+                    onPressed: busy ? null : () => _runNow(context, ref),
+                    icon: const Icon(Icons.backup_outlined),
+                    label: const Text('Back up now'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: busy ? null : () => _exportRecoveryCopy(context, ref),
+                    icon: const Icon(Icons.ios_share),
+                    label: const Text('Export recovery copy…'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: busy ? null : () => _changeFolder(context, ref),
+                    icon: const Icon(Icons.folder_open),
+                    label: const Text('Change folder…'),
+                  ),
+                  TextButton(
+                    onPressed: busy ? null : () => _turnOff(context, ref),
+                    child: const Text('Turn off'),
+                  ),
+                ]),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _freshnessTile(ThemeData theme, BackupFreshness f,
+      BackupProtectionPolicy p, BackupProtectionState s) {
+    final last = s.lastSuccessAt;
+    final (IconData icon, String title, Color? color) = switch (f) {
+      BackupFreshness.fresh => (Icons.verified, 'Protected', null),
+      BackupFreshness.due => (Icons.schedule, 'Backup due', null),
+      BackupFreshness.overdue => (
+          Icons.warning_amber_rounded,
+          'No recent backup',
+          theme.colorScheme.error
+        ),
+      BackupFreshness.failing => (
+          Icons.error_outline,
+          'Automatic backup is failing',
+          theme.colorScheme.error
+        ),
+      BackupFreshness.off => (Icons.cloud_off, 'Off', null),
+    };
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: color),
+      title: Text(title, style: TextStyle(color: color)),
+      subtitle: Text([
+        last == null ? 'No automatic backup yet.' : 'Last good backup ${_date(last)}.',
+        if (s.lastFailure != null &&
+            (last == null ||
+                (s.lastAttemptAt?.isAfter(last) ?? false)))
+          s.lastFailure!.message,
+      ].join(' ')),
+    );
+  }
+
+  Future<void> _turnOn(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final dir = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'Choose where automatic backups go');
+    if (dir == null || !context.mounted) return;
+    final pass = await showDialog<String>(
+        context: context, builder: (_) => const _PassphraseDialog(confirm: true));
+    if (pass == null) return;
+    setBusy('Setting up automatic backup…');
+    try {
+      final service = await ref.read(backupProtectionProvider.future);
+      final r = await service.enable(destination: dir, passphrase: pass);
+      messenger.showSnackBar(SnackBar(
+          content: Text(r.ok
+              ? 'Automatic backup is on. The first backup is in $dir.'
+              : 'Automatic backup is on, but the first backup failed: '
+                  '${r.failure?.message}')));
+    } on BackupProtectionException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('$e')));
+    } on BackupException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      setBusy(null);
+      ref.invalidate(backupFreshnessProvider);
+    }
+  }
+
+  Future<void> _runNow(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    setBusy('Making an automatic backup…');
+    try {
+      final service = await ref.read(backupProtectionProvider.future);
+      final r = await service.runIfDue(force: true);
+      messenger.showSnackBar(SnackBar(
+          content: Text(r.ok
+              ? 'Backed up to ${p.basename(r.report!.path)}.'
+              : r.failure?.message ?? 'Nothing to do.')));
+    } finally {
+      setBusy(null);
+      ref.invalidate(backupFreshnessProvider);
+    }
+  }
+
+  /// A copy of the newest automatic backup, through the save dialog
+  /// (desktop) or the share sheet (mobile, streamed). It opens on any
+  /// device with the recovery passphrase.
+  Future<void> _exportRecoveryCopy(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final service = await ref.read(backupProtectionProvider.future);
+    var path = (await service.state()).lastFile;
+    if (path == null || !File(path).existsSync()) {
+      setBusy('Making an automatic backup…');
+      try {
+        final r = await service.runIfDue(force: true);
+        path = r.report?.path;
+        if (path == null) {
+          messenger.showSnackBar(SnackBar(
+              content: Text(r.failure?.message ?? 'No backup to export.')));
+          return;
+        }
+      } finally {
+        setBusy(null);
+        ref.invalidate(backupFreshnessProvider);
+      }
+    }
+    await onSaveCopy(path);
+  }
+
+  Future<void> _changeFolder(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final dir = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'Choose where automatic backups go');
+    if (dir == null) return;
+    try {
+      final service = await ref.read(backupProtectionProvider.future);
+      await service.changeDestination(dir);
+      ref.invalidate(backupFreshnessProvider);
+      messenger.showSnackBar(SnackBar(content: Text('Backups now go to $dir.')));
+    } on BackupProtectionException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  Future<void> _recoverKey(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final pass = await showDialog<String>(
+        context: context, builder: (_) => const _PassphraseDialog(confirm: false));
+    if (pass == null) return;
+    try {
+      final service = await ref.read(backupProtectionProvider.future);
+      await service.recoverKey(pass);
+      messenger.showSnackBar(const SnackBar(
+          content: Text('Backup key recovered. Automatic backup resumes.')));
+    } on BackupException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } on BackupProtectionException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('$e')));
+    }
+    if (context.mounted) await _runNow(context, ref);
+  }
+
+  Future<void> _turnOff(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Turn off automatic backup?'),
+        content: const Text('Backups already made stay where they are. Your '
+            'books will only be protected by backups you make by hand.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('Keep it on')),
+          FilledButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Turn off')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final service = await ref.read(backupProtectionProvider.future);
+    await service.disable();
+    ref.invalidate(backupFreshnessProvider);
+  }
 }

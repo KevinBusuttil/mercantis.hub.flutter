@@ -10,6 +10,7 @@ import 'package:mercantis_hub_app/migration/opening_reconciliation.dart';
 import 'package:mercantis_hub_app/migration/opening_take_on.dart';
 import 'package:mercantis_hub_app/migration/take_on_templates.dart';
 import 'package:mercantis_hub_app/modules/selling/hub_document_conversion.dart';
+import 'package:mercantis_hub_app/numbering/numbering_recovery.dart';
 import 'package:mercantis_hub_app/payments/guided_payment.dart';
 import 'package:mercantis_hub_app/reports/aggregating_reports.dart';
 import 'package:path/path.dart' as p;
@@ -302,13 +303,24 @@ void main() {
         throwsA(isA<BackupException>()));
     final staged = await backupB.stage(backupFile, passphrase);
     expect(staged.businessSummary, summaryBefore);
-    await backupB.commit(staged);
+    final (_, numbering) = await backupB.commit(staged);
+    // A replacement device cannot know what was issued after the backup, so
+    // official numbering waits for the operator's decision (R3).
+    expect(numbering!.mode, NumberingRecoveryMode.holdPendingDecision);
 
     final r = await BooksHarness.open(p.join(dataB, 'mercantis.db'),
         deviceId: 'device-b');
     try {
       final docsAfter = await allTables(r.db.db);
-      expect(docsAfter, docsBefore);
+      // Identical, except the numbering-recovery record the restore added:
+      // the hold, and its audit entry.
+      expect(docsAfter['naming_series_policy'], isNotEmpty);
+      final audit = docsAfter['audit_log']!
+          .where((r) => !r.contains('"doctype":"Numbering"'))
+          .toList();
+      expect(audit, docsBefore['audit_log']);
+      expect({...docsAfter}..remove('naming_series_policy')..remove('audit_log'),
+          {...docsBefore}..remove('naming_series_policy')..remove('audit_log'));
       expect(await BusinessSummary.compute(r.db.db), summaryBefore);
       expect(await reportSet(r), reportsBefore);
       final restoredAttachments = AttachmentManager(
@@ -323,7 +335,12 @@ void main() {
               .plan(openingDate: openingDate, inputs: inputs));
       expect(again.reconciled, isTrue);
 
-      // Normal use resumes: settle the opening receivable.
+      // The operator confirms nothing was issued after the backup (the last
+      // numbers stay as restored); then normal use resumes: settle the
+      // opening receivable.
+      final issued = await const CounterBlockAllocator().issuedThrough(r.db.db);
+      await NumberingRecovery.confirmLastIssued(r.db.db, issued,
+          userId: 'owner', deviceId: 'device-b');
       await r.saveAndSubmit(GuidedPayment.buildPaymentEntry(
         receive: true,
         party: 'C001',
