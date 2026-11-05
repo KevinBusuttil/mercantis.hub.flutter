@@ -189,8 +189,9 @@ class TaxCalculationInterceptor extends DocumentInterceptor {
 
     if (keys.contains('total')) doc.payload['total'] = comp.netTotal;
     if (keys.contains('tax_total')) doc.payload['tax_total'] = comp.totalTax;
-    if (keys.contains('grand_total'))
+    if (keys.contains('grand_total')) {
       doc.payload['grand_total'] = comp.grandTotal;
+    }
     doc.children[_taxesTable] = _taxChildRows(doc, comp.taxRows);
   }
 
