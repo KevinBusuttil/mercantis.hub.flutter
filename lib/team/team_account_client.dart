@@ -33,8 +33,7 @@ class TeamDevice {
         name: '${json['name']}',
         createdAt: '${json['createdAt']}',
         revokedAt: json['revokedAt'] == null ? null : '${json['revokedAt']}',
-        lastSeenAt:
-            json['lastSeenAt'] == null ? null : '${json['lastSeenAt']}',
+        lastSeenAt: json['lastSeenAt'] == null ? null : '${json['lastSeenAt']}',
       );
 }
 
@@ -80,8 +79,13 @@ class TeamAccountClient {
 
   /// Bootstrap a new company; the caller becomes its owner. The returned
   /// user token is shown exactly once by the server — persist it.
-  Future<({String companyId, String companyName, String userId, String userToken})>
-      createCompany({
+  Future<
+      ({
+        String companyId,
+        String companyName,
+        String userId,
+        String userToken
+      })> createCompany({
     required String name,
     required String ownerEmail,
     required String ownerName,
@@ -163,8 +167,7 @@ class TeamAccountClient {
   /// Owner/admin mints a token-scoped portal link (customer: that party's
   /// quotes/invoices + quote accept/reject; accountant: company-wide
   /// read-only). The token is shown once — hand out the full URL.
-  Future<({String token, String urlPath, String expiresAt})>
-      createPortalLink({
+  Future<({String token, String urlPath, String expiresAt})> createPortalLink({
     required String companyId,
     required String authToken,
     required String kind,
@@ -250,8 +253,7 @@ class TeamAccountClient {
     required String companyId,
     required String authToken,
   }) async {
-    final body = await _post(
-        '/companies/$companyId/tokens/rotate', const {},
+    final body = await _post('/companies/$companyId/tokens/rotate', const {},
         authToken: authToken);
     return '${body['token']}';
   }
@@ -289,6 +291,24 @@ class TeamAccountClient {
   }) async {
     await _post('/companies/$companyId/members/$userId/role', {'role': role},
         authToken: authToken);
+  }
+
+  /// Merge-patches the company's posting settings (owner, admin or
+  /// accountant): only the keys given change.
+  Future<Map<String, dynamic>> patchSettings({
+    required String companyId,
+    required String authToken,
+    required Map<String, dynamic> settings,
+  }) async {
+    final response = await _client.put(
+      Uri.parse('$baseUrl/companies/$companyId/settings'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $authToken',
+      },
+      body: jsonEncode(settings),
+    );
+    return _decodeResponse(response);
   }
 
   // Composed flows — each ends with a device registration so the result is

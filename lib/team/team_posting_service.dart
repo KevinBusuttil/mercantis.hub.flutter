@@ -92,6 +92,12 @@ class TeamPostingClient {
         'idempotency_key': 'cancel-$docType-$documentId',
       });
 
+  /// C3: the one-time Solo → Team take-on (owner only). Idempotent on the
+  /// package's migration id; see `SoloToTeamConversion`.
+  Future<Map<String, dynamic>> importSoloOpening(
+          Map<String, Object?> package) =>
+      _post('import-solo-opening', package);
+
   /// The newest sync version of the company log (`head` on a pull
   /// response), or null when the server predates it.
   Future<int?> logHead() async {

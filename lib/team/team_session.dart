@@ -76,10 +76,17 @@ class TeamSession {
 /// plaintext on disk; [load] migrates such an entry into the keychain once
 /// and deletes the plaintext copy.
 class TeamSessionStore {
-  TeamSessionStore({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+  TeamSessionStore({FlutterSecureStorage? storage, String key = _defaultKey})
+      : _storage = storage ?? const FlutterSecureStorage(),
+        _key = key;
 
-  static const _key = 'atlas_team_session';
+  /// The session of a Solo → Team move that has not switched this device
+  /// over yet (C3). Kept apart so nothing syncs the Solo book with it.
+  TeamSessionStore.pendingMigration({FlutterSecureStorage? storage})
+      : this(storage: storage, key: 'atlas_team_session.pending_migration');
+
+  static const _defaultKey = 'atlas_team_session';
+  final String _key;
   final FlutterSecureStorage _storage;
 
   Future<TeamSession?> load() async {

@@ -6,9 +6,19 @@ import 'package:mercantis_core/mercantis_core.dart';
 import 'package:mercantis_core_ui/mercantis_core_ui.dart';
 
 import '../sync/company_sync.dart';
+import '../team/solo_to_team_runner.dart' show soloHistoryCount;
 import '../sync/conflict_providers.dart';
 import '../team/team_account_client.dart';
 import '../team/team_session.dart';
+import 'solo_to_team_screen.dart';
+
+/// How many official documents (invoices, bills, payments, journals…) this
+/// device's books hold. A book with any cannot connect to Team directly: it
+/// is moved with [SoloToTeamScreen] instead (C3).
+final soloHistoryProvider = FutureProvider.autoDispose<int>((ref) async {
+  final db = await ref.watch(mercantisDatabaseProvider.future);
+  return soloHistoryCount(db.db);
+});
 
 /// Atlas Team connection (Team milestone 2): create a company on the Team
 /// backend or join one with an invitation, registering this device either
@@ -41,8 +51,12 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
   @override
   void dispose() {
     for (final c in [
-      _serverController, _deviceController, _companyController,
-      _emailController, _nameController, _inviteController,
+      _serverController,
+      _deviceController,
+      _companyController,
+      _emailController,
+      _nameController,
+      _inviteController,
       _displayNameController,
     ]) {
       c.dispose();
@@ -50,14 +64,21 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
     super.dispose();
   }
 
-  Future<void> _run(Future<TeamSession> Function(TeamAccountClient) flow) async {
+  Future<void> _run(
+      Future<TeamSession> Function(TeamAccountClient) flow) async {
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      final client =
-          TeamAccountClient(baseUrl: _serverController.text.trim());
+      final db = await ref.read(mercantisDatabaseProvider.future);
+      if (await soloHistoryCount(db.db) > 0) {
+        throw StateError(
+            'These books already hold issued documents. Connecting '
+            'them directly would give Team and this device different books. '
+            'Use "Move these books to Atlas Team" instead.');
+      }
+      final client = TeamAccountClient(baseUrl: _serverController.text.trim());
       final session = await flow(client);
       await ref.read(teamSessionProvider.notifier).connect(session);
       if (!mounted) return;
@@ -66,8 +87,11 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
               '${session.companyName.isEmpty ? session.companyId : session.companyName}')));
     } catch (e) {
       if (!mounted) return;
-      setState(() =>
-          _error = e is CloudHttpException ? e.message : '$e');
+      setState(() => _error = e is CloudHttpException
+          ? e.message
+          : e is StateError
+              ? e.message
+              : '$e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -97,8 +121,13 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                     labelText: 'Role', border: OutlineInputBorder()),
                 items: [
                   for (final r in const [
-                    'admin', 'sales', 'purchasing', 'stock', 'pos',
-                    'accountant', 'advisor',
+                    'admin',
+                    'sales',
+                    'purchasing',
+                    'stock',
+                    'pos',
+                    'accountant',
+                    'advisor',
                   ])
                     DropdownMenuItem(value: r, child: Text(r)),
                 ],
@@ -155,8 +184,8 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e is CloudHttpException ? e.message : '$e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e is CloudHttpException ? e.message : '$e')));
     }
   }
 
@@ -169,8 +198,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
       padBody: false,
       body: ListView(
         padding: const EdgeInsets.all(MercantisSpacing.lg),
-        children:
-            session == null ? _disconnected() : _connected(session),
+        children: session == null ? _disconnected() : _connected(session),
       ),
     );
   }
@@ -304,13 +332,15 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(switch (status.phase) {
-                    SyncPhase.syncing => 'Syncing…',
-                    SyncPhase.error => 'Sync problem',
-                    SyncPhase.idle => status.lastSyncedAt == null
-                        ? 'Not synced yet'
-                        : 'Up to date',
-                  }, style: theme.textTheme.titleSmall),
+                  Text(
+                      switch (status.phase) {
+                        SyncPhase.syncing => 'Syncing…',
+                        SyncPhase.error => 'Sync problem',
+                        SyncPhase.idle => status.lastSyncedAt == null
+                            ? 'Not synced yet'
+                            : 'Up to date',
+                      },
+                      style: theme.textTheme.titleSmall),
                   const SizedBox(height: 4),
                   Text('${status.pending} change(s) waiting to upload'),
                   if (status.failed > 0)
@@ -324,8 +354,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                         Text(
                             '$conflicts document(s) need a conflict '
                             'decision',
-                            style:
-                                TextStyle(color: theme.colorScheme.error)),
+                            style: TextStyle(color: theme.colorScheme.error)),
                         TextButton(
                           onPressed: () =>
                               context.go('/w/setup/sync-conflicts'),
@@ -341,8 +370,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(status.message!,
-                          style:
-                              TextStyle(color: theme.colorScheme.error)),
+                          style: TextStyle(color: theme.colorScheme.error)),
                     ),
                   const SizedBox(height: MercantisSpacing.sm),
                   Row(
@@ -389,12 +417,53 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
 
   List<Widget> _disconnected() {
     final theme = Theme.of(context);
+    final history = ref.watch(soloHistoryProvider).valueOrNull ?? 0;
+    final hasBooks = history > 0;
     return [
       Text(
           'Connect this device to an Atlas Team backend to share company '
           'data with your team. Solo use needs none of this.',
           style: theme.textTheme.bodySmall),
       const SizedBox(height: MercantisSpacing.md),
+      if (hasBooks) ...[
+        AtlasSectionCard(
+          name:
+              'These books already hold $history issued document${history == 1 ? '' : 's'}',
+          child: Padding(
+            padding: const EdgeInsets.all(MercantisSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                    'Connecting them directly would leave Team and this device '
+                    'with different books. Move them into a new Team company '
+                    'instead: Atlas backs them up, checks them, and starts the '
+                    'Team company from your balances, continuing your numbering.'),
+                const SizedBox(height: MercantisSpacing.md),
+                FilledButton.icon(
+                  onPressed: _busy
+                      ? null
+                      : () =>
+                          Navigator.of(context).push(MaterialPageRoute<void>(
+                            builder: (_) => SoloToTeamScreen(
+                              serverUrl: _serverController.text,
+                              deviceName: _deviceController.text,
+                            ),
+                          )),
+                  icon: const Icon(Icons.drive_file_move_outline),
+                  label: const Text('Move these books to Atlas Team…'),
+                ),
+                const SizedBox(height: MercantisSpacing.sm),
+                Text(
+                    'To join someone else\'s Team company with this device, '
+                    'back these books up and start Atlas on a clean install.',
+                    style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: MercantisSpacing.md),
+      ],
       AtlasSectionCard(
         name: 'Server & device',
         child: Padding(
@@ -454,7 +523,7 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: _busy
+                  onPressed: _busy || hasBooks
                       ? null
                       : () => _run((client) => client.createAndConnect(
                             companyName: _companyController.text.trim(),
@@ -495,12 +564,11 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: _busy
+                  onPressed: _busy || hasBooks
                       ? null
                       : () => _run((client) => client.joinAndConnect(
                             invitationToken: _inviteController.text.trim(),
-                            displayName:
-                                _displayNameController.text.trim(),
+                            displayName: _displayNameController.text.trim(),
                             deviceName: _deviceController.text.trim(),
                           )),
                   icon: const Icon(Icons.group_add_outlined),
@@ -519,8 +587,8 @@ class _TeamScreenState extends ConsumerState<TeamScreen> {
       if (_error != null)
         Padding(
           padding: const EdgeInsets.only(top: MercantisSpacing.md),
-          child: Text(_error!,
-              style: TextStyle(color: theme.colorScheme.error)),
+          child:
+              Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
         ),
     ];
   }
@@ -547,8 +615,14 @@ class _PeopleAndDevicesCardState extends State<_PeopleAndDevicesCard> {
   String? _error;
 
   static const _roles = [
-    'owner', 'admin', 'sales', 'purchasing', 'stock', 'pos',
-    'accountant', 'advisor',
+    'owner',
+    'admin',
+    'sales',
+    'purchasing',
+    'stock',
+    'pos',
+    'accountant',
+    'advisor',
   ];
 
   TeamAccountClient get _client =>
@@ -591,8 +665,8 @@ class _PeopleAndDevicesCardState extends State<_PeopleAndDevicesCard> {
       await _refresh();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e is CloudHttpException ? e.message : '$e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e is CloudHttpException ? e.message : '$e')));
     }
   }
 
@@ -637,7 +711,7 @@ class _PeopleAndDevicesCardState extends State<_PeopleAndDevicesCard> {
     final sure = await _confirm(
       'Remove ${member.displayName.isEmpty ? member.email : member.displayName}?',
       'They lose access to the company and all their devices here are '
-      'revoked. Documents they created stay.',
+          'revoked. Documents they created stay.',
     );
     if (!sure) return;
     await _act(() => _client.removeMember(
@@ -693,8 +767,7 @@ class _PeopleAndDevicesCardState extends State<_PeopleAndDevicesCard> {
                   dense: true,
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.person_outline),
-                  title: Text(
-                      m.displayName.isEmpty ? m.email : m.displayName),
+                  title: Text(m.displayName.isEmpty ? m.email : m.displayName),
                   subtitle: Text(m.email),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
