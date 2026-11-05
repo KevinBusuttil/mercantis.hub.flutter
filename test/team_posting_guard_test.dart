@@ -30,7 +30,8 @@ void main() {
       TeamPostingAuthorityGuard(() => team),
       ...hubInterceptors,
     ]);
-    company = (await h.engine.list('Company', userRoles: systemRoles)).single.id;
+    company =
+        (await h.engine.list('Company', userRoles: systemRoles)).single.id;
     await h.save(Document(id: 'SVC-T', docType: 'Item', payload: {
       'item_code': 'SVC-T',
       'item_name': 'Service',
@@ -66,9 +67,10 @@ void main() {
         tenders: const [PosTender(type: 'Cash', amount: 10)],
       );
 
-  Matcher refusedWith(String text) => throwsA(isA<DocumentEngineError>()
-      .having((e) => e.validationErrors.map((v) => v.message).join(' '),
-          'messages', contains(text)));
+  Matcher refusedWith(String text) => throwsA(isA<DocumentEngineError>().having(
+      (e) => e.validationErrors.map((v) => v.message).join(' '),
+      'messages',
+      contains(text)));
 
   test('a server-posted doctype cannot be submitted on the device', () async {
     final draft = await h.save(salesInvoice());
@@ -78,26 +80,44 @@ void main() {
     expect(await h.rowCount('GL Entry'), 0, reason: 'nothing posted locally');
   });
 
-  test('a doctype the server cannot post yet stays a draft', () async {
-    final je = await h.save(
-        Document(id: '', docType: 'Journal Entry', company: company, payload: {
-      'posting_date': isoToday(),
-    })
-          ..children['accounts'] = [
-            itemLine('Journal Entry', {'account': 'Cash', 'debit': 5}, 0, 'accounts'),
-            itemLine('Journal Entry', {'account': 'Sales', 'credit': 5}, 1, 'accounts'),
-          ]);
-    await expectLater(h.submit(je), refusedWith('cannot be posted in Atlas Team yet'));
+  test('a journal is posted by the server, never locally (C5)', () async {
+    final je = await h.save(Document(
+        id: '',
+        docType: 'Journal Entry',
+        company: company,
+        payload: {
+          'posting_date': isoToday(),
+        })
+      ..children['accounts'] = [
+        itemLine(
+            'Journal Entry', {'account': 'Cash', 'debit': 5}, 0, 'accounts'),
+        itemLine(
+            'Journal Entry', {'account': 'Sales', 'credit': 5}, 1, 'accounts'),
+      ]);
+    await expectLater(h.submit(je), refusedWith('posted by the Team server'));
     expect(await h.rowCount('GL Entry'), 0);
   });
 
+  test('the books lock cannot be edited locally while connected (C5)',
+      () async {
+    final co = (await h.engine.fetch('Company', company))!;
+    co.payload['books_lock_date'] = '2026-06-30';
+    await expectLater(h.save(co), refusedWith('kept by the Team server'));
+    // The rest of the company row is ordinary data.
+    final again = (await h.engine.fetch('Company', company))!;
+    again.payload['company_name'] = 'Renamed Ltd';
+    await h.save(again);
+  });
+
   test('a till sale needs its till series, then posts offline', () async {
-    await expectLater(h.saveAndSubmit(posSale()), refusedWith('receipt series'));
+    await expectLater(
+        h.saveAndSubmit(posSale()), refusedWith('receipt series'));
 
     final sale = await h.saveAndSubmit(posSale(tillSeries: 'T1'));
     expect(sale.id, startsWith('POS-.T1.-')); // the till's own series
     expect(sale.docStatus, 1);
-    expect(await h.rowCount('GL Entry', {'voucher_no': sale.id}), greaterThan(0),
+    expect(
+        await h.rowCount('GL Entry', {'voucher_no': sale.id}), greaterThan(0),
         reason: 'checkout never needs the network');
     expect(await h.trialBalanceDifference(), 0);
 
@@ -132,8 +152,11 @@ void main() {
   test('the server command carries the VAT rows, not just the items', () {
     final doc = salesInvoice()
       ..children['taxes'] = [
-        itemLine('Sales Invoice',
-            {'account_head': 'VAT Output', 'rate': 18, 'tax_amount': 18}, 0, 'taxes'),
+        itemLine(
+            'Sales Invoice',
+            {'account_head': 'VAT Output', 'rate': 18, 'tax_amount': 18},
+            0,
+            'taxes'),
       ];
     final cmd = buildSubmitCommand(doc);
     expect((cmd['payload'] as Map)['taxes'], [
@@ -143,13 +166,21 @@ void main() {
   });
 
   test('pure refusal helper agrees with the guard', () {
-    expect(teamLocalSubmitRefusal(Document(id: 'q', docType: 'Quotation', payload: {})),
+    expect(
+        teamLocalSubmitRefusal(
+            Document(id: 'q', docType: 'Quotation', payload: {})),
         isNull);
     expect(teamLocalSubmitRefusal(posSale(tillSeries: 'T9')), isNull);
     expect(teamLocalSubmitRefusal(posSale()), contains('receipt series'));
-    expect(teamLocalSubmitRefusal(Document(id: 'e', docType: 'Expense', payload: {})),
-        contains('cannot be posted in Atlas Team yet'));
-    expect(teamLocalSubmitRefusal(Document(id: 'p', docType: 'Payment Entry', payload: {})),
+    for (final dt in ['Expense', 'Customer Deposit', 'Journal Entry']) {
+      expect(
+          teamLocalSubmitRefusal(Document(id: 'e', docType: dt, payload: {})),
+          contains('posted by the Team server'),
+          reason: dt);
+    }
+    expect(
+        teamLocalSubmitRefusal(
+            Document(id: 'p', docType: 'Payment Entry', payload: {})),
         contains('posted by the Team server'));
   });
 }

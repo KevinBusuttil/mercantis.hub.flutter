@@ -60,8 +60,7 @@ class ItemNameDefaultInterceptor extends DocumentInterceptor {
   const ItemNameDefaultInterceptor();
 
   @override
-  Future<void> beforeSave(
-      DocumentEngine engine, Document doc, DocType docType,
+  Future<void> beforeSave(DocumentEngine engine, Document doc, DocType docType,
       {required bool isNew}) async {
     if (docType.id != 'Item') return;
     if (asNonEmpty(doc.payload['item_name']) != null) return;
@@ -84,8 +83,7 @@ class LineItemTotalsInterceptor extends DocumentInterceptor {
   const LineItemTotalsInterceptor();
 
   @override
-  Future<void> beforeSave(
-      DocumentEngine engine, Document doc, DocType docType,
+  Future<void> beforeSave(DocumentEngine engine, Document doc, DocType docType,
       {required bool isNew}) async {
     final rows = doc.children[_itemsTable];
     if (rows == null) return; // not a line-item document
@@ -121,8 +119,7 @@ class TaxCalculationInterceptor extends DocumentInterceptor {
   const TaxCalculationInterceptor();
 
   @override
-  Future<void> beforeSave(
-      DocumentEngine engine, Document doc, DocType docType,
+  Future<void> beforeSave(DocumentEngine engine, Document doc, DocType docType,
       {required bool isNew}) async {
     final keys = {for (final f in docType.fields) f.key};
     if (!keys.contains(_taxesTable)) return; // not a tax-bearing document
@@ -146,8 +143,9 @@ class TaxCalculationInterceptor extends DocumentInterceptor {
 
     // Default VAT account fallback from the active Company (business profile).
     final company = await _activeCompany(engine, doc.company);
-    final defaultTaxAccount =
-        company == null ? null : asNonEmpty(company.payload['default_vat_account']);
+    final defaultTaxAccount = company == null
+        ? null
+        : asNonEmpty(company.payload['default_vat_account']);
 
     // Tax Code master → rate info, applying the default-account fallback.
     final codeRecords = await engine.list('Tax Code', userRoles: _systemRoles);
@@ -191,7 +189,9 @@ class TaxCalculationInterceptor extends DocumentInterceptor {
 
     if (keys.contains('total')) doc.payload['total'] = comp.netTotal;
     if (keys.contains('tax_total')) doc.payload['tax_total'] = comp.totalTax;
-    if (keys.contains('grand_total')) doc.payload['grand_total'] = comp.grandTotal;
+    if (keys.contains('grand_total')) {
+      doc.payload['grand_total'] = comp.grandTotal;
+    }
     doc.children[_taxesTable] = _taxChildRows(doc, comp.taxRows);
   }
 
@@ -277,8 +277,7 @@ class BomRollupInterceptor extends DocumentInterceptor {
   const BomRollupInterceptor();
 
   @override
-  Future<void> beforeSave(
-      DocumentEngine engine, Document doc, DocType docType,
+  Future<void> beforeSave(DocumentEngine engine, Document doc, DocType docType,
       {required bool isNew}) async {
     final keys = {for (final f in docType.fields) f.key};
     if (!keys.contains('raw_material_cost')) return; // not a BOM
@@ -291,7 +290,8 @@ class BomRollupInterceptor extends DocumentInterceptor {
     }
     num op = 0;
     for (final r in doc.children['operations'] ?? const []) {
-      final cost = (asNum(r.payload['time_minutes']) / 60) * asNum(r.payload['hour_rate']);
+      final cost = (asNum(r.payload['time_minutes']) / 60) *
+          asNum(r.payload['hour_rate']);
       r.payload['cost'] = cost;
       op += cost;
     }
@@ -310,8 +310,7 @@ class BusinessProfileDefaultsInterceptor extends DocumentInterceptor {
   const BusinessProfileDefaultsInterceptor();
 
   @override
-  Future<void> beforeSave(
-      DocumentEngine engine, Document doc, DocType docType,
+  Future<void> beforeSave(DocumentEngine engine, Document doc, DocType docType,
       {required bool isNew}) async {
     if (!isNew) return;
     final fieldKeys = {for (final f in docType.fields) f.key};
@@ -343,8 +342,16 @@ class BusinessProfileDefaultsInterceptor extends DocumentInterceptor {
       for (final e in accounts.entries)
         if (asNonEmpty(doc.payload[e.key]) == null) e.key: e.value,
     };
-    final needsCurrency =
-        fieldKeys.contains('currency') && asNonEmpty(doc.payload['currency']) == null;
+    // A payment applying a Customer Deposit debits the deposit's liability,
+    // which [DepositApplicationInterceptor] fills in. Defaulting it to cash
+    // here first would leave the deposit standing while counting it as
+    // applied (found by the shared accounting contract, fixture 0015).
+    if (doc.docType == 'Payment Entry' &&
+        asNonEmpty(doc.payload['deposit']) != null) {
+      missingAccounts.remove('paid_to');
+    }
+    final needsCurrency = fieldKeys.contains('currency') &&
+        asNonEmpty(doc.payload['currency']) == null;
     final needsCompany = asNonEmpty(doc.company) == null;
     if (!needsCurrency && !needsCompany && missingAccounts.isEmpty) return;
 
@@ -561,8 +568,7 @@ class NegativeStockGuardInterceptor extends DocumentInterceptor {
           ValidationError(
             stage: 'negative_stock',
             fieldKey: 'items',
-            message:
-                'Not enough stock of ${req.item} in ${req.warehouse}: '
+            message: 'Not enough stock of ${req.item} in ${req.warehouse}: '
                 '${req.qty} requested but $onHand on hand. Receive stock first, '
                 'or enable Allow Negative Stock in the Business Profile.',
           ),
@@ -623,8 +629,7 @@ class JournalBalanceGuardInterceptor extends DocumentInterceptor {
   static const _tolerance = 0.005; // half a cent — same as invoice settlement
 
   @override
-  Future<void> beforeSave(
-      DocumentEngine engine, Document doc, DocType docType,
+  Future<void> beforeSave(DocumentEngine engine, Document doc, DocType docType,
       {required bool isNew}) async {
     if (docType.id != 'Journal Entry') return;
     final (debit, credit) = _totals(doc);
@@ -669,8 +674,7 @@ class ExpenseDefaultsInterceptor extends DocumentInterceptor {
   const ExpenseDefaultsInterceptor();
 
   @override
-  Future<void> beforeSave(
-      DocumentEngine engine, Document doc, DocType docType,
+  Future<void> beforeSave(DocumentEngine engine, Document doc, DocType docType,
       {required bool isNew}) async {
     if (docType.id != 'Expense') return;
     final net = asNum(doc.payload['net_amount']);
@@ -707,8 +711,7 @@ class DuplicateSupplierBillGuardInterceptor extends DocumentInterceptor {
   const DuplicateSupplierBillGuardInterceptor();
 
   @override
-  Future<void> beforeSave(
-      DocumentEngine engine, Document doc, DocType docType,
+  Future<void> beforeSave(DocumentEngine engine, Document doc, DocType docType,
       {required bool isNew}) async {
     if (docType.id != 'Purchase Invoice') return;
     final supplier = asNonEmpty(doc.payload['supplier']);
@@ -747,7 +750,6 @@ Future<Document?> _companyFor(DocumentEngine engine, String? id) async {
   final all = await engine.list('Company', userRoles: _systemRoles);
   return all.isEmpty ? null : all.first;
 }
-
 
 String _isoDate(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';

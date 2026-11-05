@@ -64,8 +64,7 @@ void main() {
         DepositApplicationInterceptor(),
       ],
     );
-    ledger = LedgerDerivationService(engine: engine, emitter: emitter)
-      ..start();
+    ledger = LedgerDerivationService(engine: engine, emitter: emitter)..start();
     deposits = DepositService(engine);
 
     for (final account in ['Bank', 'Customer Deposits', 'Debtors', 'Sales']) {
@@ -90,8 +89,10 @@ void main() {
         roles);
     await engine.save(
         Document(id: 'ITEM-A', docType: 'Item', payload: {
-          'item_code': 'ITEM-A', 'item_name': 'A',
-          'item_type': 'Service', 'stock_uom': 'Nos',
+          'item_code': 'ITEM-A',
+          'item_name': 'A',
+          'item_type': 'Service',
+          'stock_uom': 'Nos',
         }),
         roles);
   });
@@ -129,15 +130,17 @@ void main() {
     });
     si.children['items'] = [
       ChildRow(
-        id: '', parentId: '', parentDocType: 'Sales Invoice',
-        tableName: 'items', rowIndex: 0,
+        id: '',
+        parentId: '',
+        parentDocType: 'Sales Invoice',
+        tableName: 'items',
+        rowIndex: 0,
         payload: {'item': 'ITEM-A', 'qty': 1, 'rate': amount},
       ),
     ];
     final posted = await engine.submit(await engine.save(si, roles), roles);
-    await until(() async =>
-        (await engine.list('GL Entry', userRoles: roles)).any(
-            (g) => g.payload['voucher_no'] == posted.id));
+    await until(() async => (await engine.list('GL Entry', userRoles: roles))
+        .any((g) => g.payload['voucher_no'] == posted.id));
     return posted;
   }
 
@@ -164,8 +167,11 @@ void main() {
         })
           ..children['references'] = [
             ChildRow(
-              id: '', parentId: '', parentDocType: 'Payment Entry',
-              tableName: 'references', rowIndex: 0,
+              id: '',
+              parentId: '',
+              parentDocType: 'Payment Entry',
+              tableName: 'references',
+              rowIndex: 0,
               payload: {
                 'reference_doctype': 'Sales Invoice',
                 'reference_name': invoice.id,
@@ -227,8 +233,7 @@ void main() {
           'paid_amount': 30, // only 20 left
         }),
         roles);
-    await expectLater(
-        engine.submit(second, roles), throwsA(isA<StateError>()));
+    await expectLater(engine.submit(second, roles), throwsA(isA<StateError>()));
   });
 
   // Codex review (PR #166): a deposit consumes through a Receive payment
@@ -252,8 +257,8 @@ void main() {
     // …and submit refuses outright.
     await expectLater(
       engine.submit(pe, roles),
-      throwsA(isA<StateError>().having(
-          (e) => '$e', 'message', contains('Receive'))),
+      throwsA(isA<StateError>()
+          .having((e) => '$e', 'message', contains('Receive'))),
     );
   });
 
@@ -286,5 +291,51 @@ void main() {
     expect(await glBalance('Bank'), 0);
     // Cancelled deposits drop off the liability report.
     expect(await deposits.liabilityReport(), isEmpty);
+  });
+
+  // C5: the Team server refuses these too (shared contract fixture 0015).
+  test('an application must debit the deposit liability', () async {
+    final dep = await submittedDeposit(100);
+    final pe = await engine.save(
+        Document(id: '', docType: 'Payment Entry', payload: {
+          'payment_type': 'Receive',
+          'posting_date': today,
+          'deposit': dep.id,
+          'paid_from': 'Debtors',
+          'paid_to': 'Bank', // would leave the deposit standing
+          'paid_amount': 50,
+        }),
+        roles);
+    await expectLater(
+      engine.submit(pe, roles),
+      throwsA(isA<StateError>()
+          .having((e) => '$e', 'message', contains('Customer Deposits'))),
+    );
+  });
+
+  test('a deposit still applied cannot be cancelled', () async {
+    final dep = await submittedDeposit(100);
+    final pe = await engine.submit(
+        await engine.save(
+            Document(id: '', docType: 'Payment Entry', payload: {
+              'payment_type': 'Receive',
+              'posting_date': today,
+              'deposit': dep.id,
+              'paid_from': 'Debtors',
+              'paid_amount': 40,
+            }),
+            roles),
+        roles);
+    await expectLater(
+      engine.cancel(dep, roles),
+      throwsA(isA<DocumentEngineError>().having(
+          (e) => e.validationErrors.single.message,
+          'message',
+          contains(pe.id))),
+    );
+    await engine.cancel(pe, roles);
+    await engine.cancel(
+        await engine.fetch('Customer Deposit', dep.id) ?? dep, roles);
+    await until(() async => (await glBalance('Customer Deposits')) == 0);
   });
 }

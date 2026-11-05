@@ -58,6 +58,20 @@ class DepositService {
   }
 }
 
+/// The liability account [deposit] credited: its own `deposit_account`, or
+/// the company default the ledger fell back to when it was left blank (the
+/// same fallback `LedgerDerivation.accountFallbacks` applies at posting).
+Future<String?> depositLiabilityAccount(
+    DocumentEngine engine, Document deposit) async {
+  final own = asNonEmpty(deposit.payload['deposit_account']);
+  if (own != null) return own;
+  final id = asNonEmpty(deposit.company);
+  final company = id != null
+      ? await engine.fetch('Company', id)
+      : (await engine.list('Company', userRoles: _systemRoles)).firstOrNull;
+  return asNonEmpty(company?.payload['default_customer_deposit_account']);
+}
+
 /// Payment-Entry side of deposit application (S4). When `deposit` is set on
 /// a Receive payment:
 ///  * `paid_to` defaults to the deposit's liability account (the whole
@@ -69,9 +83,35 @@ class DepositService {
 class DepositApplicationInterceptor extends DocumentInterceptor {
   const DepositApplicationInterceptor();
 
+  /// A deposit still applied by a submitted payment cannot be cancelled:
+  /// the payment would point at a deposit that no longer exists and the
+  /// liability would go negative. Cancel the payments first (the Team server
+  /// enforces the same rule; shared contract fixture 0015).
   @override
-  Future<void> beforeSave(
-      DocumentEngine engine, Document doc, DocType docType,
+  Future<void> inLifecycleTransaction(DocumentEngine engine, Document doc,
+      DocType docType, UnitOfWork uow, LifecycleAction action) async {
+    if (action != LifecycleAction.cancel || doc.docType != 'Customer Deposit') {
+      return;
+    }
+    final rows = await uow.db.query('documents',
+        columns: ['id'],
+        where: "doctype = 'Payment Entry' AND docstatus = 1 "
+            "AND json_extract(payload, '\$.deposit') = ?",
+        whereArgs: [doc.id]);
+    if (rows.isEmpty) return;
+    throw DocumentEngineError.validationFailed([
+      ValidationError(
+        stage: 'deposit_applied',
+        fieldKey: 'docstatus',
+        message: 'Deposit ${doc.id} is applied by '
+            '${rows.map((r) => r['id']).join(', ')}. Cancel those payments '
+            'first, then the deposit.',
+      ),
+    ]);
+  }
+
+  @override
+  Future<void> beforeSave(DocumentEngine engine, Document doc, DocType docType,
       {required bool isNew}) async {
     if (docType.id != 'Payment Entry') return;
     final depositId = asNonEmpty(doc.payload['deposit']);
@@ -82,7 +122,7 @@ class DepositApplicationInterceptor extends DocumentInterceptor {
     final deposit = await engine.fetch('Customer Deposit', depositId);
     if (deposit == null) return;
     if (asNonEmpty(doc.payload['paid_to']) == null) {
-      final account = asNonEmpty(deposit.payload['deposit_account']);
+      final account = await depositLiabilityAccount(engine, deposit);
       if (account != null) doc.payload['paid_to'] = account;
     }
     if (asNonEmpty(doc.payload['party']) == null) {
@@ -112,6 +152,16 @@ class DepositApplicationInterceptor extends DocumentInterceptor {
     if (asNonEmpty(doc.payload['party']) != customer) {
       throw StateError(
           'Deposit $depositId belongs to $customer, not this party.');
+    }
+    // Applying the deposit is what moves its liability. A payment that names
+    // the deposit but debits another account would leave the deposit
+    // standing AND count it as applied. The Team server refuses it too.
+    final liability = await depositLiabilityAccount(engine, deposit);
+    final paidTo = asNonEmpty(doc.payload['paid_to']);
+    if (liability != null && paidTo != liability) {
+      throw StateError(
+          'A payment applying deposit $depositId must debit its liability '
+          'account $liability, not ${paidTo ?? 'nothing'}.');
     }
     final applied = await DepositService(engine)
         .applied(depositId, excludingPayment: doc.id);

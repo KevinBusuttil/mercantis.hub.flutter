@@ -12,8 +12,12 @@ void main() {
   ChildRow row(String parentType, String table, int i,
           Map<String, dynamic> payload) =>
       ChildRow(
-        id: '', parentId: '', parentDocType: parentType,
-        tableName: table, rowIndex: i, payload: payload,
+        id: '',
+        parentId: '',
+        parentDocType: parentType,
+        tableName: table,
+        rowIndex: i,
+        payload: payload,
       );
 
   group('buildSubmitCommand', () {
@@ -25,7 +29,8 @@ void main() {
         'set_warehouse': 'WH',
       });
       doc.children['items'] = [
-        row('Sales Invoice', 'items', 0, {'item': 'ITEM-A', 'qty': 3, 'rate': 12}),
+        row('Sales Invoice', 'items', 0,
+            {'item': 'ITEM-A', 'qty': 3, 'rate': 12}),
       ];
 
       final cmd = buildSubmitCommand(doc);
@@ -42,8 +47,8 @@ void main() {
       ]);
       // Deterministic: a retried command replays, never double-posts.
       expect(cmd['idempotency_key'], 'submit-Sales Invoice-SINV-7');
-      expect(buildSubmitCommand(doc)['idempotency_key'],
-          cmd['idempotency_key']);
+      expect(
+          buildSubmitCommand(doc)['idempotency_key'], cmd['idempotency_key']);
     });
 
     test('payment: references fold INTO the payload; items stay empty', () {
@@ -112,8 +117,7 @@ void main() {
       expect(outcome['docstatus'], 1);
     });
 
-    test('cancel posts doctype + id with its own deterministic key',
-        () async {
+    test('cancel posts doctype + id with its own deterministic key', () async {
       http.Request? seen;
       final mock = MockClient((req) async {
         seen = req;
@@ -132,9 +136,7 @@ void main() {
     test('a rejected posting surfaces the backend reason (role, lock, stock)',
         () async {
       final mock = MockClient((_) async => http.Response(
-          jsonEncode({
-            'error': 'negative stock for ITEM-A@WH (would be -2)'
-          }),
+          jsonEncode({'error': 'negative stock for ITEM-A@WH (would be -2)'}),
           409));
       await expectLater(
         client(mock).submitDocument({
@@ -158,7 +160,9 @@ void main() {
       expect(posting.handles(dt), isTrue, reason: dt);
     }
     expect(posting.handles('Quotation'), isFalse);
-    expect(posting.handles('Journal Entry'), isFalse);
+    for (final dt in ['Journal Entry', 'Expense', 'Customer Deposit']) {
+      expect(posting.handles(dt), isTrue, reason: '$dt (C5)');
+    }
     // The deliberate carve-out (gap analysis §8-C5): a till must complete a
     // sale with zero network, so POS Invoice posts locally even in Team
     // mode. Changing this requires the offline-submit-queue design — do not

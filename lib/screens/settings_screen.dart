@@ -11,6 +11,8 @@ import '../build_info.dart';
 import '../modules/accounting/coa_repair.dart';
 import '../modules/accounting/year_end_close_service.dart';
 import '../settings/hub_settings.dart';
+import '../team/team_books_lock.dart';
+import '../team/team_session.dart';
 import 'company_sync_screen.dart';
 import 'numbering_series_screen.dart';
 import 'support_screen.dart';
@@ -129,8 +131,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('Post inventory take-on?'),
-        content: Text(
-            'The stock ledger carries €${gap.toStringAsFixed(2)} '
+        content: Text('The stock ledger carries €${gap.toStringAsFixed(2)} '
             '${gap > 0 ? 'more' : 'less'} than the GL inventory account — '
             'usually stock received before perpetual-inventory accounting '
             'was enabled. This drafts a one-time journal against Opening '
@@ -167,17 +168,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _lockBooks() async {
     final engine = await ref.read(documentEngineProvider.future);
+    final team = ref.read(teamSessionProvider);
     final companies =
         await engine.list('Company', userRoles: const {'System Manager'});
     if (companies.isEmpty || !mounted) return;
     final company = companies.first;
-    final currentRaw = '${company.payload['books_lock_date'] ?? ''}';
-    final current = DateTime.tryParse(currentRaw);
+    String? current = normalizeBooksLock(company.payload['books_lock_date']);
+    if (team != null) {
+      // C5.2: in Team the server's lock is the one that counts. Start from
+      // it, not from this device's copy, so the change is made from the
+      // current state (the server refuses a stale one anyway).
+      try {
+        current = await fetchTeamBooksLock(team);
+      } on Object catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('The books lock is kept by the Team server, which '
+                'could not be reached: $e')));
+        return;
+      }
+      if (!mounted) return;
+    }
 
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: current ?? DateTime(now.year, now.month, 0), // last month-end
+      initialDate: DateTime.tryParse(current ?? '') ??
+          DateTime(now.year, now.month, 0), // last month-end
       firstDate: DateTime(now.year - 10),
       lastDate: now,
       helpText: 'Lock books through',
@@ -187,31 +204,65 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final iso = '${picked.year.toString().padLeft(4, '0')}-'
         '${picked.month.toString().padLeft(2, '0')}-'
         '${picked.day.toString().padLeft(2, '0')}';
+    final reopens = current != null && iso.compareTo(current) < 0;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Lock the books?'),
-        content: Text(
-            'Nothing can be posted on or before $iso — invoices, payments, '
-            'journals and stock entries dated into the locked period are '
-            'rejected at submit. You can move or clear the lock here or on '
-            'the Company profile.'),
+        title: Text(
+            reopens ? 'Reopen part of a closed period?' : 'Lock the books?'),
+        content: Text([
+          'Nothing can be posted on or before $iso — invoices, payments, '
+              'journals, expenses, deposits and stock entries dated into the '
+              'locked period are rejected at submit.',
+          if (reopens)
+            'The books are locked through $current now, so this reopens '
+                'the days after $iso.',
+          if (team != null)
+            'In Atlas Team the lock is set on the Team server and applies '
+                'to every device. Locking needs the Owner, Admin or '
+                'Accountant role; reopening needs Owner or Admin.'
+          else
+            'You can move or clear the lock here or on the Company profile.',
+        ].join('\n\n')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(c, false),
               child: const Text('Cancel')),
           FilledButton(
               onPressed: () => Navigator.pop(c, true),
-              child: const Text('Lock books')),
+              child: Text(reopens ? 'Reopen' : 'Lock books')),
         ],
       ),
     );
-    if (confirmed != true) return;
-    company.payload['books_lock_date'] = iso;
-    await engine.save(company, const {'System Manager'});
+    if (confirmed != true || !mounted) return;
+    if (team != null) {
+      try {
+        final db = (await ref.read(mercantisDatabaseProvider.future)).db;
+        await setTeamBooksLock(
+          session: team,
+          database: db,
+          lockDate: iso,
+          expectedCurrent: current,
+        );
+      } on CloudHttpException catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.statusCode == 403
+                ? 'Your role cannot ${reopens ? 'reopen' : 'lock'} the books '
+                    'in Atlas Team. Ask the owner or an admin.'
+                : e.statusCode == 409
+                    ? '${e.message} Open this again to start from the '
+                        'current lock.'
+                    : 'The Team server did not change the lock: ${e.message}')));
+        return;
+      }
+    } else {
+      company.payload['books_lock_date'] = iso;
+      await engine.save(company, const {'System Manager'});
+    }
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Books locked through $iso')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('Books locked through $iso')));
   }
 
   Future<void> _changePasscode() async {
@@ -241,14 +292,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             name: 'Signed in',
             child: ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(
-                  child: Text(_initials(active?.name ?? '?'))),
+              leading:
+                  CircleAvatar(child: Text(_initials(active?.name ?? '?'))),
               title: Text(active?.name ?? 'No operator'),
               subtitle: Text([
                 if ((active?.email ?? '').isNotEmpty) active!.email,
-                active == null
-                    ? ''
-                    : active.roles.join(', '),
+                active == null ? '' : active.roles.join(', '),
               ].where((s) => s.isNotEmpty).join('  ·  ')),
             ),
           ),
@@ -293,8 +342,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ListTile(
                   leading: const Icon(Icons.tune_outlined),
                   title: const Text('Business type & features'),
-                  subtitle: Text(
-                      '${settings.userMode.title} view · '
+                  subtitle: Text('${settings.userMode.title} view · '
                       '${settings.features.isEmpty ? 'no optional features' : '${settings.features.length} optional feature${settings.features.length == 1 ? '' : 's'} on'}'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/w/setup/features'),
@@ -332,8 +380,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ListTile(
                   leading: const Icon(Icons.cloud_sync_outlined),
                   title: const Text('Company sync'),
-                  subtitle:
-                      const Text('Share this company across devices, serverless'),
+                  subtitle: const Text(
+                      'Share this company across devices, serverless'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => const CompanySyncScreen(),
@@ -368,51 +416,51 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             )
           else
-          AtlasSectionCard(
-            name: 'Tools',
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.healing_outlined),
-                  title: const Text('Repair chart of accounts'),
-                  subtitle: const Text(
-                      'Re-create missing starter accounts and re-wire broken '
-                      'company default-account links'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _repairCoa,
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.event_available_outlined),
-                  title: const Text('Close financial year'),
-                  subtitle: const Text(
-                      'Draft a closing entry that zeroes the P&L into '
-                      'Retained Earnings for review'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _closeYear,
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.inventory_2_outlined),
-                  title: const Text('Inventory take-on'),
-                  subtitle: const Text(
-                      'One-time upgrade: align the GL inventory account with '
-                      'the stock ledger'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _inventoryTakeOn,
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.lock_clock_outlined),
-                  title: const Text('Lock books (period close)'),
-                  subtitle: const Text(
-                      'Reject any posting dated into a finalised period'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _lockBooks,
-                ),
-              ],
+            AtlasSectionCard(
+              name: 'Tools',
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.healing_outlined),
+                    title: const Text('Repair chart of accounts'),
+                    subtitle: const Text(
+                        'Re-create missing starter accounts and re-wire broken '
+                        'company default-account links'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _repairCoa,
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.event_available_outlined),
+                    title: const Text('Close financial year'),
+                    subtitle: const Text(
+                        'Draft a closing entry that zeroes the P&L into '
+                        'Retained Earnings for review'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _closeYear,
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.inventory_2_outlined),
+                    title: const Text('Inventory take-on'),
+                    subtitle: const Text(
+                        'One-time upgrade: align the GL inventory account with '
+                        'the stock ledger'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _inventoryTakeOn,
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.lock_clock_outlined),
+                    title: const Text('Lock books (period close)'),
+                    subtitle: const Text(
+                        'Reject any posting dated into a finalised period'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _lockBooks,
+                  ),
+                ],
+              ),
             ),
-          ),
           const SizedBox(height: MercantisSpacing.lg),
           AtlasSectionCard(
             name: 'Support',

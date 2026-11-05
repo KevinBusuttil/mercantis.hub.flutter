@@ -11,6 +11,7 @@ import '../manifest/hub_manifest.dart';
 import '../support/diagnostic_log.dart';
 import 'solo_to_team.dart';
 import 'team_account_client.dart';
+import 'team_books_lock.dart';
 import 'team_posting_service.dart';
 import 'team_session.dart';
 import 'team_sync_runner.dart';
@@ -212,7 +213,6 @@ class SoloToTeamRunner {
     if (rows.isEmpty) return;
     final c = jsonDecode('${rows.first['payload']}') as Map<String, dynamic>;
     const keys = [
-      'books_lock_date',
       'default_receivable_account',
       'default_payable_account',
       'default_income_account',
@@ -221,6 +221,8 @@ class SoloToTeamRunner {
       'default_cogs_account',
       'default_grni_account',
       'default_stock_adjustment_account',
+      'default_customer_deposit_account',
+      'default_vat_account',
     ];
     final patch = <String, dynamic>{
       for (final k in keys)
@@ -229,12 +231,31 @@ class SoloToTeamRunner {
         'allow_negative_stock': c['allow_negative_stock'] == true ||
             '${c['allow_negative_stock']}' == '1',
     };
-    if (patch.isEmpty) return;
     final account = TeamAccountClient(baseUrl: session.baseUrl, client: client);
-    await account.patchSettings(
-        companyId: session.companyId,
-        authToken: session.userToken,
-        settings: patch);
+    if (patch.isNotEmpty) {
+      await account.patchSettings(
+          companyId: session.companyId,
+          authToken: session.userToken,
+          settings: patch);
+    }
+    // C5.2: the lock has its own authorised command. A new Team company has
+    // no lock yet; a retried conversion finds it already set (a no-op).
+    final lock = normalizeBooksLock(c['books_lock_date']);
+    if (lock != null) {
+      try {
+        await account.setBooksLock(
+          companyId: session.companyId,
+          authToken: session.userToken,
+          lockDate: lock,
+          expectedCurrent: null,
+          reason: 'Carried over from the Solo book',
+        );
+      } on CloudHttpException catch (e) {
+        // 409: the Team company already has a lock someone set there after
+        // an earlier attempt. That lock is the authoritative one; keep it.
+        if (e.statusCode != 409) rethrow;
+      }
+    }
   }
 
   Future<void> _buildTeamBook(
