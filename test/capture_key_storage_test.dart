@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// kept it in SharedPreferences (`capture.ai.api_key`); it is moved once,
 /// verified before the plaintext copy is deleted.
 void main() {
-  const secret = 'sk-test-0123456789abcdef';
+  const secret = 'not-a-real-key';
   late MemoryCaptureSecretStore store;
 
   ProviderContainer container() {
