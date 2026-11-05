@@ -15,7 +15,7 @@ Related documents:
 | All business records: documents, child rows, GL, stock ledger, audit log, sync queue, posting outbox, numbering | `<app support dir>/mercantis.db` (`atlasDatabaseFileName`, `mercantis_core_ui/.../core_providers.dart`) | SQLite through sqflite (mobile) or sqflite_common_ffi (desktop) | **Not encrypted by Atlas.** Relies on the OS (see §3). |
 | Attachments (receipts, signed invoices, photos) | `<app support dir>/attachments/<doc>/<id>` | Plain files. The DB's `attachments` table holds metadata and a SHA-256. | Not encrypted by Atlas. Same reliance on the OS. |
 | Device preferences (theme, saved queries, capture settings, folder-sync choice) | SharedPreferences | Plain key/value | Not encrypted. |
-| AI capture API key | SharedPreferences (`capture.ai.settings`) | **Plaintext** | None beyond the OS sandbox. Classified BLOCKER-SOLO-GA (R4), see §5. |
+| AI capture API key | Platform secure store (Keychain / Android Keystore, key `atlas.capture.ai.api_key.v1`) since C2; an older plaintext copy in SharedPreferences is moved on first read and deleted | Encrypted by the OS | R4 resolved in code (C2); device check pending. |
 | Atlas Team session token | flutter_secure_storage (Keychain / Android Keystore-backed) | OS secure storage | OS-encrypted. |
 | Operator passcodes | In the DB: salted SHA-256, 100 000 rounds | Hash only | Included in backups as a hash, never in plaintext. |
 | Backups | Wherever the user saves them (`.atlasbackup`) | AES-256-GCM, key from Argon2id of the user's passphrase | **Encrypted**, see the backup doc. |

@@ -960,8 +960,10 @@ on branch `claude/project-thread-ff896d` of both the hub and the backend.
   Entry, and for offline POS through server confirmation. The sync plane now
   refuses client ledger rows and client lifecycle changes on these doctypes.
   An engine-level guard stops every hub flow from posting locally in Team.
-  Journal Entry, Expense and Customer Deposit have no server path and are
-  blocked in Team. See `docs/team/TEAM_POSTING_AUTHORITY.md`.
+  Journal Entry, Expense and Customer Deposit had no server path and were
+  blocked in Team; C5 (November 2026, not merged) adds their server
+  posting and one server-held books lock. See
+  `docs/team/TEAM_POSTING_AUTHORITY.md`.
 - **M3.5 shared fixtures.** Green on both engines. The 12 backend fixtures
   run on the Solo engine (`test/accounting_contract_test.dart`). This
   surfaced one Solo defect, now fixed: Solo let a paid invoice be cancelled
@@ -983,6 +985,16 @@ container. It is not the M3 gate's acceptance scenario with real users.
 
 ---
 
+### Corrections C1–C7 (November 2026)
+
+Seven correction increments ran on 5 November 2026 as stacked draft PRs
+(hub #196–#201 and the C7 docs PR, core #129–#130, backend #2–#5). None is merged. What each
+changed, the merge order, the device and pilot protocols still PENDING and
+the product-owner actions are in
+[release/COMMERCIALISATION_STATUS.md](release/COMMERCIALISATION_STATUS.md).
+No gate below changed state because of them: their evidence is automated
+and container-only.
+
 ## 12. M3 release gate — Atlas Team RC
 
 Run a two-user/two-device acceptance scenario with forced concurrency and intermittent connectivity.
@@ -998,7 +1010,7 @@ M3 is complete only when:
 - [x] Official document numbers cannot duplicate under concurrency. *(backend `tests/posting.rs`, hub E2E step 6, unique index 0011)*
 - [x] Submitted official documents are server-side immutable except through valid reversal/amendment flows. *(backend `tests/authority_guard.rs`)*
 - [x] Shared stock cannot be over-consumed due to concurrent stale clients. *(SLE expectations plus retry, fixture 0003. Offline POS is the documented exception: shortfalls are reported, not refused)*
-- [x] Shared accounting fixture suite is green on both Solo and Team authority. *(12 of 12 on both engines)*
+- [x] Shared accounting fixture suite is green on both Solo and Team authority. *(12 of 12 on both engines on `main`; 16 of 16 with C5, not merged)*
 - [x] Roles are enforced server-side. *(fixture 0007)*
 - [x] Audit attributes official changes to company/user/device.
 - [x] Backup/restore drill succeeds. *(CI job plus a local report; the production-backup drill is still due)*
